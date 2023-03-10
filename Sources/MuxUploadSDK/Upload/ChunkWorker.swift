@@ -6,7 +6,6 @@
 //
 
 import Foundation
-import Alamofire
 
 /// Uploads a single chunk. Starts an internal Task on creation, which you can get with ``getTask``
 ///  This class takes care of retries and backoff on a per-chunk basis
@@ -20,7 +19,6 @@ class ChunkWorker {
     let fileMIMEType: String
     
     private var chunkStartTime: TimeInterval? = nil
-    private var uploadRequest: UploadRequest? = nil
     private var lastSeenUpdate: Update = Update(progress: Progress(totalUnitCount: 10), bytesSinceLastUpdate: 0, chunkStartTime: 0, eventTime: 0)
     private var progressDelegate: ProgressHandler?
     
@@ -183,8 +181,8 @@ fileprivate actor ChunkActor {
         let contentRangeValue = "bytes \(chunk.startByte)-\(chunk.endByte - 1)/\(chunk.totalFileSize)"
         var request = URLRequest(url: uploadURL)
         request.httpMethod = "PUT"
-        request.headers.add(HTTPHeader(name: "Content-Type", value: fileMIMEType))
-        request.headers.add(HTTPHeader(name: "Content-Range", value: contentRangeValue))
+        request.setValue(fileMIMEType, forHTTPHeaderField: "Content-Type")
+        request.setValue(contentRangeValue, forHTTPHeaderField: "Content-Range")
         
         let (_, response) = try await urlSession.upload(for: request, from: chunk.chunkData)
         return response
