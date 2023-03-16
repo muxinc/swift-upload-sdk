@@ -52,11 +52,11 @@ public final class Reporter {
         do {
             let jsonData = try JSONEncoder().encode(newUploadEvent)
             request.httpBody = jsonData
-                let task = URLSession.shared.dataTask(with: request) { (data, response, error) in
-                    if let error = error {
-                        print("Error took place \(error)")
-                        return
-                    }
+            let task = URLSession.shared.dataTask(with: request) { (data, response, error) in
+                if let error = error {
+                    print("Error took place \(error)")
+                    return
+                }
             }
             task.resume()
         } catch _ as NSError {}
