@@ -6,7 +6,6 @@
 //
 
 import Foundation
-import Sentry
 
 /// Uploads a file in chunks according to the input configuration. Retries are handled according to the input ``UploadInfo``
 /// This object is not externally thread-safe. Access its methods only from the main thread
@@ -24,6 +23,7 @@ class ChunkedFileUploader {
     private var overallProgress: Progress = Progress()
     private var lastSeenUpdate: InternalUploadState? = nil
     private var lastByte: UInt64 = 0
+    private var reporter = Reporter()
     
     func addDelegate(withToken token: Int, _ delegate: ChunkedFileUploaderDelegate) {
         delegates.updateValue(delegate, forKey: token)
@@ -92,12 +92,10 @@ class ChunkedFileUploader {
                 try file.seekTo(byte: lastByte)
                 let result = try await makeWorker().performUpload()
                 file.close()
-                
-                let uploadEvent = Event(level: SentryLevel.info)
-                uploadEvent.message = SentryMessage(formatted: "MobileUploadEvent")
+
                 let uploadDuration = result.updateTime - result.startTime
-                uploadEvent.tags = ["upload-duration": String(format: "%f", uploadDuration)]
-                SentrySDK.capture(event: uploadEvent)
+                reporter.report(duration: String(format: "%f", uploadDuration))
+
                 let success = UploadResult(
                     finalProgress: result.progress,
                     startTime: result.startTime,
