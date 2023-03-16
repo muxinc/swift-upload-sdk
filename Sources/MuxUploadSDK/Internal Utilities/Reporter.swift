@@ -36,7 +36,7 @@ struct UploadEvent: Codable {
 }
 
 public final class Reporter {
-    let url = URL(string: "https://mobile-analytics.mux.dev/api/cors")
+    let url = URL(string: "https://mobile-analytics.mux.dev/api/events")
     var request: URLRequest
 
     init() {
