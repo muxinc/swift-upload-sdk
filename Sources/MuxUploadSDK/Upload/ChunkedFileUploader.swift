@@ -5,6 +5,7 @@
 //  Created by Emily Dixon on 2/23/23.
 //
 
+import AVFoundation
 import Foundation
 
 /// Uploads a file in chunks according to the input configuration. Retries are handled according to the input ``UploadInfo``
@@ -89,18 +90,28 @@ class ChunkedFileUploader {
             do {
                 // It's fine if it's already open, that's handled by ignoring the call
                 try file.openFile(fileURL: uploadInfo.videoFile)
+                let fileSize = file.fileSize
                 try file.seekTo(byte: lastByte)
                 let result = try await makeWorker().performUpload()
                 file.close()
-
-                let uploadDuration = result.updateTime - result.startTime
-                reporter.report(duration: String(format: "%f", uploadDuration))
 
                 let success = UploadResult(
                     finalProgress: result.progress,
                     startTime: result.startTime,
                     finishTime: result.updateTime
                 )
+
+                let asset = AVAsset(url: uploadInfo.videoFile)
+
+                var duration: CMTime
+                if #available(iOS 16, *) {
+                    duration = try await asset.load(.duration)
+                } else {
+                    duration = asset.duration
+                }
+
+                reporter.report(start_time: success.startTime, end_time: success.finishTime, file_size: fileSize, video_duration: duration.seconds)
+
                 notifyStateFromWorker(.success(success))
             } catch {
                 file.close()
