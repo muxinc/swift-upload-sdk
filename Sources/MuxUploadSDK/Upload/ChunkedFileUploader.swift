@@ -109,7 +109,12 @@ class ChunkedFileUploader {
                     duration = asset.duration
                 }
 
-                Reporter.sharedInstance.report(start_time: success.startTime, end_time: success.finishTime, file_size: fileSize, video_duration: duration.seconds)
+                Reporter.sharedInstance.report(
+                    startTime: success.startTime,
+                    endTime: success.finishTime,
+                    fileSize: fileSize,
+                    videoDuration: duration.seconds
+                )
 
                 notifyStateFromWorker(.success(success))
             } catch {

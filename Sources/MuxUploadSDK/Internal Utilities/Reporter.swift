@@ -21,8 +21,8 @@ class Reporter: NSObject {
         session = URLSession(configuration: sessionConfig, delegate: self, delegateQueue: nil)
     }
 
-    func report(start_time: TimeInterval, end_time: TimeInterval, file_size: UInt64, video_duration: Double) -> Void {
-        self.pendingUploadEvent = UploadEvent(start_time: start_time, end_time: end_time, file_size: file_size, video_duration: video_duration)
+    func report(startTime: TimeInterval, endTime: TimeInterval, fileSize: UInt64, videoDuration: Double) -> Void {
+        self.pendingUploadEvent = UploadEvent(startTime: startTime, endTime: endTime, fileSize: fileSize, videoDuration: videoDuration)
 
         let request = self.generateRequest(url: URL(string: "https://mobile.muxanalytics.com")!)
 
@@ -41,7 +41,9 @@ class Reporter: NSObject {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
         do {
-            let jsonData = try JSONEncoder().encode(self.pendingUploadEvent)
+            let encoder = JSONEncoder()
+            encoder.keyEncodingStrategy = JSONEncoder.KeyEncodingStrategy.convertToSnakeCase
+            let jsonData = try encoder.encode(self.pendingUploadEvent)
             request.httpBody = jsonData
         } catch _ as NSError {}
 

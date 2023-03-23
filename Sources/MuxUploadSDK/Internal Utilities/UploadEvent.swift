@@ -10,41 +10,41 @@ import UIKit
 
 struct UploadEvent: Codable {
     var type = "upload"
-    var start_time: TimeInterval
-    var end_time: TimeInterval
-    var file_size: UInt64
-    var video_duration: Double
+    var startTime: TimeInterval
+    var endTime: TimeInterval
+    var fileSize: UInt64
+    var videoDuration: Double
 
-    var sdk_version: String
+    var sdkVersion: String
 
-    var os_name: String
-    var os_version: String
+    var osName: String
+    var osVersion: String
 
-    var device_model: String
+    var deviceModel: String
 
-    var app_name: String?
-    var app_version: String?
+    var appName: String?
+    var appVersion: String?
 
     var regionCode: String?
 
-    init(start_time: TimeInterval, end_time: TimeInterval, file_size: UInt64, video_duration: Double) {
+    init(startTime: TimeInterval, endTime: TimeInterval, fileSize: UInt64, videoDuration: Double) {
         let locale = Locale.current
         let device = UIDevice.current
 
-        self.start_time = start_time
-        self.end_time = end_time
-        self.file_size = file_size
-        self.video_duration = video_duration
+        self.startTime = startTime
+        self.endTime = endTime
+        self.fileSize = fileSize
+        self.videoDuration = videoDuration
 
-        self.sdk_version = "0.2.0" // TODO Read from properties
+        self.sdkVersion = "0.2.0" // TODO Read from properties
 
-        self.os_name = device.systemName
-        self.os_version = device.systemVersion
+        self.osName = device.systemName
+        self.osVersion = device.systemVersion
 
-        self.device_model = device.model
+        self.deviceModel = device.model
 
-        self.app_name = Bundle.main.appName
-        self.app_version = Bundle.main.appVersion
+        self.appName = Bundle.main.appName
+        self.appVersion = Bundle.main.appVersion
 
         if #available(iOS 16, *) {
             self.regionCode = locale.language.region?.identifier
