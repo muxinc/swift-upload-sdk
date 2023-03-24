@@ -103,9 +103,10 @@ class ChunkedFileUploader {
                 let asset = AVAsset(url: uploadInfo.videoFile)
 
                 var duration: CMTime
-                if #available(iOS 16, *) {
+                if #available(iOS 15, *) {
                     duration = try await asset.load(.duration)
                 } else {
+                    await asset.loadValues(forKeys: ["duration"])
                     duration = asset.duration
                 }
 
