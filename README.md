@@ -12,9 +12,8 @@ To start an upload, you must first create an [upload URL](https://docs.mux.com/g
 
 ```swift
 let upload = MuxUpload(
-    uploadURL: URL(string: PUT_URL)!,
-    videoFileURL: videoFile,
-    videoMIMEType: "video/*"
+    uploadURL: myMuxUploadURL,
+    videoFileURL: videoFile
 )
 
 upload.progressHandler = { state in
