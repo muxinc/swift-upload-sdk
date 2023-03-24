@@ -11,10 +11,7 @@ class Reporter: NSObject {
     var session: URLSession?
     var pendingUploadEvent: UploadEvent?
 
-    // MARK: - Constructor -
-    static let sharedInstance = Reporter()
-
-    fileprivate override init() {
+    override init() {
         super.init()
 
         let sessionConfig: URLSessionConfiguration = URLSessionConfiguration.default

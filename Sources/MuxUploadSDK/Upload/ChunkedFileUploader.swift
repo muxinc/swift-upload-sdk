@@ -24,6 +24,7 @@ class ChunkedFileUploader {
     private var overallProgress: Progress = Progress()
     private var lastSeenUpdate: InternalUploadState? = nil
     private var lastByte: UInt64 = 0
+    private let reporter = Reporter()
     
     func addDelegate(withToken token: Int, _ delegate: ChunkedFileUploaderDelegate) {
         delegates.updateValue(delegate, forKey: token)
@@ -110,7 +111,7 @@ class ChunkedFileUploader {
                     duration = asset.duration
                 }
 
-                Reporter.sharedInstance.report(
+                reporter.report(
                     startTime: success.startTime,
                     endTime: success.finishTime,
                     fileSize: fileSize,
