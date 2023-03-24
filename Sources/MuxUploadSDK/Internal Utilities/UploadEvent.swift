@@ -36,7 +36,7 @@ struct UploadEvent: Codable {
         self.fileSize = fileSize
         self.videoDuration = videoDuration
 
-        self.sdkVersion = "0.2.0" // TODO Read from properties
+        self.sdkVersion = Version.versionString
 
         self.osName = device.systemName
         self.osVersion = device.systemVersion
