@@ -11,15 +11,18 @@ Add our SDK as a package dependency to your XCode project [with the following st
 To start an upload, you must first create an [upload URL](https://docs.mux.com/guides/video/upload-files-directly). Then, pass the upload URL and the file to be uploaded into the SDK.
 
 ```swift
-let upload = MuxUpload.Builder(uploadURL: URL(string: myUploadURL)!, videoFile: videoFile)
-    .withMIMEType(type: "video/*")
-    .build()
+let upload = MuxUpload(
+    uploadURL: URL(string: PUT_URL)!,
+    videoFileURL: videoFile,
+    videoMIMEType: "video/*"
+)
 
-upload.setProgressDelegate(delegate: { state in
+upload.progressHandler = { state in
     self.uploadScreenState = .uploading(state)
-})
+}
 
-upload.setResultDelegate(delegate: { result in
+upload.resultHandler = { result in
+    // TODO: Delete the temp file
     switch result {
     case .success(let success):
         self.uploadScreenState = .done(success)
@@ -27,16 +30,21 @@ upload.setResultDelegate(delegate: { result in
         NSLog("Upload Success!")
     case .failure(let error):
         self.uploadScreenState = .failure(error)
-        self.upload = nil
         NSLog("!! Upload error: \(error.localizedDescription)")
     }
-})
+}
 
 self.upload = upload
 upload.start()
 ```
 
 A simple example usage can be found in our [Test App](https://github.com/muxinc/swift-upload-sdk/blob/main/apps/Test%20App/Test%20App/Screens/UploadScreenViewModel.swift)
+
+## Development
+
+This SDK is a swift package that can be opened by xcode. To edit this SDK, clone it and open the root folder in Xcode.
+
+This SDK has a sample/test app in the `TestApp/` folder. You can run/edit the sample app by opening `apps/Test App/Upload Test App.xcodeproj`
 
 ## Known Issues
 
