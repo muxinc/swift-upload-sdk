@@ -4,10 +4,14 @@ This SDK makes it easy to upload videos to Mux from an iOS app. It handles large
 ## Usage
 To use this SDK, you must first add it as a dependency. The Mux Swift Upload SDK for iOS is available on SPM.
 
-### Add Package Dependency
+### Server-Side: Create a Direct Upload
+
+To start an upload, you must first create an [upload URL](https://docs.mux.com/guides/video/upload-files-directly). Then, pass return that direct-upload PUT URL to your app, so the app can begin the upload process
+
+### App-Side: Add Package Dependency
 Add our SDK as a package dependency to your XCode project [with the following steps](https://developer.apple.com/documentation/xcode/adding-package-dependencies-to-your-app). Our repository URL (for the 'search' field in the upper corner) is `https://github.com/muxinc/swift-upload-sdk`
 
-### Start an Upload
+### App-Side: Start an Upload
 To start an upload, you must first create an [upload URL](https://docs.mux.com/guides/video/upload-files-directly). Then, pass the upload URL and the file to be uploaded into the SDK.
 
 ```swift
@@ -21,7 +25,6 @@ upload.progressHandler = { state in
 }
 
 upload.resultHandler = { result in
-    // TODO: Delete the temp file
     switch result {
     case .success(let success):
         self.uploadScreenState = .done(success)
