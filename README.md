@@ -47,7 +47,3 @@ A simple example usage can be found in our [Test App](https://github.com/muxinc/
 This SDK is a swift package that can be opened by xcode. To edit this SDK, clone it and open the root folder in Xcode.
 
 This SDK has a sample/test app in the `TestApp/` folder. You can run/edit the sample app by opening `apps/Test App/Upload Test App.xcodeproj`
-
-## Known Issues
-
-* Resumed uploads currently start over from the beginning of the file being uploaded.
