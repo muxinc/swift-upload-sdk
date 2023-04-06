@@ -22,7 +22,7 @@ class ChunkedFileUploader {
     private var _currentState: InternalUploadState = .ready
     private var overallProgress: Progress = Progress()
     private var lastSeenUpdate: InternalUploadState? = nil
-    private var lastByte: UInt64 = 0
+    private var lastReadCount: UInt64 = 0
     
     func addDelegate(withToken token: Int, _ delegate: ChunkedFileUploaderDelegate) {
         delegates.updateValue(delegate, forKey: token)
@@ -87,8 +87,6 @@ class ChunkedFileUploader {
         let task = Task.detached { [self] in
             do {
                 // It's fine if it's already open, that's handled by ignoring the call
-                try file.openFile(fileURL: uploadInfo.videoFile)
-                try file.seekTo(byte: lastByte)
                 let result = try await makeWorker().performUpload()
                 file.close()
                 
@@ -103,14 +101,14 @@ class ChunkedFileUploader {
                 if let lastUpdate = lastSeenUpdate {
                     switch lastUpdate {
                     case .uploading(let update): do {
-                        if lastByte > 0 {
-                            lastByte = UInt64(update.progress.completedUnitCount)
+                        if lastReadCount > 0 {
+                            lastReadCount = UInt64(update.progress.completedUnitCount)
                         }
                     }
                     default: break
                     }
                 }
-                let uploadError = InternalUploaderError(reason: error, lastByte: lastByte)
+                let uploadError = InternalUploaderError(reason: error, lastByte: lastReadCount)
                 notifyStateFromWorker(.failure(uploadError))
             }
             
@@ -122,7 +120,8 @@ class ChunkedFileUploader {
         return Worker(
             uploadInfo: uploadInfo,
             chunkedFile: file,
-            progress: overallProgress
+            progress: overallProgress,
+            startByte: lastReadCount
         ) { progress, startTime, eventTime in
             let update = Update(
                 progress: progress,
@@ -149,7 +148,7 @@ class ChunkedFileUploader {
         
         if case .uploading(let update) = state {
             let count = update.progress.completedUnitCount
-            lastByte = UInt64(count)
+            lastReadCount = UInt64(count)
         }
         
         for delegate in delegates.values {
@@ -175,7 +174,7 @@ class ChunkedFileUploader {
     init(uploadInfo: UploadInfo, file: ChunkedFile, startingByte: UInt64 = 0) {
         self.uploadInfo = uploadInfo
         self.file = file
-        self.lastByte = startingByte
+        self.lastReadCount = startingByte
     }
     
     enum InternalUploadState {
@@ -214,14 +213,19 @@ fileprivate actor Worker {
     private let chunkedFile: ChunkedFile
     private let overallProgress: Progress
     private let progressHandler: ProgressHandler
+    private let startingReadCount: UInt64
     
     func performUpload() async throws -> ChunkedFileUploader.Update {
+        try chunkedFile.openFile(fileURL: uploadInfo.videoFile)
+        try chunkedFile.seekTo(byte: startingReadCount)
+        
         let startTime = Date().timeIntervalSince1970
         
         let fileSize = chunkedFile.fileSize
         let wideFileSize = Int64(fileSize)
         overallProgress.totalUnitCount = wideFileSize
         overallProgress.isCancellable = false
+        overallProgress.completedUnitCount = Int64(startingReadCount)
         
         var readBytes: Int
         repeat {
@@ -272,11 +276,13 @@ fileprivate actor Worker {
         uploadInfo: UploadInfo,
         chunkedFile: ChunkedFile,
         progress: Progress,
+        startByte: UInt64,
         _ progressHandler: @escaping ProgressHandler
     ) {
         self.uploadInfo = uploadInfo
         self.chunkedFile = chunkedFile
         self.progressHandler = progressHandler
         self.overallProgress = progress
+        self.startingReadCount = startByte
     }
 }
