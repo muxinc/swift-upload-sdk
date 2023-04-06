@@ -30,7 +30,7 @@ class UploadScreenViewModel: ObservableObject {
 
     }
     
-    let PUT_URL = "https://storage.googleapis.com/video-storage-gcp-us-east4-vop1-uploads/4OAV5fGb8RMf2ElvbeLz8I?Expires=1680807117&GoogleAccessId=uploads-gcp-us-east1-vop1%40mux-video-production.iam.gserviceaccount.com&Signature=dOFesy7mXnbKnytmdDsFKCVVZ6lW12JvPsTPOxSn0egin4WD6hVOQpTAmc3XycR%2F7OkoYKnTV6wauec9mrjLkOF4fdGuHUC76YZTMhezUFxNZYkEkf7rniRRUuiuJp%2B5IZvCdkYX0VfNMUDHG1pzi8XvEVN1evLI6CoA%2F6OPUJOtMC%2BX%2FTLlHUvFVzwPk06CzzjYer7ZE3O72UMtXFEAs4QAsf0L3eTfWJav4si%2F6F1Y3BgO4ypG7zKmStxsvQNa%2F71DlIwxo%2BO0n2iJFfh48te9kvI%2B7cqsgb7aaQcLIotJ040Jps5mRDlC5Q35yRIWhxRNmCfSLRnLUB1104SNwQ%3D%3D&upload_id=ADPycdu7bDavvtbJw3M9ukiH30zs06Ql-Twu7EHWfSKb48kvXU6Xd2Zn4EgBteTLwE3A0KrQEGg2H7p9rRKUX9D_Kt7OU_DHcGl4"
+    let PUT_URL = "https://storage.googleapis.com/video-storage-gcp-us-east4-vop1-uploads/KmgByhv1MfRPismF8kPK3G?Expires=1678317874&GoogleAccessId=uploads-gcp-us-east1-vop1%40mux-video-production.iam.gserviceaccount.com&Signature=L%2BrmPZ2LW%2FOHrvXops0V%2Bp8AYuGRV3CkLywUl5lNdhWTQe3Iz85WXnDCLmAWnTNmiGVx3RWtAf5zRJ0Ahgcaz7hkq7kPpvUgx2NRzLukSeRix9CHowcshgqI8eQEtSx7HKxD8E2%2Boh0ur7tldNDCjBoTofg7yEzSu%2F2pqPp3qySf3nnjdbI86miKmLEK7d1YO431L3Ai5N6axWA9pR78cgrq7X48%2FqhDHmITtqRwx%2Baossr2Jar9FRY2PLFIHFawnyKbYGfmGHwDIR%2FCaqOFTUlnSKpbFJ5BZPGCu2HQVZbhuBSrWthg34hczlFT0K5410MMksyLXn8j0LC%2B757cQw%3D%3D&upload_id=ADPycdv6m_6zr0XH6-0w2EdY2wZzspZ1ofLu-2l9e64ni24k-FX66g31mkyHcawdRv5ITVksYpwJUU6VKblDkq143jKR"
     
     @Published
     var uploadScreenState: AppUploadState = .not_started
@@ -128,12 +128,12 @@ class UploadScreenViewModel: ObservableObject {
         session.exportAsynchronously {
             DispatchQueue.main.async {
                 NSLog("Yay, Media exported & ready for upload!")
-                self.beginUploadToMux(videoFile: outFile)
+                self.beginMuxUpload(videoFile: outFile)
             }
         }
     }
     
-    private func beginUploadToMux(videoFile: URL) {
+    private func beginMuxUpload(videoFile: URL) {
         let upload = MuxUpload(
             uploadURL: URL(string: PUT_URL)!,
             videoFileURL: videoFile,
