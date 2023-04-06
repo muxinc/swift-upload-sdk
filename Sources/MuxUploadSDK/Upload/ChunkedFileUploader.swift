@@ -5,6 +5,7 @@
 //  Created by Emily Dixon on 2/23/23.
 //
 
+import AVFoundation
 import Foundation
 
 /// Uploads a file in chunks according to the input configuration. Retries are handled according to the input ``UploadInfo``
@@ -23,6 +24,7 @@ class ChunkedFileUploader {
     private var overallProgress: Progress = Progress()
     private var lastSeenUpdate: InternalUploadState? = nil
     private var lastReadCount: UInt64 = 0
+    private let reporter = Reporter()
     
     func addDelegate(withToken token: Int, _ delegate: ChunkedFileUploaderDelegate) {
         delegates.updateValue(delegate, forKey: token)
@@ -87,14 +89,33 @@ class ChunkedFileUploader {
         let task = Task.detached { [self] in
             do {
                 // It's fine if it's already open, that's handled by ignoring the call
+                let fileSize = file.fileSize
                 let result = try await makeWorker().performUpload()
                 file.close()
-                
+
                 let success = UploadResult(
                     finalProgress: result.progress,
                     startTime: result.startTime,
                     finishTime: result.updateTime
                 )
+
+                let asset = AVAsset(url: uploadInfo.videoFile)
+
+                var duration: CMTime
+                if #available(iOS 15, *) {
+                    duration = try await asset.load(.duration)
+                } else {
+                    await asset.loadValues(forKeys: ["duration"])
+                    duration = asset.duration
+                }
+
+                reporter.report(
+                    startTime: success.startTime,
+                    endTime: success.finishTime,
+                    fileSize: fileSize,
+                    videoDuration: duration.seconds
+                )
+
                 notifyStateFromWorker(.success(success))
             } catch {
                 file.close()
