@@ -72,7 +72,6 @@ class ChunkedFile {
     public func seekTo(byte: UInt64) throws {
         // Worst case: we start from the begining and there's a few very quick chunk successes
         try fileHandle?.seek(toOffset: byte)
-        NSLog("ChunkedFile: seekTo offset \(byte)")
         filePos = byte
     }
     

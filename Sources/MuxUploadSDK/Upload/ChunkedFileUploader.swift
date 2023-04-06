@@ -175,7 +175,6 @@ class ChunkedFileUploader {
         self.uploadInfo = uploadInfo
         self.file = file
         self.lastReadCount = startingByte
-        NSLog("ChunkedFileUploader: uploading starting from \(startingByte)")
     }
     
     enum InternalUploadState {
@@ -219,7 +218,6 @@ fileprivate actor Worker {
     func performUpload() async throws -> ChunkedFileUploader.Update {
         try chunkedFile.openFile(fileURL: uploadInfo.videoFile)
         try chunkedFile.seekTo(byte: startingReadCount)
-        NSLog("Opened file and tried to seek to \(startingReadCount)")
         
         let startTime = Date().timeIntervalSince1970
         
