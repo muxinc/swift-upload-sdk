@@ -16,7 +16,9 @@ class ChunkedFile {
     
     static let SIZE_UNKNOWN: UInt64 = 0
     /// The size of the file. Call ``open`` to populate this with a real value, otherwise it will be ``SIZE_UNKNOWN``
-    var fileSize: UInt64 { get { _fileSize } }
+    var fileSize: UInt64 {
+        return _fileSize
+    }
     
     private let chunkSize: Int
     
