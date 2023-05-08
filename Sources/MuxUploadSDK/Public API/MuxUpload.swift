@@ -54,7 +54,7 @@ public final class MuxUpload {
         uploadURL: URL,
         videoFileURL: URL,
         videoMIMEType: String = "video/*", // TODO: We can guess this, so make it optional,
-        chunkSize: Int = 8 * 1024 * 1024, // Google recommends *at least* 8M,
+        chunkSize: Int = 8 * 1024 * 1024, // Google recommends at least 8M
         retriesPerChunk: Int = 3,
         retryBaseTimeInterval: TimeInterval = 0.5
     ) {

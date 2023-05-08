@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		3570FE112A09883400E91965 /* FakeBackend.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3570FE102A09883400E91965 /* FakeBackend.swift */; };
 		358E3CB529A921B2005261CB /* Test_AppApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 358E3CA529A921B2005261CB /* Test_AppApp.swift */; };
 		358E3CB629A921B2005261CB /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 358E3CA629A921B2005261CB /* Assets.xcassets */; };
 		358E3CB729A921B2005261CB /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 358E3CA829A921B2005261CB /* Preview Assets.xcassets */; };
@@ -33,6 +34,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		3570FE102A09883400E91965 /* FakeBackend.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FakeBackend.swift; sourceTree = "<group>"; };
 		358E3C7729A92167005261CB /* Test App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Test App.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		358E3C9129A92168005261CB /* Test AppUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Test AppUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		358E3CA529A921B2005261CB /* Test_AppApp.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Test_AppApp.swift; sourceTree = "<group>"; };
@@ -69,6 +71,14 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		3570FE0F2A09881200E91965 /* Fake Server Backend */ = {
+			isa = PBXGroup;
+			children = (
+				3570FE102A09883400E91965 /* FakeBackend.swift */,
+			);
+			path = "Fake Server Backend";
+			sourceTree = "<group>";
+		};
 		358E3C6E29A92167005261CB = {
 			isa = PBXGroup;
 			children = (
@@ -95,6 +105,7 @@
 				358E3CA529A921B2005261CB /* Test_AppApp.swift */,
 				358E3CA629A921B2005261CB /* Assets.xcassets */,
 				358E3CA729A921B2005261CB /* Preview Content */,
+				3570FE0F2A09881200E91965 /* Fake Server Backend */,
 				358E3CA929A921B2005261CB /* Screens */,
 				358E3CAC29A921B2005261CB /* ContentView.swift */,
 				358E3CAD29A921B2005261CB /* Widgets */,
@@ -264,6 +275,7 @@
 				358E3CB929A921B2005261CB /* UploadScreenViewModel.swift in Sources */,
 				358E3CBA29A921B2005261CB /* ContentView.swift in Sources */,
 				358E3CB529A921B2005261CB /* Test_AppApp.swift in Sources */,
+				3570FE112A09883400E91965 /* FakeBackend.swift in Sources */,
 				358E3CBE29A921B2005261CB /* ButtonThemes.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
