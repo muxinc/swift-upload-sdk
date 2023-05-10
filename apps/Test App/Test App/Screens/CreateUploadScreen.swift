@@ -22,6 +22,22 @@ struct CreateUploadScreen: View {
         ZStack {
             WindowBackground
             VStack {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 4.0)
+                        .stroke(style: StrokeStyle(lineWidth: 1, lineCap: .round, dash: [4]))
+                        .foregroundColor(Gray30)
+                        .opacity(0.5)
+                    VStack {
+                        Image("Mux-y Add")
+                            .padding()
+                        Text("Tap to upload video")
+                            .font(.system(size: 18, weight: .bold))
+                            .foregroundColor(White)
+                    }
+                }
+                .padding()
+                .frame(height: 228)
+                
                 Spacer()
                 // This way: buttonStyle (but frame doesn't work)
                 Button("Upload") {
@@ -33,8 +49,7 @@ struct CreateUploadScreen: View {
                 // or this way (maybe not as swifty, this is sorta kinda what Compose would do)
                 DefaultButton(text: "Upload") {
                     
-                }
-                    .padding()
+                }.padding()
             }
         }
     }
