@@ -30,7 +30,7 @@ struct CreateUploadScreen: View {
                 .frame(width: .infinity)
                 .padding()
                 
-                // or this way (maybe not as swifty, this is what Compose would do)
+                // or this way (maybe not as swifty, this is sorta kinda what Compose would do)
                 DefaultButton(text: "Upload") {
                     
                 }
