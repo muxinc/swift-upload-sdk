@@ -126,7 +126,7 @@ public final class MuxUpload {
     public func start(forceRestart: Bool = false) {
         if self.manageBySDK {
             // See if there's anything in progress already
-            fileWorker = UploadManager.shared.findUploaderFor(videoFile: videoFile)
+            fileWorker = uploadManager.findUploaderFor(videoFile: videoFile)
         }
         guard !forceRestart && fileWorker == nil else {
             MuxUploadSDK.logger?.warning("start() called but upload is in progress")
@@ -160,7 +160,7 @@ public final class MuxUpload {
      */
     public func cancel() {
         fileWorker?.cancel()
-        UploadManager.shared.acknowledgeUpload(ofFile: videoFile)
+        uploadManager.acknowledgeUpload(ofFile: videoFile)
         
         lastSeenStatus = Status(progress: nil, updatedTime: 0, startTime: 0, isPaused: true)
         progressHandler = nil
