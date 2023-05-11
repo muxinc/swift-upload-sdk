@@ -11,7 +11,7 @@ struct CreateUploadScreen: View {
     var body: some View {
         ZStack { // Outer window
             Gray100.ignoresSafeArea(.container)
-            VStack {
+            VStack(spacing: 0) {
                 MuxyNavBar()
                 screenContent
             }
@@ -22,33 +22,11 @@ struct CreateUploadScreen: View {
         ZStack {
             WindowBackground
             VStack {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 4.0)
-                        .stroke(style: StrokeStyle(lineWidth: 1, lineCap: .round, dash: [4]))
-                        .foregroundColor(Gray30)
-                        .opacity(0.5)
-                    VStack {
-                        Image("Mux-y Add")
-                            .padding()
-                        Text("Tap to upload video")
-                            .font(.system(size: 18, weight: .bold))
-                            .foregroundColor(White)
-                    }
-                }
-                .padding()
-                .frame(height: 228)
-                
+                UploadVideoCta()
+                    .padding(EdgeInsets(top: 64, leading: 20, bottom: 0, trailing: 20))
                 Spacer()
-                // This way: buttonStyle (but frame doesn't work)
-                Button("Upload") {
-                }
-                .buttonStyle(DefaultButtonStyle())
-                .frame(width: .infinity)
-                .padding()
-                
-                // or this way (maybe not as swifty, this is sorta kinda what Compose would do)
-                DefaultButton(text: "Upload") {
-                    
+                DefaultButton("Upload") {
+                    // TODO: Start Upload
                 }.padding()
             }
         }

@@ -7,7 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		356FB4162A0C191000EA4362 /* DefaultButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 356FB4152A0C191000EA4362 /* DefaultButton.swift */; };
+		354421B32A0D628E00C6FD1F /* UploadVideoCta.swift in Sources */ = {isa = PBXBuildFile; fileRef = 354421B22A0D628E00C6FD1F /* UploadVideoCta.swift */; };
+		356FB4162A0C191000EA4362 /* Buttons.swift in Sources */ = {isa = PBXBuildFile; fileRef = 356FB4152A0C191000EA4362 /* Buttons.swift */; };
 		3570FE112A09883400E91965 /* FakeBackend.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3570FE102A09883400E91965 /* FakeBackend.swift */; };
 		3570FE132A0B15D800E91965 /* CreateUploadScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3570FE122A0B15D800E91965 /* CreateUploadScreen.swift */; };
 		3570FE162A0BFCD200E91965 /* Mux-y Colors.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3570FE152A0BFCD200E91965 /* Mux-y Colors.swift */; };
@@ -38,7 +39,8 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		356FB4152A0C191000EA4362 /* DefaultButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefaultButton.swift; sourceTree = "<group>"; };
+		354421B22A0D628E00C6FD1F /* UploadVideoCta.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UploadVideoCta.swift; sourceTree = "<group>"; };
+		356FB4152A0C191000EA4362 /* Buttons.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Buttons.swift; sourceTree = "<group>"; };
 		3570FE102A09883400E91965 /* FakeBackend.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FakeBackend.swift; sourceTree = "<group>"; };
 		3570FE122A0B15D800E91965 /* CreateUploadScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateUploadScreen.swift; sourceTree = "<group>"; };
 		3570FE152A0BFCD200E91965 /* Mux-y Colors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Mux-y Colors.swift"; sourceTree = "<group>"; };
@@ -100,7 +102,7 @@
 			isa = PBXGroup;
 			children = (
 				3570FE182A0C05EE00E91965 /* MuxyNavBar.swift */,
-				356FB4152A0C191000EA4362 /* DefaultButton.swift */,
+				356FB4152A0C191000EA4362 /* Buttons.swift */,
 			);
 			path = "Mux-y Views";
 			sourceTree = "<group>";
@@ -165,6 +167,7 @@
 				358E3CAF29A921B2005261CB /* UploadProgressView.swift */,
 				358E3CB029A921B2005261CB /* ImagePicker.swift */,
 				358E3CB129A921B2005261CB /* ButtonThemes.swift */,
+				354421B22A0D628E00C6FD1F /* UploadVideoCta.swift */,
 			);
 			path = Widgets;
 			sourceTree = "<group>";
@@ -298,13 +301,14 @@
 			files = (
 				3570FE132A0B15D800E91965 /* CreateUploadScreen.swift in Sources */,
 				358E3CBB29A921B2005261CB /* UploadingView.swift in Sources */,
-				356FB4162A0C191000EA4362 /* DefaultButton.swift in Sources */,
+				356FB4162A0C191000EA4362 /* Buttons.swift in Sources */,
 				3570FE192A0C05EE00E91965 /* MuxyNavBar.swift in Sources */,
 				358E3CB829A921B2005261CB /* UploadScreen.swift in Sources */,
 				358E3CBC29A921B2005261CB /* UploadProgressView.swift in Sources */,
 				358E3CBD29A921B2005261CB /* ImagePicker.swift in Sources */,
 				358E3CB929A921B2005261CB /* UploadScreenViewModel.swift in Sources */,
 				358E3CBA29A921B2005261CB /* ContentView.swift in Sources */,
+				354421B32A0D628E00C6FD1F /* UploadVideoCta.swift in Sources */,
 				3570FE162A0BFCD200E91965 /* Mux-y Colors.swift in Sources */,
 				358E3CB529A921B2005261CB /* Test_AppApp.swift in Sources */,
 				3570FE112A09883400E91965 /* FakeBackend.swift in Sources */,
@@ -463,7 +467,7 @@
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -495,7 +499,7 @@
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
