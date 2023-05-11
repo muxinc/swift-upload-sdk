@@ -40,8 +40,7 @@ struct CreateUploadScreen: View {
                 
                 Spacer()
                 // This way: buttonStyle (but frame doesn't work)
-                Button("Upload") {
-                }
+                Button("Upload") {}
                 .buttonStyle(DefaultButtonStyle())
                 .frame(width: .infinity)
                 .padding()
