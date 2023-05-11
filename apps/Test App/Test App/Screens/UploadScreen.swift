@@ -98,5 +98,6 @@ struct UploadScreen: View {
 struct MainPage_Previews: PreviewProvider {
     static var previews: some View {
         UploadScreen()
+            .environmentObject(UploadScreenViewModel())
     }
 }

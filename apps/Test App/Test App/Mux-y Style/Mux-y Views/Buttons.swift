@@ -85,6 +85,6 @@ struct StretchyDefaultButton_Previews: PreviewProvider {
         VStack {
             StretchyDefaultButton("Stretchy Button") { }
                 .padding()
-        }
+        }.background(WindowBackground)
     }
 }
