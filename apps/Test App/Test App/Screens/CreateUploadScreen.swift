@@ -46,7 +46,6 @@ struct EmptyView: View {
             Spacer()
         }
     }
-    
 }
 
 struct CreateUploadScreen_Previews: PreviewProvider {

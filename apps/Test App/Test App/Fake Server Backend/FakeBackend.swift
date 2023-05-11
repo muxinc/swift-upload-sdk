@@ -22,7 +22,7 @@ class FakeBackend {
         
         let (data, response) = try await urlSession.data(for: request)
         if let httpResponse = response as? HTTPURLResponse,
-            (200...299).contains(httpResponse.statusCode) {
+           (200...299).contains(httpResponse.statusCode) {
             let responseData = try jsonDecoder.decode(CreateUploadResponseContainer.self, from: data).data
             guard let uploadURL = URL(string:responseData.url) else {
                 throw CreateUploadError(message: "invalid upload url")

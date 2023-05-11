@@ -74,8 +74,7 @@ struct MuxyNavBar_Previews: PreviewProvider {
                 leadingNavButton: .close,
                 title: "some title"
             )
-            MuxyNavBar(
-            )
+            MuxyNavBar()
             Spacer()
         }
     }
