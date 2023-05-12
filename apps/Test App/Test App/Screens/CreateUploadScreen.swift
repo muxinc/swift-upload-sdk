@@ -32,7 +32,7 @@ struct ScreenContent: View {
 
 struct EmptyView: View {
     @EnvironmentObject var uploadScreenViewModel: UploadScreenViewModel
-    @State var inPickFlow = false // True when picking photos or resolving the related permission prompt
+    @State var inPickFlow = true // True when picking photos or resolving the related permission prompt, or when first launching the screen
     
     private var pickerConfig: PHPickerConfiguration = {
         let mediaFilter = PHPickerFilter.any(of: [.videos])
