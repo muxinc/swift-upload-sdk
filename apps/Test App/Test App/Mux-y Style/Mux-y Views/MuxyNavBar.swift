@@ -40,9 +40,7 @@ struct MuxyNavBar: View {
                     .frame(height: 1, alignment: .bottom)
             }
         }
-        .frame(
-            height: 64
-        )
+        .frame(height: 64)
         .background(Gray100)
     }
     
