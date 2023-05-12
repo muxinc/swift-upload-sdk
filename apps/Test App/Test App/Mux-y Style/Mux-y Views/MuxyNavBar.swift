@@ -37,11 +37,10 @@ struct MuxyNavBar: View {
             VStack {
                 Spacer()
                 Gray80
-                    .frame(width: .infinity, height: 1, alignment: .bottom)
+                    .frame(height: 1, alignment: .bottom)
             }
         }
         .frame(
-            width: .infinity,
             height: 64
         )
         .background(Gray100)
