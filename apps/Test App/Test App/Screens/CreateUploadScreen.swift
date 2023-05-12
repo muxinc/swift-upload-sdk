@@ -26,7 +26,7 @@ struct ScreenContent: View {
     var body: some View {
         ZStack {
             WindowBackground
-            // If we have a thumbnail loaded, that's what we want to show
+            // TODO: If we have a thumbnail loaded, that's what we want to show
             EmptyView()
         }
     }
