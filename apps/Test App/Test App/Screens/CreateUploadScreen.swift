@@ -21,8 +21,6 @@ struct CreateUploadScreen: View {
 }
 
 struct ScreenContent: View {
-    @EnvironmentObject var uploadScreenViewModel: UploadScreenViewModel
-    
     var body: some View {
         ZStack {
             WindowBackground
