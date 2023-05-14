@@ -11,8 +11,8 @@
 		356FB4162A0C191000EA4362 /* Buttons.swift in Sources */ = {isa = PBXBuildFile; fileRef = 356FB4152A0C191000EA4362 /* Buttons.swift */; };
 		3570FE112A09883400E91965 /* FakeBackend.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3570FE102A09883400E91965 /* FakeBackend.swift */; };
 		3570FE132A0B15D800E91965 /* CreateUploadScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3570FE122A0B15D800E91965 /* CreateUploadScreen.swift */; };
-		3570FE162A0BFCD200E91965 /* Mux-y Colors.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3570FE152A0BFCD200E91965 /* Mux-y Colors.swift */; };
-		3570FE192A0C05EE00E91965 /* MuxyNavBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3570FE182A0C05EE00E91965 /* MuxyNavBar.swift */; };
+		3570FE162A0BFCD200E91965 /* Mux Colors.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3570FE152A0BFCD200E91965 /* Mux Colors.swift */; };
+		3570FE192A0C05EE00E91965 /* MuxNavBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3570FE182A0C05EE00E91965 /* MuxNavBar.swift */; };
 		358E3CB529A921B2005261CB /* Test_AppApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 358E3CA529A921B2005261CB /* Test_AppApp.swift */; };
 		358E3CB629A921B2005261CB /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 358E3CA629A921B2005261CB /* Assets.xcassets */; };
 		358E3CB729A921B2005261CB /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 358E3CA829A921B2005261CB /* Preview Assets.xcassets */; };
@@ -43,8 +43,8 @@
 		356FB4152A0C191000EA4362 /* Buttons.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Buttons.swift; sourceTree = "<group>"; };
 		3570FE102A09883400E91965 /* FakeBackend.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FakeBackend.swift; sourceTree = "<group>"; };
 		3570FE122A0B15D800E91965 /* CreateUploadScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateUploadScreen.swift; sourceTree = "<group>"; };
-		3570FE152A0BFCD200E91965 /* Mux-y Colors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Mux-y Colors.swift"; sourceTree = "<group>"; };
-		3570FE182A0C05EE00E91965 /* MuxyNavBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MuxyNavBar.swift; sourceTree = "<group>"; };
+		3570FE152A0BFCD200E91965 /* Mux Colors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Mux Colors.swift"; sourceTree = "<group>"; };
+		3570FE182A0C05EE00E91965 /* MuxNavBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MuxNavBar.swift; sourceTree = "<group>"; };
 		358E3C7729A92167005261CB /* Test App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Test App.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		358E3C9129A92168005261CB /* Test AppUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Test AppUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		358E3CA529A921B2005261CB /* Test_AppApp.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Test_AppApp.swift; sourceTree = "<group>"; };
@@ -89,22 +89,22 @@
 			path = "Fake Server Backend";
 			sourceTree = "<group>";
 		};
-		3570FE142A0BFAC300E91965 /* Mux-y Style */ = {
+		3570FE142A0BFAC300E91965 /* Mux Style */ = {
 			isa = PBXGroup;
 			children = (
-				3570FE172A0C05D800E91965 /* Mux-y Views */,
-				3570FE152A0BFCD200E91965 /* Mux-y Colors.swift */,
+				3570FE172A0C05D800E91965 /* Mux Views */,
+				3570FE152A0BFCD200E91965 /* Mux Colors.swift */,
 			);
-			path = "Mux-y Style";
+			path = "Mux Style";
 			sourceTree = "<group>";
 		};
-		3570FE172A0C05D800E91965 /* Mux-y Views */ = {
+		3570FE172A0C05D800E91965 /* Mux Views */ = {
 			isa = PBXGroup;
 			children = (
-				3570FE182A0C05EE00E91965 /* MuxyNavBar.swift */,
+				3570FE182A0C05EE00E91965 /* MuxNavBar.swift */,
 				356FB4152A0C191000EA4362 /* Buttons.swift */,
 			);
-			path = "Mux-y Views";
+			path = "Mux Views";
 			sourceTree = "<group>";
 		};
 		358E3C6E29A92167005261CB = {
@@ -136,7 +136,7 @@
 				3570FE0F2A09881200E91965 /* Fake Server Backend */,
 				358E3CA929A921B2005261CB /* Screens */,
 				358E3CAC29A921B2005261CB /* ContentView.swift */,
-				3570FE142A0BFAC300E91965 /* Mux-y Style */,
+				3570FE142A0BFAC300E91965 /* Mux Style */,
 				358E3CAD29A921B2005261CB /* Widgets */,
 			);
 			path = "Test App";
@@ -302,14 +302,14 @@
 				3570FE132A0B15D800E91965 /* CreateUploadScreen.swift in Sources */,
 				358E3CBB29A921B2005261CB /* UploadingView.swift in Sources */,
 				356FB4162A0C191000EA4362 /* Buttons.swift in Sources */,
-				3570FE192A0C05EE00E91965 /* MuxyNavBar.swift in Sources */,
+				3570FE192A0C05EE00E91965 /* MuxNavBar.swift in Sources */,
 				358E3CB829A921B2005261CB /* UploadScreen.swift in Sources */,
 				358E3CBC29A921B2005261CB /* UploadProgressView.swift in Sources */,
 				358E3CBD29A921B2005261CB /* ImagePicker.swift in Sources */,
 				358E3CB929A921B2005261CB /* UploadScreenViewModel.swift in Sources */,
 				358E3CBA29A921B2005261CB /* ContentView.swift in Sources */,
 				354421B32A0D628E00C6FD1F /* BigUploadCTA.swift in Sources */,
-				3570FE162A0BFCD200E91965 /* Mux-y Colors.swift in Sources */,
+				3570FE162A0BFCD200E91965 /* Mux Colors.swift in Sources */,
 				358E3CB529A921B2005261CB /* Test_AppApp.swift in Sources */,
 				3570FE112A09883400E91965 /* FakeBackend.swift in Sources */,
 				358E3CBE29A921B2005261CB /* ButtonThemes.swift in Sources */,

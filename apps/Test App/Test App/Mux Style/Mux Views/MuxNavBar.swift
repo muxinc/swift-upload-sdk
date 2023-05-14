@@ -7,7 +7,7 @@
 
 import SwiftUI
 
-struct MuxyNavBar: View {
+struct MuxNavBar: View {
     var body: some View {
         ZStack {
             // Center Content - Default is the mux logo
@@ -67,11 +67,11 @@ enum LeadingNavButton {
 struct MuxyNavBar_Previews: PreviewProvider {
     static var previews: some View {
         VStack {
-            MuxyNavBar(
+            MuxNavBar(
                 leadingNavButton: .close,
                 title: "some title"
             )
-            MuxyNavBar()
+            MuxNavBar()
             Spacer()
         }
     }
