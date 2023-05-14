@@ -16,6 +16,7 @@ struct Test_AppApp: App {
     
     @StateObject
     private var uploadScreenViewModel: UploadScreenViewModel = UploadScreenViewModel()
+    @StateObject private var uploadCreationVM = UploadCreationViewModel()
     
     var body: some Scene {
         WindowGroup {
