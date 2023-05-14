@@ -11,17 +11,17 @@ import PhotosUI
 class UploadCreationViewModel : ObservableObject {
     
     struct PickerError: Error {
-
+        
         static var unexpectedFormat: PickerError {
             PickerError(localizedDescription: "Unexpected video file format")
         }
-
+        
         static var missingAssetIdentifier: PickerError {
             PickerError(localizedDescription: "Missing asset identifier")
         }
-
+        
         var localizedDescription: String
-
+        
     }
     
     func requestPhotosAccess() {
@@ -34,7 +34,56 @@ class UploadCreationViewModel : ObservableObject {
     
     /// Prepares a Photos Asset for upload by exporting it to a local temp file
     func tryToPrepare(from pickerResult: PHPickerResult) {
+        if let assetRequestId = assetRequestId {
+            PHImageManager.default().cancelImageRequest(assetRequestId)
+        }
         
+        // TODO: This is a very common workflow. Should the SDK be able to do this workflow with Photos?
+        exportState = .preparing
+        
+        let tempDir = FileManager.default.temporaryDirectory
+        let tempFile = URL(string: "upload-\(Date().timeIntervalSince1970).mp4", relativeTo: tempDir)!
+        
+        guard let assetIdentitfier = pickerResult.assetIdentifier else {
+            NSLog("!! No Asset ID for chosen asset")
+            exportState = .failure(nil)
+            return
+        }
+        let options = PHFetchOptions()
+        options.includeAssetSourceTypes = .typeUserLibrary
+        let phAssetResult = PHAsset.fetchAssets(withLocalIdentifiers: [assetIdentitfier], options: options)
+        guard let phAsset = phAssetResult.firstObject else {
+            NSLog("!! No Asset fetched")
+            DispatchQueue.main.sync {
+                self.exportState = .failure(PickerError.missingAssetIdentifier)
+            }
+            return
+        }
+        
+        let exportOptions = PHVideoRequestOptions()
+        //exportOptions.deliveryMode = .highQualityFormat
+        assetRequestId = PHImageManager.default().requestExportSession(forVideo: phAsset, options: exportOptions, exportPreset: AVAssetExportPresetHighestQuality, resultHandler: {(exportSession, info) -> Void in
+            DispatchQueue.main.async {
+                guard let exportSession = exportSession else {
+                    NSLog("!! No Export session")
+                    self.exportState = .failure(nil)
+                    return
+                }
+                self.exportToOutFile(session: exportSession, outFile: tempFile)
+            }
+        })
+    }
+    
+    private func exportToOutFile(session: AVAssetExportSession, outFile: URL) {
+        session.outputURL = outFile
+        session.outputFileType = AVFileType.mp4
+        //session.shouldOptimizeForNetworkUse = false
+        session.exportAsynchronously {
+            DispatchQueue.main.async {
+                NSLog("Yay, Media exported & ready for upload!")
+                // TODO: Set the result and stuff
+            }
+        }
     }
     
     private func doRequestPhotosPermission() {
@@ -56,11 +105,18 @@ class UploadCreationViewModel : ObservableObject {
     var preparedAsset: (PHAsset, URL)?
     @Published
     var photosAuthStatus: PhotosAuthState
+    @Published
+    var exportState: ExportState
     
     init() {
         let innerAuthStatus = PHPhotoLibrary.authorizationStatus(for: .readWrite)
         self.photosAuthStatus = innerAuthStatus.asAppAuthState()
+        self.exportState = .not_started
     }
+}
+
+enum ExportState {
+    case not_started, preparing, failure(UploadCreationViewModel.PickerError?), ready(PHAsset, URL)
 }
 
 enum PhotosAuthState {
