@@ -37,6 +37,9 @@ class UploadCreationViewModel : ObservableObject {
         if let assetRequestId = assetRequestId {
             PHImageManager.default().cancelImageRequest(assetRequestId)
         }
+        if let prepareTask = prepareTask {
+            prepareTask.cancel()
+        }
         
         // TODO: This is a very common workflow. Should the SDK be able to do this workflow with Photos?
         exportState = .preparing
@@ -53,9 +56,11 @@ class UploadCreationViewModel : ObservableObject {
         options.includeAssetSourceTypes = .typeUserLibrary
         let phAssetResult = PHAsset.fetchAssets(withLocalIdentifiers: [assetIdentitfier], options: options)
         guard let phAsset = phAssetResult.firstObject else {
-            NSLog("!! No Asset fetched")
-            DispatchQueue.main.sync {
-                self.exportState = .failure(PickerError.missingAssetIdentifier)
+            self.logger.error("!! No Asset fetched")
+            Task.detached {
+                await MainActor.run {
+                    self.exportState = .failure(PickerError.missingAssetIdentifier)
+                }
             }
             return
         }
@@ -65,7 +70,7 @@ class UploadCreationViewModel : ObservableObject {
         assetRequestId = PHImageManager.default().requestExportSession(forVideo: phAsset, options: exportOptions, exportPreset: AVAssetExportPresetHighestQuality, resultHandler: {(exportSession, info) -> Void in
             DispatchQueue.main.async {
                 guard let exportSession = exportSession else {
-                    NSLog("!! No Export session")
+                    self.logger.error("!! No Export session")
                     self.exportState = .failure(nil)
                     return
                 }
@@ -78,10 +83,16 @@ class UploadCreationViewModel : ObservableObject {
         session.outputURL = outFile
         session.outputFileType = AVFileType.mp4
         //session.shouldOptimizeForNetworkUse = false
-        session.exportAsynchronously {
-            DispatchQueue.main.async {
-                NSLog("Yay, Media exported & ready for upload!")
-                // TODO: Set the result and stuff
+        prepareTask = Task.detached {
+            await session.export()
+            await MainActor.run { [weak self] in
+                guard let self = self else {
+                    return
+                }
+                self.assetRequestId = nil
+                
+                // TODO: Load the image 
+                self.logger.debug(_:)("Yay, Media exported & ready for upload!")
             }
         }
     }
@@ -98,11 +109,11 @@ class UploadCreationViewModel : ObservableObject {
     
     private var assetRequestId: PHImageRequestID? = nil
     
-    private var prepareTask: Task<Any, Never>? = nil
+    private var prepareTask: Task<Void, Never>? = nil
     private let logger = Test_AppApp.logger
     
     @Published
-    var preparedAsset: (PHAsset, URL)?
+    var preparedAsset: (CGImage?, URL)?
     @Published
     var photosAuthStatus: PhotosAuthState
     @Published
@@ -116,7 +127,7 @@ class UploadCreationViewModel : ObservableObject {
 }
 
 enum ExportState {
-    case not_started, preparing, failure(UploadCreationViewModel.PickerError?), ready(PHAsset, URL)
+    case not_started, preparing, failure(UploadCreationViewModel.PickerError?), ready(CGImage?, URL)
 }
 
 enum PhotosAuthState {
