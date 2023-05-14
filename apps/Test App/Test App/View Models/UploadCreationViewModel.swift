@@ -34,11 +34,15 @@ class UploadCreationViewModel : ObservableObject {
     
     /// Prepares a Photos Asset for upload by exporting it to a local temp file
     func tryToPrepare(from pickerResult: PHPickerResult) {
+        // Cancel anything that was already happening
         if let assetRequestId = assetRequestId {
             PHImageManager.default().cancelImageRequest(assetRequestId)
         }
         if let prepareTask = prepareTask {
             prepareTask.cancel()
+        }
+        if let thumbnailGenerator = thumbnailGenerator {
+            thumbnailGenerator.cancelAllCGImageGeneration()
         }
         
         // TODO: This is a very common workflow. Should the SDK be able to do this workflow with Photos?
@@ -83,18 +87,57 @@ class UploadCreationViewModel : ObservableObject {
         session.outputURL = outFile
         session.outputFileType = AVFileType.mp4
         //session.shouldOptimizeForNetworkUse = false
-        prepareTask = Task.detached {
+        prepareTask = Task.detached { [self] in
             await session.export()
-            await MainActor.run { [weak self] in
-                guard let self = self else {
-                    return
-                }
-                self.assetRequestId = nil
-                
-                // TODO: Load the image 
+            
+            if Task.isCancelled {
+                return
+            }
+            
+            // TODO: before thumbnail fetch, we gotta call the REST API
+            
+            extractThumbnailAsync(session.asset) { thumbnailImage in
+                // This is already on the main thread
                 self.logger.debug(_:)("Yay, Media exported & ready for upload!")
+                self.assetRequestId = nil
+                // Deliver result
+                self.exportState = .ready(thumbnailImage, outFile)
             }
         }
+    }
+    
+    private func extractThumbnailAsync(_ asset: AVAsset, thenDo: @escaping (CGImage?) -> Void) {
+        if let thumbnailGenerator = thumbnailGenerator {
+            thumbnailGenerator.cancelAllCGImageGeneration()
+        }
+        
+        thumbnailGenerator = AVAssetImageGenerator(asset: asset)
+        thumbnailGenerator?.generateCGImagesAsynchronously(forTimes: [NSValue(time: CMTime.zero)]) {
+            requestedTime,
+            image,
+            actualTime,
+            result,
+            error
+            in
+            switch result {
+            case .cancelled: do {
+                self.logger.debug("Thumbnail request canceled")
+            }
+            case .failed: do {
+                self.logger.error("Failed to extract thumnail: \(error?.localizedDescription ?? "unknown")")
+            }
+            case .succeeded: do {
+                Task.detached {
+                    await MainActor.run {
+                        thenDo(image)
+                    }
+                }
+            }
+            @unknown default:
+                fatalError()
+            }
+        }
+        
     }
     
     private func doRequestPhotosPermission() {
@@ -108,8 +151,9 @@ class UploadCreationViewModel : ObservableObject {
     }
     
     private var assetRequestId: PHImageRequestID? = nil
-    
     private var prepareTask: Task<Void, Never>? = nil
+    private var thumbnailGenerator: AVAssetImageGenerator? = nil
+    
     private let logger = Test_AppApp.logger
     
     @Published
