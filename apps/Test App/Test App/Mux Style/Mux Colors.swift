@@ -8,12 +8,14 @@
 import Foundation
 import SwiftUI
 
-// Mux-y Grays
+// Mux Grays
 let Gray100 = Color(red: 10 / CONVERSION_CSS, green: 10 / CONVERSION_CSS, blue: 11 / CONVERSION_CSS)
+let Gray90 = Color(red: 36 / CONVERSION_CSS, green: 38 / CONVERSION_CSS, blue: 40 / CONVERSION_CSS)
 let Gray80 = Color(red: 62 / CONVERSION_CSS, green: 66 / CONVERSION_CSS, blue: 71 / CONVERSION_CSS)
+let Gray70 = Color(red: 86 / CONVERSION_CSS, green: 94 / CONVERSION_CSS, blue: 103 / CONVERSION_CSS)
 let Gray30 = Color(red: 178 / CONVERSION_CSS, green: 186 / CONVERSION_CSS, blue: 194 / CONVERSION_CSS)
 
-// Mux-y Greens
+// Mux Greens
 let Green60 = Color(red: 0 / CONVERSION_CSS, green: 128 / CONVERSION_CSS, blue: 45 / CONVERSION_CSS)
 let Green50 = Color(red: 0 / CONVERSION_CSS, green: 170 / CONVERSION_CSS, blue: 60 / CONVERSION_CSS)
 

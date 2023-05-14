@@ -14,10 +14,12 @@ struct CreateUploadScreen: View {
             Gray100.ignoresSafeArea(.container)
             VStack(spacing: 0) {
                 MuxNavBar(title: "Create a New Upload")
-                ScreenContent()
+                ScreenContent(exportState: uploadCreationVM.exportState)
             }
         }
     }
+    
+    @EnvironmentObject var uploadCreationVM: UploadCreationViewModel
 }
 
 fileprivate struct ScreenContent: View {
@@ -25,7 +27,7 @@ fileprivate struct ScreenContent: View {
         ZStack {
             WindowBackground
             // TODO: If we have a thumbnail loaded, that's what we want to show
-            switch uploadCreationVM.exportState {
+            switch exportState {
             case .not_started: EmptyView()
             case .preparing: EmptyView() // TODO
             case .failure(let error): EmptyView() // TODO
@@ -35,13 +37,33 @@ fileprivate struct ScreenContent: View {
         }
     }
     
-    @EnvironmentObject var uploadCreationVM: UploadCreationViewModel
+    let exportState: ExportState
 }
 
-fileprivate struct EmptyView: View {
+fileprivate struct ErrorView: View {
     var body: some View {
         VStack {
-            BigUploadCTA()
+            ZStack {
+                RoundedRectangle(cornerRadius: 4.0)
+                    .strokeBorder(style: StrokeStyle(lineWidth: 1.0))
+                    .foregroundColor(Gray30)
+                    .background(Gray90)
+                VStack {
+                    Label(
+                        "",
+                        systemImage: "square.and.arrow.up.trianglebadge.exclamationmark"
+                    )
+                    .foregroundColor(.red)
+                    Spacer()
+                        .frame(maxHeight: 12)
+                    Text("Couln't prepare the video for upload. Please try another video")
+                        .foregroundColor(White)
+                        .multilineTextAlignment(.center)
+                        .font(.system(size: 12))
+                        .padding(.leading)
+                        .padding(.trailing)
+                }
+            }
             .padding(
                 EdgeInsets(
                     top: 64,
@@ -50,8 +72,41 @@ fileprivate struct EmptyView: View {
                     trailing: 20
                 )
             )
+            .frame(height: 228)
+            
             Spacer()
         }
+    }
+    
+    let error: Error?
+    
+    init(error: Error? = nil) {
+        self.error = error
+    }
+}
+
+fileprivate struct EmptyView: View {
+    var body: some View {
+        VStack {
+            BigUploadCTA()
+                .padding(
+                    EdgeInsets(
+                        top: 64,
+                        leading: 20,
+                        bottom: 0,
+                        trailing: 20
+                    )
+                )
+            Spacer()
+        }
+    }
+}
+
+struct ContentContainer_Previews: PreviewProvider {
+    static var previews: some View {
+        let exportState = ExportState.not_started
+        ScreenContent(exportState: exportState)
+            .environmentObject(UploadCreationViewModel())
     }
 }
 
@@ -59,6 +114,7 @@ struct CreateUploadScreen_Previews: PreviewProvider {
     static var previews: some View {
         CreateUploadScreen()
             .environmentObject(UploadScreenViewModel())
+            .environmentObject(UploadCreationViewModel())
     }
 }
 
@@ -67,6 +123,19 @@ struct EmptyView_Previews: PreviewProvider {
         ZStack {
             WindowBackground.ignoresSafeArea()
             EmptyView()
-        }.environmentObject(UploadScreenViewModel())
+        }
+        .environmentObject(UploadScreenViewModel())
+        .environmentObject(UploadCreationViewModel())
+    }
+}
+
+struct ErrorView_Previews: PreviewProvider {
+    static var previews: some View {
+        ZStack {
+            WindowBackground.ignoresSafeArea()
+            ErrorView()
+        }
+        .environmentObject(UploadScreenViewModel())
+        .environmentObject(UploadCreationViewModel())
     }
 }

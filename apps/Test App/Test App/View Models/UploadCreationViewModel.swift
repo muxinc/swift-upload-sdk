@@ -159,7 +159,7 @@ class UploadCreationViewModel : ObservableObject {
     @Published
     var photosAuthStatus: PhotosAuthState
     @Published
-    var exportState: ExportState
+    var exportState: ExportState = .not_started
     
     init() {
         let innerAuthStatus = PHPhotoLibrary.authorizationStatus(for: .readWrite)
