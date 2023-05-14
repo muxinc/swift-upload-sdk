@@ -33,7 +33,7 @@ class UploadCreationViewModel : ObservableObject {
     }
     
     /// Prepares a Photos Asset for upload by exporting it to a local temp file
-    func prepareAsset(_ asset: PHAsset) {
+    func tryToPrepare(from pickerResult: PHPickerResult) {
         
     }
     

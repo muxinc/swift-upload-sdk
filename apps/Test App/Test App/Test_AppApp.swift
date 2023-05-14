@@ -21,6 +21,7 @@ struct Test_AppApp: App {
         WindowGroup {
             ContentView()
                 .environmentObject(uploadScreenViewModel)
+                .environmentObject(UploadCreationViewModel())
         }
     }
     

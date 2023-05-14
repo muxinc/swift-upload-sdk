@@ -9,7 +9,7 @@ import SwiftUI
 import PhotosUI
 
 struct BigUploadCTA: View {
-    @EnvironmentObject var uploadScreenViewModel: UploadScreenViewModel
+    @EnvironmentObject var uploadCreationVM: UploadCreationViewModel
     @State var inPickFlow = false // True when picking photos or resolving the related permission prompt, or when first launching the screen
     
     private var pickerConfig: PHPickerConfiguration = {
@@ -26,10 +26,10 @@ struct BigUploadCTA: View {
     
     var body: some View {
         Button { [self] in
-            switch uploadScreenViewModel.photosAuthStatus {
+            switch uploadCreationVM.photosAuthStatus {
             case .can_auth(_): do {
                 inPickFlow = true
-                uploadScreenViewModel.requestPhotosAccess()
+                uploadCreationVM.requestPhotosAccess()
             }
             case .authorized(_): do {
                 inPickFlow = true
@@ -68,6 +68,7 @@ struct BigUploadCTA: View {
                     if let firstVideo = images.first {
                         inPickFlow = false
                         // TODO: ViewModel creates remote upload and exports the video file
+                        uploadCreationVM.tryToPrepare(from: firstVideo)
                     }
                 }
             )}
@@ -91,7 +92,7 @@ struct BigUploadCTA: View {
     }
     
     private func isAuthorizedForPhotos() -> Bool {
-        switch uploadScreenViewModel.photosAuthStatus {
+        switch uploadCreationVM.photosAuthStatus {
         case .authorized(_): return true
         default: return false
         }
@@ -110,6 +111,7 @@ struct BigUploadCTA_Preview: PreviewProvider {
             WindowBackground.ignoresSafeArea()
             BigUploadCTA()
                 .padding(EdgeInsets(top: 64, leading: 20, bottom: 0, trailing: 20))
-        }.environmentObject(UploadScreenViewModel())
+        }
+        .environmentObject(UploadCreationViewModel())
     }
 }
