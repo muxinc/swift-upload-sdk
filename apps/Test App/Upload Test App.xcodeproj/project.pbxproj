@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		354421B32A0D628E00C6FD1F /* BigUploadCTA.swift in Sources */ = {isa = PBXBuildFile; fileRef = 354421B22A0D628E00C6FD1F /* BigUploadCTA.swift */; };
+		354421B62A11731B00C6FD1F /* UploadCreationViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 354421B52A11731B00C6FD1F /* UploadCreationViewModel.swift */; };
 		356FB4162A0C191000EA4362 /* Buttons.swift in Sources */ = {isa = PBXBuildFile; fileRef = 356FB4152A0C191000EA4362 /* Buttons.swift */; };
 		3570FE112A09883400E91965 /* FakeBackend.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3570FE102A09883400E91965 /* FakeBackend.swift */; };
 		3570FE132A0B15D800E91965 /* CreateUploadScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3570FE122A0B15D800E91965 /* CreateUploadScreen.swift */; };
@@ -40,6 +41,7 @@
 
 /* Begin PBXFileReference section */
 		354421B22A0D628E00C6FD1F /* BigUploadCTA.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BigUploadCTA.swift; sourceTree = "<group>"; };
+		354421B52A11731B00C6FD1F /* UploadCreationViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UploadCreationViewModel.swift; sourceTree = "<group>"; };
 		356FB4152A0C191000EA4362 /* Buttons.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Buttons.swift; sourceTree = "<group>"; };
 		3570FE102A09883400E91965 /* FakeBackend.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FakeBackend.swift; sourceTree = "<group>"; };
 		3570FE122A0B15D800E91965 /* CreateUploadScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateUploadScreen.swift; sourceTree = "<group>"; };
@@ -81,6 +83,15 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		354421B42A11726700C6FD1F /* View Models */ = {
+			isa = PBXGroup;
+			children = (
+				358E3CAB29A921B2005261CB /* UploadScreenViewModel.swift */,
+				354421B52A11731B00C6FD1F /* UploadCreationViewModel.swift */,
+			);
+			path = "View Models";
+			sourceTree = "<group>";
+		};
 		3570FE0F2A09881200E91965 /* Fake Server Backend */ = {
 			isa = PBXGroup;
 			children = (
@@ -136,6 +147,7 @@
 				3570FE0F2A09881200E91965 /* Fake Server Backend */,
 				358E3CA929A921B2005261CB /* Screens */,
 				358E3CAC29A921B2005261CB /* ContentView.swift */,
+				354421B42A11726700C6FD1F /* View Models */,
 				3570FE142A0BFAC300E91965 /* Mux Style */,
 				358E3CAD29A921B2005261CB /* Widgets */,
 			);
@@ -154,7 +166,6 @@
 			isa = PBXGroup;
 			children = (
 				358E3CAA29A921B2005261CB /* UploadScreen.swift */,
-				358E3CAB29A921B2005261CB /* UploadScreenViewModel.swift */,
 				3570FE122A0B15D800E91965 /* CreateUploadScreen.swift */,
 			);
 			path = Screens;
@@ -306,6 +317,7 @@
 				358E3CB829A921B2005261CB /* UploadScreen.swift in Sources */,
 				358E3CBC29A921B2005261CB /* UploadProgressView.swift in Sources */,
 				358E3CBD29A921B2005261CB /* ImagePicker.swift in Sources */,
+				354421B62A11731B00C6FD1F /* UploadCreationViewModel.swift in Sources */,
 				358E3CB929A921B2005261CB /* UploadScreenViewModel.swift in Sources */,
 				358E3CBA29A921B2005261CB /* ContentView.swift in Sources */,
 				354421B32A0D628E00C6FD1F /* BigUploadCTA.swift in Sources */,

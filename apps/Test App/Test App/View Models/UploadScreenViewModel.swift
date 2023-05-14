@@ -128,7 +128,7 @@ class UploadScreenViewModel: ObservableObject {
         session.exportAsynchronously {
             DispatchQueue.main.async {
                 NSLog("Yay, Media exported & ready for upload!")
-                self.beginUploadToMux(videoFile: outFile)
+                self.beginUploadToMux(videoFile: outFile) // or: session.outputURL
             }
         }
     }
@@ -169,19 +169,4 @@ class UploadScreenViewModel: ObservableObject {
 
 enum AppUploadState {
     case not_started, preparing, uploading(MuxUpload.Status), failure(Error?), done(MuxUpload.Success)
-}
-
-enum PhotosAuthState {
-    case cant_auth(PHAuthorizationStatus), can_auth(PHAuthorizationStatus), authorized(PHAuthorizationStatus)
-}
-
-fileprivate extension PHAuthorizationStatus {
-    func asAppAuthState() -> PhotosAuthState {
-        switch self {
-        case .authorized, .limited: return PhotosAuthState.authorized(self)
-        case .restricted: return  PhotosAuthState.cant_auth(self)
-        case .denied, .notDetermined: return PhotosAuthState.can_auth(self)
-        @unknown default: return PhotosAuthState.can_auth(self) // It's for future compat, why not be optimistic?
-        }
-    }
 }

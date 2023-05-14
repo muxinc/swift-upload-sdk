@@ -11,7 +11,7 @@ import SwiftUI
 // Mux-y Grays
 let Gray100 = Color(red: 10 / CONVERSION_CSS, green: 10 / CONVERSION_CSS, blue: 11 / CONVERSION_CSS)
 let Gray80 = Color(red: 62 / CONVERSION_CSS, green: 66 / CONVERSION_CSS, blue: 71 / CONVERSION_CSS)
-let Gray30 = Color(red: 178, green: 186, blue: 194)
+let Gray30 = Color(red: 178 / CONVERSION_CSS, green: 186 / CONVERSION_CSS, blue: 194 / CONVERSION_CSS)
 
 // Mux-y Greens
 let Green60 = Color(red: 0 / CONVERSION_CSS, green: 128 / CONVERSION_CSS, blue: 45 / CONVERSION_CSS)

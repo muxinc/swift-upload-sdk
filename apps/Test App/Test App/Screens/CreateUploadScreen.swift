@@ -20,7 +20,7 @@ struct CreateUploadScreen: View {
     }
 }
 
-struct ScreenContent: View {
+fileprivate struct ScreenContent: View {
     var body: some View {
         ZStack {
             WindowBackground
@@ -30,7 +30,7 @@ struct ScreenContent: View {
     }
 }
 
-struct EmptyView: View {
+fileprivate struct EmptyView: View {
     var body: some View {
         VStack {
             BigUploadCTA()

@@ -67,7 +67,7 @@ struct BigUploadCTA: View {
                     // Only 0 or 1 images can be selected
                     if let firstVideo = images.first {
                         inPickFlow = false
-                        uploadScreenViewModel.startUpload(video: firstVideo)
+                        // TODO: ViewModel creates remote upload and exports the video file
                     }
                 }
             )}
@@ -97,8 +97,10 @@ struct BigUploadCTA: View {
         }
     }
     
+    let actionOnMediaAvailable: (PHAsset, URL) -> Void
     
-    init(_ alsoAction: @escaping () -> Void = {}) {
+    init(_ actionOnMediaAvailable: @escaping (PHAsset, URL) -> Void = {_,_ in }) {
+        self.actionOnMediaAvailable = actionOnMediaAvailable
     }
 }
 
