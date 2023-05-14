@@ -39,7 +39,7 @@ struct UploadScreen: View {
                     inPickFlow = true
                 }
                 case .cant_auth(_): do {
-                    NSLog("!! This app  cannot ask for or gain Photos access permissions for some reason. We don't expect to see this on a real device unless 'NSPhotoLibraryAddUsageDescription' is gone from the app plist")
+                    Test_AppApp.logger.error("!! This app  cannot ask for or gain Photos access permissions for some reason. You can probably fix this by uninstalling, and making sure 'NSPhotoLibraryAddUsageDescription' is in the app plist")
                 }
                 }
             }

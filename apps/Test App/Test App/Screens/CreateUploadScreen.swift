@@ -25,9 +25,17 @@ fileprivate struct ScreenContent: View {
         ZStack {
             WindowBackground
             // TODO: If we have a thumbnail loaded, that's what we want to show
-            EmptyView()
+            switch uploadCreationVM.exportState {
+            case .not_started: EmptyView()
+            case .preparing: EmptyView() // TODO
+            case .failure(let error): EmptyView() // TODO
+            case .ready(let (image, url)): EmptyView() // TODO
+            }
+            
         }
     }
+    
+    @EnvironmentObject var uploadCreationVM: UploadCreationViewModel
 }
 
 fileprivate struct EmptyView: View {

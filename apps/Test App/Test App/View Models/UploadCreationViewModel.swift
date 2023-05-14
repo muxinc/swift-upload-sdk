@@ -157,8 +157,6 @@ class UploadCreationViewModel : ObservableObject {
     private let logger = Test_AppApp.logger
     
     @Published
-    var preparedAsset: (CGImage?, URL)?
-    @Published
     var photosAuthStatus: PhotosAuthState
     @Published
     var exportState: ExportState
