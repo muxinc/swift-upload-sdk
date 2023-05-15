@@ -15,21 +15,25 @@ class FakeBackend {
     
     func createDirectUpload() async throws -> URL {
         let request = try {
-            var req = try URLRequest(url:fullURL(forEndpoint: "uploads"))
+            var req = try URLRequest(url:fullURL(forEndpoint: "v1/uploads"))
             req.httpBody = try jsonEncoder.encode(NewAssetSettings())
+            req.httpMethod = "POST"
+            req.addValue("application/json", forHTTPHeaderField: "Content-Type")
+            req.addValue("application/json", forHTTPHeaderField: "accept")
             return req
         }()
         
         let (data, response) = try await urlSession.data(for: request)
-        if let httpResponse = response as? HTTPURLResponse,
-           (200...299).contains(httpResponse.statusCode) {
+        let httpResponse = response as! HTTPURLResponse
+        if (200...299).contains(httpResponse.statusCode) {
             let responseData = try jsonDecoder.decode(CreateUploadResponseContainer.self, from: data).data
             guard let uploadURL = URL(string:responseData.url) else {
                 throw CreateUploadError(message: "invalid upload url")
             }
             return uploadURL
         } else {
-            throw CreateUploadError(message: "not an http url session")
+            self.logger.error("Upload POST failed: HTTP \(httpResponse.statusCode):\n\(String(decoding: data, as: UTF8.self))")
+            throw CreateUploadError(message: "Upload POST failed: HTTP \(httpResponse.statusCode):\n\(String(decoding: data, as: UTF8.self))")
         }
     }
     
@@ -40,6 +44,8 @@ class FakeBackend {
         }
         return url
     }
+    
+    private let logger = Test_AppApp.logger
     
     let urlSession: URLSession
     let jsonEncoder: JSONEncoder

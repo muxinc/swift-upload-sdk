@@ -20,6 +20,10 @@ class UploadCreationViewModel : ObservableObject {
             PickerError(localizedDescription: "Missing asset identifier")
         }
         
+        static var createUploadFailed: PickerError {
+            PickerError(localizedDescription: "Upload could not be created")
+        }
+        
         var localizedDescription: String
         
     }
@@ -108,7 +112,12 @@ class UploadCreationViewModel : ObservableObject {
                     )
                 }
             } catch {
-                
+                self.logger.error("Failed to create Upload: \(error.localizedDescription)")
+                Task.detached {
+                    await MainActor.run {
+                        self.exportState = .failure(PickerError.createUploadFailed)
+                    }
+                }
             }
         }
     }
