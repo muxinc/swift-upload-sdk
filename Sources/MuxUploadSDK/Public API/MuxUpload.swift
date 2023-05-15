@@ -133,7 +133,7 @@ public final class MuxUpload {
             return
         }
         if forceRestart {
-            fileWorker?.cancel()
+            cancel()
         }
         let completedUnitCount = UInt64({ self.lastSeenStatus.progress?.completedUnitCount ?? 0 }())
         let fileWorker = ChunkedFileUploader(uploadInfo: uploadInfo, startingAtByte: completedUnitCount)
@@ -142,6 +142,7 @@ public final class MuxUpload {
             InternalUploaderDelegate { [weak self] state in self?.handleStateUpdate(state) }
         )
         fileWorker.start()
+        uploadManager.registerUploader(fileWorker, withId: id + 1)
         self.fileWorker = fileWorker
     }
     
