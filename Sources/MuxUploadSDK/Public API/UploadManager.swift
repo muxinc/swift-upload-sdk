@@ -24,7 +24,7 @@ public final class UploadManager {
     private var uploadersByURL: [URL : ChunkedFileUploader] = [:]
     private var uploadsUpdateDelegatesByToken: [Int : UploadsUpdatedDelegate] = [:]
     private let uploadActor = UploadCacheActor()
-    private lazy var uploaderDelegate: FileUploaderDelegate = FileUploaderDelegate(onBehalfOf: self)
+    private lazy var uploaderDelegate: FileUploaderDelegate = FileUploaderDelegate(manager: self)
     
     /// Finds an upload already in-progress and returns a new ``MuxUpload`` that can be observed
     /// to track and control its state
@@ -96,6 +96,7 @@ public final class UploadManager {
         uploadersByURL.removeValue(forKey: url)
         Task.detached {
             await self.uploadActor.remove(uploadAt:url)
+            self.notifyDelegates()
         }
     }
     
@@ -111,7 +112,14 @@ public final class UploadManager {
                 fileWorker.uploadInfo,
                 withUpdate: fileWorker.currentState
             )
+            self.notifyDelegates()
         }
+    }
+    
+    private func notifyDelegates() {
+        self.uploadsUpdateDelegatesByToken
+            .map { it in it.value }
+            .forEach { it in it(self.allManagedUploads()) }
     }
     
     /// The shared instance of this object that should be used
@@ -119,14 +127,15 @@ public final class UploadManager {
     private init() { }
     
     private struct FileUploaderDelegate : ChunkedFileUploaderDelegate {
-        let onBehalfOf: UploadManager
+        let manager: UploadManager
         
         func chunkedFileUploader(_ uploader: ChunkedFileUploader, stateUpdated state: ChunkedFileUploader.InternalUploadState) {
             Task.detached {
-                await onBehalfOf.uploadActor.updateUpload(uploader.uploadInfo, withUpdate: state)
+                await manager.uploadActor.updateUpload(uploader.uploadInfo, withUpdate: state)
+                manager.notifyDelegates()
             }
             switch state {
-            case .success(_), .canceled, .failure(_): onBehalfOf.acknowledgeUpload(ofFile: uploader.uploadInfo.videoFile)
+            case .success(_), .canceled, .failure(_): manager.acknowledgeUpload(ofFile: uploader.uploadInfo.videoFile)
             default: do { }
             }
         }
