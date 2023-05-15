@@ -30,6 +30,7 @@ class FakeBackend {
         let (data, response) = try await urlSession.data(for: request)
         let httpResponse = response as! HTTPURLResponse
         if (200...299).contains(httpResponse.statusCode) {
+            let responseString = String(decoding: data, as: UTF8.self)
             let responseData = try jsonDecoder.decode(CreateUploadResponseContainer.self, from: data).data
             guard let uploadURL = URL(string:responseData.url) else {
                 throw CreateUploadError(message: "invalid upload url")
@@ -91,10 +92,9 @@ fileprivate struct NewAssetSettings: Codable {
 
 fileprivate struct CreateUploadResponse: Decodable {
     var url: String
-    var assetId: String
+    var id: String
     var timeout: Int64
     var status: String
-    var newAssetSettings: NewAssetSettings
 }
 
 fileprivate struct CreateUploadResponseContainer: Decodable {
