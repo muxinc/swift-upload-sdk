@@ -15,11 +15,15 @@ class FakeBackend {
     
     func createDirectUpload() async throws -> URL {
         let request = try {
-            var req = try URLRequest(url:fullURL(forEndpoint: "v1/uploads"))
+            var req = try URLRequest(url:fullURL(forEndpoint: "uploads"))
             req.httpBody = try jsonEncoder.encode(NewAssetSettings())
             req.httpMethod = "POST"
             req.addValue("application/json", forHTTPHeaderField: "Content-Type")
             req.addValue("application/json", forHTTPHeaderField: "accept")
+            
+            let basicAuthCredential = "\(MUX_ACCESS_KEY_ID):\(MUX_ACCESS_KEY_SECRET)".data(using: .utf8)!.base64EncodedString()
+            req.addValue("Basic \(basicAuthCredential)", forHTTPHeaderField: "Authorization")
+            
             return req
         }()
         
@@ -39,7 +43,7 @@ class FakeBackend {
     
     /// Generates a full URL for a given endpoint in the Mux Video public API
     private func fullURL(forEndpoint: String) throws -> URL {
-        guard let url = URL(string: "https://api.mux.com/video/\(forEndpoint)") else {
+        guard let url = URL(string: "https://api.mux.com/video/v1/\(forEndpoint)") else {
             throw CreateUploadError(message: "bad endpoint")
         }
         return url
