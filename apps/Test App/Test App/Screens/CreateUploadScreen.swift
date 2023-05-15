@@ -128,6 +128,10 @@ fileprivate struct ThumbnailView: View {
             )
             .frame(height: 228)
             Spacer()
+            StretchyDefaultButton("Upload") {
+                
+            }
+            .padding()
         }
     }
     
