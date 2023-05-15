@@ -16,7 +16,7 @@ class FakeBackend {
     func createDirectUpload() async throws -> URL {
         let request = try {
             var req = try URLRequest(url:fullURL(forEndpoint: "uploads"))
-            req.httpBody = try jsonEncoder.encode(NewAssetSettings())
+            req.httpBody = try jsonEncoder.encode(CreateUploadPost())
             req.httpMethod = "POST"
             req.addValue("application/json", forHTTPHeaderField: "Content-Type")
             req.addValue("application/json", forHTTPHeaderField: "accept")
