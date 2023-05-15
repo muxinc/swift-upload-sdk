@@ -13,7 +13,7 @@ struct CreateUploadScreen: View {
         ZStack { // Outer window
             Gray100.ignoresSafeArea(.container)
             VStack(spacing: 0) {
-                MuxNavBar(title: "Create a New Upload")
+                MuxNavBar(leadingNavButton: .close, title: "Create a New Upload")
                 ScreenContent(exportState: uploadCreationVM.exportState)
             }
         }

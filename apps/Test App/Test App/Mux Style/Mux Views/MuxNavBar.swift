@@ -53,10 +53,22 @@ struct MuxNavBar: View {
     }
 }
 
+fileprivate struct CloseButton: View {
+    @Environment(\.dismiss) private var dismiss
+    
+    var body: some View {
+        Button {
+            dismiss()
+        } label: {
+            Image("Mux-y Close")
+        }
+    }
+}
+
 fileprivate func leadingView(for buttonType: LeadingNavButton) -> some View {
     switch buttonType {
     case .close:
-        return Image("Mux-y Close")
+        return CloseButton()
     }
 }
 
@@ -64,13 +76,23 @@ enum LeadingNavButton {
     case close
 }
 
-struct MuxyNavBar_Previews: PreviewProvider {
+struct TitleAndClose_Previews: PreviewProvider {
+    static var previews: some View {
+        NavigationView {
+            VStack {
+                MuxNavBar(
+                    leadingNavButton: .close,
+                    title: "some title"
+                )
+                Spacer()
+            }
+        }
+    }
+}
+
+struct CenterLogo_Previews: PreviewProvider {
     static var previews: some View {
         VStack {
-            MuxNavBar(
-                leadingNavButton: .close,
-                title: "some title"
-            )
             MuxNavBar()
             Spacer()
         }
