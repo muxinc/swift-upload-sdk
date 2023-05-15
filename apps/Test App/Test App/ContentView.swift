@@ -13,8 +13,29 @@ struct ContentView: View {
     
     var body: some View {
         NavigationView {
-           CreateUploadScreen()
-        }.preferredColorScheme(.dark)
+            ZStack(alignment: .bottomTrailing) {
+                CreateUploadScreen() // TODO: Not here
+                // UploadList
+                // Upload CTA (optional), NavigationLink to CreateUpload, Label is Floating Btton
+                
+                // TODO: only if there's already some uploads
+                NavigationLink {
+                    CreateUploadScreen()
+                        .navigationBarHidden(true)
+                } label : {
+                    ZStack {
+                        Image("Mux-y Add")
+                            .padding()
+                            .background(Green50.clipShape(Circle()))
+                            .border(.red)
+                    }
+                    .border(.blue)
+                    .padding(24.0)
+                }
+            }
+            .border(.yellow)
+        }
+        .preferredColorScheme(.dark)
     }
 }
 
