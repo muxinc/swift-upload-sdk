@@ -92,11 +92,20 @@ fileprivate struct ThumbnailView: View {
             ZStack {
                 if let image = image {
                     // Converting from a CGImage to a swiftUI image
-                    let uiImage = UIImage(cgImage: image)
                     RoundedRectangle(cornerRadius: 4.0)
                         .strokeBorder(style: StrokeStyle(lineWidth: 1.0))
                         .foregroundColor(Gray30)
-                        .background(Image(uiImage: uiImage))
+                        .background(
+                            Image(
+                                image,
+                                scale: 1.0,
+                                label: Text("")
+                            )
+                            .resizable(
+                                resizingMode: .stretch
+                            )
+                            .clipShape(RoundedRectangle(cornerRadius: 4.0))
+                        )
                     //Image(uiImage: uiImage)
                 } else {
                     RoundedRectangle(cornerRadius: 4.0)
@@ -147,7 +156,6 @@ fileprivate struct ProcessingView: View {
                 )
             )
             .frame(height: 228)
-            
             Spacer()
         }
     }
