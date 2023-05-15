@@ -20,11 +20,18 @@ struct UploadListScreen: View {
 }
 
 fileprivate struct ListContianer: View {
+    
+    @EnvironmentObject var listVM: UploadListViewModel
+    
     var body: some View {
         if uploadList.isEmpty {
             EmptyList()
         } else {
-            Text("TODO")
+            LazyVStack {
+                ForEach(listVM.lastKnownUploads.map({ $0.uploadStatus }), id: \.self) { item in
+                    Text("TODO")
+                }
+            }
         }
     }
     
@@ -32,6 +39,12 @@ fileprivate struct ListContianer: View {
     
     init(uploadList: [MuxUpload]) {
         self.uploadList = uploadList
+    }
+}
+
+fileprivate struct ListItem: View {
+    var body: some View {
+        Text("DO")
     }
 }
 

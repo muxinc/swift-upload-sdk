@@ -26,7 +26,7 @@ public final class MuxUpload {
     /**
      Represents the state of an upload in progress.
      */
-    public struct Status : Sendable {
+    public struct Status : Sendable, Hashable {
         public let progress: Progress?
         public let updatedTime: TimeInterval
         public let startTime: TimeInterval
@@ -84,7 +84,7 @@ public final class MuxUpload {
      */
     public var progressHandler: StateHandler?
 
-    public struct Success : Sendable {
+    public struct Success : Sendable, Hashable {
         public let finalState: Status
     }
 
