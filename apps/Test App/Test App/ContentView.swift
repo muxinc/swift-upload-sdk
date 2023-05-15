@@ -42,5 +42,6 @@ struct ContentView_Previews: PreviewProvider {
         ContentView()
             .environmentObject(UploadScreenViewModel())
             .environmentObject(UploadCreationViewModel())
+            .environmentObject(UploadListViewModel())
     }
 }

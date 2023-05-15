@@ -37,8 +37,15 @@ fileprivate struct ListContianer: View {
 
 fileprivate struct EmptyList: View {
     var body: some View {
-        BigUploadCTA()
-            .padding(EdgeInsets(top: 64, leading: 20, bottom: 0, trailing: 20))
+        NavigationLink {
+            CreateUploadScreen()
+                .navigationBarHidden(true)
+        } label: {
+            ZStack(alignment: .top) {
+                BigUploadCTA()
+                    .padding(EdgeInsets(top: 64, leading: 20, bottom: 0, trailing: 20))
+            }
+        }
     }
 }
 
