@@ -29,9 +29,9 @@ fileprivate struct ScreenContent: View {
             // TODO: If we have a thumbnail loaded, that's what we want to show
             switch exportState {
             case .not_started: EmptyView()
-            case .preparing: EmptyView() // TODO
+            case .preparing: ProcessingView()
             case .failure(let error): ErrorView(error: error)
-            case .ready(let (image, url)): EmptyView() // TODO
+            case .ready(let image, _): ThumbnailView(image: image)
             }
             
         }
@@ -85,6 +85,48 @@ fileprivate struct ErrorView: View {
     }
 }
 
+
+fileprivate struct ThumbnailView: View {
+    var body: some View {
+        VStack {
+            ZStack {
+                if let image = image {
+                    // Converting from a CGImage to a swiftUI image
+                    let uiImage = UIImage(cgImage: image)
+                    RoundedRectangle(cornerRadius: 4.0)
+                        .strokeBorder(style: StrokeStyle(lineWidth: 1.0))
+                        .foregroundColor(Gray30)
+                        .background(Image(uiImage: uiImage))
+                    //Image(uiImage: uiImage)
+                } else {
+                    RoundedRectangle(cornerRadius: 4.0)
+                        .strokeBorder(style: StrokeStyle(lineWidth: 1.0))
+                        .foregroundColor(Gray30)
+                        .background(Gray30.clipShape(RoundedRectangle(cornerRadius: 4.0)))
+                    // Processing can succeed without a thumbnail theoretically
+                    Image(systemName: "video.badge.checkmark")
+                }
+            }
+            .padding(
+                EdgeInsets(
+                    top: 64,
+                    leading: 20,
+                    bottom: 0,
+                    trailing: 20
+                )
+            )
+            .frame(height: 228)
+            Spacer()
+        }
+    }
+    
+    let image: CGImage?
+    
+    init(image: CGImage?) {
+        self.image = image
+    }
+}
+
 fileprivate struct ProcessingView: View {
     var body: some View {
         VStack {
@@ -130,17 +172,28 @@ fileprivate struct EmptyView: View {
 
 struct ContentContainer_Previews: PreviewProvider {
     static var previews: some View {
-        let exportState = ExportState.failure(nil)
+        let exportState = ExportState.ready(nil, URL(string: "file:///")!)
         ScreenContent(exportState: exportState)
             .environmentObject(UploadCreationViewModel())
     }
 }
 
-struct CreateUploadScreen_Previews: PreviewProvider {
+struct EntireScreen_Previews: PreviewProvider {
     static var previews: some View {
         CreateUploadScreen()
             .environmentObject(UploadScreenViewModel())
             .environmentObject(UploadCreationViewModel())
+    }
+}
+
+struct Thumbnail_Previews: PreviewProvider {
+    static var previews: some View {
+        ZStack {
+            WindowBackground.ignoresSafeArea()
+            ThumbnailView(image: nil)
+        }
+        .environmentObject(UploadScreenViewModel())
+        .environmentObject(UploadCreationViewModel())
     }
 }
 
