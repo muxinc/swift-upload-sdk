@@ -30,7 +30,7 @@ fileprivate struct ScreenContent: View {
             case .not_started: EmptyView()
             case .preparing: ProcessingView()
             case .failure(let error): ErrorView(error: error)
-            case .ready(let upload): ThumbnailView(image: upload.thumbnail)
+            case .ready(let upload): ThumbnailView(preparedMedia: upload)
             }
             
         }
@@ -89,7 +89,7 @@ fileprivate struct ThumbnailView: View {
     var body: some View {
         VStack {
             ZStack {
-                if let image = image {
+                if let image = preparedMedia?.thumbnail {
                     let w = image.width
                     let h = image.height
                     // Converting from a CGImage to a swiftUI image
@@ -129,16 +129,20 @@ fileprivate struct ThumbnailView: View {
             .frame(height: 228)
             Spacer()
             StretchyDefaultButton("Upload") {
-                
-            }
+                if let preparedMedia = preparedMedia {
+                    let upload = uploadCreationVM.startUpload(preparedMedia: preparedMedia, forceRestart: true)
+                    // TODO: Dismiss self
+                }
+                }
             .padding()
         }
     }
     
-    let image: CGImage?
+    let preparedMedia: PreparedUpload?
+    @EnvironmentObject var uploadCreationVM: UploadCreationViewModel
     
-    init(image: CGImage?) {
-        self.image = image
+    init(preparedMedia: PreparedUpload?) {
+        self.preparedMedia = preparedMedia
     }
 }
 
@@ -206,7 +210,7 @@ struct Thumbnail_Previews: PreviewProvider {
     static var previews: some View {
         ZStack {
             WindowBackground.ignoresSafeArea()
-            ThumbnailView(image: nil)
+            ThumbnailView(preparedMedia: PreparedUpload(thumbnail: nil, localVideoFile: URL(string: "file:///")!, remoteURL: URL(string: "file:///")!))
         }
         .environmentObject(UploadScreenViewModel())
         .environmentObject(UploadCreationViewModel())

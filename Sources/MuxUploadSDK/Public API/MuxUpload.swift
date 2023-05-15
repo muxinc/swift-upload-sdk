@@ -128,7 +128,7 @@ public final class MuxUpload {
             // See if there's anything in progress already
             fileWorker = UploadManager.shared.findUploaderFor(videoFile: videoFile)
         }
-        guard !forceRestart && fileWorker == nil else {
+        if fileWorker != nil && !forceRestart {
             MuxUploadSDK.logger?.warning("start() called but upload is in progress")
             return
         }
@@ -156,7 +156,7 @@ public final class MuxUpload {
     }
     
     /**
-     Cancels an ongoing download. Temp files will be deleted asynchronously. State and Delegates will be cleared. Your delegates will recieve no further calls
+     Cancels an ongoing download. State and Delegates will be cleared. Your delegates will recieve no further calls
      */
     public func cancel() {
         fileWorker?.cancel()

@@ -7,6 +7,7 @@
 
 import Foundation
 import PhotosUI
+import MuxUploadSDK
 
 class UploadCreationViewModel : ObservableObject {
     
@@ -34,6 +35,18 @@ class UploadCreationViewModel : ObservableObject {
         case .authorized(_): logger.warning("requestPhotosAccess called but we already had access. ignoring")
         case .can_auth(_): doRequestPhotosPermission()
         }
+    }
+    
+    func startUpload(preparedMedia: PreparedUpload, forceRestart: Bool) -> MuxUpload {
+        let upload = MuxUpload(
+            uploadURL: preparedMedia.remoteURL,
+            videoFileURL: preparedMedia.localVideoFile
+        )
+        upload.progressHandler = { progress in
+            self.logger.info("Uploading \(progress.progress?.completedUnitCount ?? 0)/\(progress.progress?.totalUnitCount ?? 0)")
+        }
+        upload.start(forceRestart: forceRestart)
+        return upload
     }
     
     /// Prepares a Photos Asset for upload by exporting it to a local temp file
