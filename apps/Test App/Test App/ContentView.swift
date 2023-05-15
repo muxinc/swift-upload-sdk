@@ -9,11 +9,17 @@ import PhotosUI
 import MuxUploadSDK
 
 struct ContentView: View {
+    @State private var navScreen: NavScreen = .upload_list
+    
     var body: some View {
         NavigationView {
-            CreateUploadScreen()
+            //CreateUploadScreen()
         }.preferredColorScheme(.dark)
     }
+}
+
+enum NavScreen {
+    case upload_list, create_upload
 }
 
 struct ContentView_Previews: PreviewProvider {
