@@ -21,7 +21,7 @@ class FakeBackend {
             req.addValue("application/json", forHTTPHeaderField: "Content-Type")
             req.addValue("application/json", forHTTPHeaderField: "accept")
             
-            let basicAuthCredential = "\(MUX_ACCESS_KEY_ID):\(MUX_ACCESS_KEY_SECRET)".data(using: .utf8)!.base64EncodedString()
+            let basicAuthCredential = "\(MUX_ACCESS_TOKEN_ID):\(MUX_ACCESS_SECRET_KEY)".data(using: .utf8)!.base64EncodedString()
             req.addValue("Basic \(basicAuthCredential)", forHTTPHeaderField: "Authorization")
             
             return req
@@ -55,8 +55,8 @@ class FakeBackend {
     let jsonEncoder: JSONEncoder
     let jsonDecoder: JSONDecoder
     
-    let MUX_ACCESS_KEY_ID = "YOUR ACCESS KEY ID"
-    let MUX_ACCESS_KEY_SECRET = "YOUR ACCESS KEY SECRET"
+    let MUX_ACCESS_TOKEN_ID = "2d8d1173-8489-4281-b530-3f17ac534f7e"
+    let MUX_ACCESS_SECRET_KEY = "W/Lc8kZzbxIMXAY/5N0WvacrrDkQc1BWZrWbt4yXsW0gZBg635TUKvJarZVphJbHEiHqqloyYqM"
     
     init(urlSession: URLSession) {
         self.urlSession = urlSession

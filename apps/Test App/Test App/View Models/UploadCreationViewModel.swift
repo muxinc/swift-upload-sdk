@@ -99,8 +99,9 @@ class UploadCreationViewModel : ObservableObject {
             
             do {
                 let putURL = try await self.myServerBackend.createDirectUpload()
-            
-                // TODO: before thumbnail fetch, we gotta call the REST API
+                if Task.isCancelled {
+                    return
+                }
             
                 extractThumbnailAsync(session.asset) { thumbnailImage in
                     // This is already on the main thread
