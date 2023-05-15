@@ -78,7 +78,7 @@ public final class UploadManager {
     }
     
     /// Adds an ``UploadsUpdatedDelegate`` with the given ID. You can add as many of these as you like, each with a uniqe ID
-    public func addUploadsUpdatedDelegate(_ delegate: UploadsUpdatedDelegate?, id: Int) {
+    public func addUploadsUpdatedDelegate(id: Int, _ delegate: UploadsUpdatedDelegate?) {
         if let delegate = delegate {
             uploadsUpdateDelegatesByToken[id] = delegate
         } else {

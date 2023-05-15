@@ -6,15 +6,64 @@
 //
 
 import SwiftUI
+import MuxUploadSDK
 
 struct UploadListScreen: View {
+    @EnvironmentObject var uploadListVM: UploadListViewModel
+    
     var body: some View {
-        Text(/*@START_MENU_TOKEN@*/"Hello, World!"/*@END_MENU_TOKEN@*/)
+        ZStack {
+            WindowBackground
+            ListContent(uploadList: [])
+        }
     }
 }
 
-struct UploadListScreen_Previews: PreviewProvider {
+fileprivate struct ListContent: View {
+    var body: some View {
+        if uploadList.isEmpty {
+            EmptyList()
+        } else {
+            Text("TODO")
+        }
+    }
+    
+    private let uploadList: [MuxUpload]
+    
+    init(uploadList: [MuxUpload]) {
+        self.uploadList = uploadList
+    }
+}
+
+fileprivate struct EmptyList: View {
+    var body: some View {
+        BigUploadCTA()
+            .padding(EdgeInsets(top: 64, leading: 20, bottom: 0, trailing: 20))
+    }
+}
+
+struct ListContent_Previews: PreviewProvider {
+    static var previews: some View {
+        ZStack(alignment: .top) {
+            WindowBackground
+            ListContent(uploadList: [])
+        }
+    }
+}
+
+struct EmptyList_Previews: PreviewProvider {
+    static var previews: some View {
+        ZStack(alignment: .top) {
+            WindowBackground
+            EmptyList()
+               
+        }
+    }
+}
+
+struct UploadListItem_Previews: PreviewProvider {
     static var previews: some View {
         UploadListScreen()
+            .environmentObject(UploadListViewModel())
     }
 }
