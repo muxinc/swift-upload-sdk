@@ -219,7 +219,7 @@ fileprivate struct UploadCTA: View {
             }
             }
         } label : {
-            BigUploadCTALabel()
+            BigUploadCTA()
         }
         .contentShape(Rectangle())
         .disabled(shouldDisableButton())
