@@ -89,19 +89,26 @@ class UploadCreationViewModel : ObservableObject {
         //session.shouldOptimizeForNetworkUse = false
         prepareTask = Task.detached { [self] in
             await session.export()
-            
             if Task.isCancelled {
                 return
             }
             
-            // TODO: before thumbnail fetch, we gotta call the REST API
+            do {
+                let putURL = try await self.myServerBackend.createDirectUpload()
             
-            extractThumbnailAsync(session.asset) { thumbnailImage in
-                // This is already on the main thread
-                self.logger.debug(_:)("Yay, Media exported & ready for upload!")
-                self.assetRequestId = nil
-                // Deliver result
-                self.exportState = .ready(thumbnailImage, outFile)
+                // TODO: before thumbnail fetch, we gotta call the REST API
+            
+                extractThumbnailAsync(session.asset) { thumbnailImage in
+                    // This is already on the main thread
+                    self.logger.debug("Yay, Media exported & ready for upload!")
+                    self.assetRequestId = nil
+                    // Deliver result
+                    self.exportState = .ready(
+                        PreparedUpload(thumbnail: thumbnailImage, localVideoFile: outFile, remoteURL: putURL)
+                    )
+                }
+            } catch {
+                
             }
         }
     }
@@ -155,6 +162,7 @@ class UploadCreationViewModel : ObservableObject {
     private var thumbnailGenerator: AVAssetImageGenerator? = nil
     
     private let logger = Test_AppApp.logger
+    private let myServerBackend = FakeBackend(urlSession: URLSession(configuration: URLSessionConfiguration.default))
     
     @Published
     var photosAuthStatus: PhotosAuthState
@@ -168,8 +176,14 @@ class UploadCreationViewModel : ObservableObject {
     }
 }
 
+struct PreparedUpload {
+    let thumbnail: CGImage?
+    let localVideoFile: URL
+    let remoteURL: URL
+}
+
 enum ExportState {
-    case not_started, preparing, failure(UploadCreationViewModel.PickerError?), ready(CGImage?, URL)
+    case not_started, preparing, failure(UploadCreationViewModel.PickerError?), ready(PreparedUpload)
 }
 
 enum PhotosAuthState {

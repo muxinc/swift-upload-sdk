@@ -31,7 +31,7 @@ fileprivate struct ScreenContent: View {
             case .not_started: EmptyView()
             case .preparing: ProcessingView()
             case .failure(let error): ErrorView(error: error)
-            case .ready(let image, _): ThumbnailView(image: image)
+            case .ready(let upload): ThumbnailView(image: upload.thumbnail)
             }
             
         }
@@ -183,7 +183,9 @@ fileprivate struct EmptyView: View {
 
 struct ContentContainer_Previews: PreviewProvider {
     static var previews: some View {
-        let exportState = ExportState.ready(nil, URL(string: "file:///")!)
+        let exportState = ExportState.ready(
+            PreparedUpload(thumbnail: nil, localVideoFile: URL(string: "file:///")!, remoteURL: URL(string: "file:///")!)
+        )
         ScreenContent(exportState: exportState)
             .environmentObject(UploadCreationViewModel())
     }
