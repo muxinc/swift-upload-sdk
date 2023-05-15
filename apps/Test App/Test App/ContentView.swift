@@ -10,10 +10,10 @@ import MuxUploadSDK
 
 struct ContentView: View {
     var body: some View {
-//        NavigationView {
-//            CreateUploadScreen()
-//        }.preferredColorScheme(.dark)
-        UploadScreen()
+        NavigationView {
+            CreateUploadScreen()
+        }.preferredColorScheme(.dark)
+//        UploadScreen()
     }
 }
 

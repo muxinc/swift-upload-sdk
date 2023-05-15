@@ -45,7 +45,7 @@ class UploadCreationViewModel : ObservableObject {
         upload.progressHandler = { progress in
             self.logger.info("Uploading \(progress.progress?.completedUnitCount ?? 0)/\(progress.progress?.totalUnitCount ?? 0)")
         }
-        upload.start(forceRestart: forceRestart)
+        upload.start(forceRestart: false)
         return upload
     }
     
