@@ -90,25 +90,25 @@ fileprivate struct ThumbnailView: View {
         VStack {
             ZStack {
                 if let image = preparedMedia?.thumbnail {
-                    let w = image.width
-                    let h = image.height
-                    // Converting from a CGImage to a swiftUI image
-                    RoundedRectangle(cornerRadius: 4.0)
-                        .strokeBorder(style: StrokeStyle(lineWidth: 1.0))
-                        .foregroundColor(Gray30)
-                        .background(
-                            Image(
-                                image,
-                                scale: 1.0,
-                                label: Text("")
+                    GeometryReader { proxy in
+                        RoundedRectangle(cornerRadius: 4.0)
+                            .strokeBorder(style: StrokeStyle(lineWidth: 1.0))
+                            .foregroundColor(Gray30)
+                            .background(
+                                Image(
+                                    image,
+                                    scale: 1.0,
+                                    label: Text("")
+                                )
+                                .resizable( )
+                                .scaledToFit()
+                                .aspectRatio(contentMode: .fill)
+                                .frame(maxWidth: proxy.size.width, maxHeight: proxy.size.height, alignment: .center)
+                                .clipShape(
+                                    RoundedRectangle(cornerRadius: 4.0)
+                                )
                             )
-                            // TODO: I really want to crop the center part of the thumbnail and use that but I don't know how big the view is
-                            .resizable( )
-                            .scaledToFill()
-                            .aspectRatio(contentMode: .fit)
-                            .clipShape(RoundedRectangle(cornerRadius: 4.0))
-                        )
-                    //Image(uiImage: uiImage)
+                    }
                 } else {
                     RoundedRectangle(cornerRadius: 4.0)
                         .strokeBorder(style: StrokeStyle(lineWidth: 1.0))
@@ -133,7 +133,7 @@ fileprivate struct ThumbnailView: View {
                     let upload = uploadCreationVM.startUpload(preparedMedia: preparedMedia, forceRestart: true)
                     // TODO: Dismiss self
                 }
-                }
+            }
             .padding()
         }
     }
