@@ -22,6 +22,7 @@ import Foundation
 public final class UploadManager {
     
     private var uploadersByURL: [URL : ChunkedFileUploader] = [:]
+    private var uploadsUpdateDelegatesByToken: [Int : UploadsUpdatedDelegate] = [:]
     private let uploadActor = UploadCacheActor()
     private lazy var uploaderDelegate: FileUploaderDelegate = FileUploaderDelegate(onBehalfOf: self)
     
@@ -88,6 +89,18 @@ public final class UploadManager {
             }
         }
     }
+    
+    /// Adds an ``UploadsUpdatedDelegate`` with the given ID. You can add as many of these as you like, each with a uniqe ID
+    public func addUploadsUpdatedDelegate(_ delegate: UploadsUpdatedDelegate?, id: Int) {
+        if let delegate = delegate {
+            uploadsUpdateDelegatesByToken[id] = delegate
+        } else {
+            uploadsUpdateDelegatesByToken.removeValue(forKey: id)
+        }
+    }
+    
+    /// A delegate that handles changes to the list of active uploads
+    public typealias UploadsUpdatedDelegate = ([MuxUpload]) -> Void
     
     internal func findUploaderFor(videoFile url: URL) -> ChunkedFileUploader? {
         return uploadersByURL[url]
