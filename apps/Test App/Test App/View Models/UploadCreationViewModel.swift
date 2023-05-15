@@ -42,9 +42,9 @@ class UploadCreationViewModel : ObservableObject {
             uploadURL: preparedMedia.remoteURL,
             videoFileURL: preparedMedia.localVideoFile
         )
-//        upload.progressHandler = { progress in
-//            self.logger.info("Uploading \(progress.progress?.completedUnitCount ?? 0)/\(progress.progress?.totalUnitCount ?? 0)")
-//        }
+        upload.progressHandler = { progress in
+            self.logger.info("Uploading \(progress.progress?.completedUnitCount ?? 0)/\(progress.progress?.totalUnitCount ?? 0)")
+        }
         upload.start(forceRestart: forceRestart)
         return upload
     }
