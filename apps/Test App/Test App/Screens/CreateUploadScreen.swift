@@ -91,6 +91,8 @@ fileprivate struct ThumbnailView: View {
         VStack {
             ZStack {
                 if let image = image {
+                    let w = image.width
+                    let h = image.height
                     // Converting from a CGImage to a swiftUI image
                     RoundedRectangle(cornerRadius: 4.0)
                         .strokeBorder(style: StrokeStyle(lineWidth: 1.0))
@@ -101,9 +103,10 @@ fileprivate struct ThumbnailView: View {
                                 scale: 1.0,
                                 label: Text("")
                             )
-                            .resizable(
-                                resizingMode: .stretch
-                            )
+                            // TODO: I really want to crop the center part of the thumbnail and use that but I don't know how big the view is
+                            .resizable( )
+                            .scaledToFill()
+                            .aspectRatio(contentMode: .fit)
                             .clipShape(RoundedRectangle(cornerRadius: 4.0))
                         )
                     //Image(uiImage: uiImage)
