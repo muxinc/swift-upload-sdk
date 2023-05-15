@@ -13,12 +13,13 @@ struct ContentView: View {
         NavigationView {
             CreateUploadScreen()
         }.preferredColorScheme(.dark)
-//        UploadScreen()
     }
 }
 
 struct ContentView_Previews: PreviewProvider {
     static var previews: some View {
         ContentView()
+            .environmentObject(UploadScreenViewModel())
+            .environmentObject(UploadCreationViewModel())
     }
 }
