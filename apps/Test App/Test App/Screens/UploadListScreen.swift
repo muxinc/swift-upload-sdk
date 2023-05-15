@@ -14,12 +14,12 @@ struct UploadListScreen: View {
     var body: some View {
         ZStack {
             WindowBackground
-            ListContent(uploadList: [])
+            ListContianer(uploadList: [])
         }
     }
 }
 
-fileprivate struct ListContent: View {
+fileprivate struct ListContianer: View {
     var body: some View {
         if uploadList.isEmpty {
             EmptyList()
@@ -46,7 +46,7 @@ struct ListContent_Previews: PreviewProvider {
     static var previews: some View {
         ZStack(alignment: .top) {
             WindowBackground
-            ListContent(uploadList: [])
+            ListContianer(uploadList: [])
         }
     }
 }
