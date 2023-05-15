@@ -26,7 +26,6 @@ fileprivate struct ScreenContent: View {
     var body: some View {
         ZStack {
             WindowBackground
-            // TODO: If we have a thumbnail loaded, that's what we want to show
             switch exportState {
             case .not_started: EmptyView()
             case .preparing: ProcessingView()
