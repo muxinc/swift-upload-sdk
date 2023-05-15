@@ -44,19 +44,6 @@ public final class UploadManager {
         return uploadersByURL.compactMap { (key, value) in MuxUpload(wrapping: value, uploadManager: self) }
     }
     
-    /// Call to remove a finished upload from the manger (so it will no longer be returned by other methods in this class).
-    /// If it was in-progress, it will be canceled
-    public func acknowledgeUpload(ofFile url: URL) {
-        if let uploader = uploadersByURL[url] {
-            uploader.cancel()
-        }
-        uploadersByURL.removeValue(forKey: url)
-        Task.detached {
-            await self.uploadActor.remove(uploadAt:url)
-        }
-    }
-    
-    
     /// Attempts to resume an upload that was previously paused or interrupted by process death
     ///  If no upload was found in the cache, this method returns null without taking any action
     public func resumeUpload(ofFile: URL) async -> MuxUpload? {
@@ -102,13 +89,23 @@ public final class UploadManager {
     /// A delegate that handles changes to the list of active uploads
     public typealias UploadsUpdatedDelegate = ([MuxUpload]) -> Void
     
+    internal func acknowledgeUpload(ofFile url: URL) {
+        if let uploader = uploadersByURL[url] {
+            uploader.cancel()
+        }
+        uploadersByURL.removeValue(forKey: url)
+        Task.detached {
+            await self.uploadActor.remove(uploadAt:url)
+        }
+    }
+    
     internal func findUploaderFor(videoFile url: URL) -> ChunkedFileUploader? {
         return uploadersByURL[url]
     }
     
     internal func registerUploader(_ fileWorker: ChunkedFileUploader, withId id: Int) {
         uploadersByURL.updateValue(fileWorker, forKey: fileWorker.uploadInfo.videoFile)
-        fileWorker.addDelegate(withToken: id, uploaderDelegate)
+        fileWorker.addDelegate(withToken: id + 1, uploaderDelegate)
         Task.detached {
             await self.uploadActor.updateUpload(
                 fileWorker.uploadInfo,
@@ -125,13 +122,12 @@ public final class UploadManager {
         let onBehalfOf: UploadManager
         
         func chunkedFileUploader(_ uploader: ChunkedFileUploader, stateUpdated state: ChunkedFileUploader.InternalUploadState) {
-            switch state {
-            case .canceled: onBehalfOf.acknowledgeUpload(ofFile: uploader.uploadInfo.videoFile)
-            default: do { }
-            }
-            
             Task.detached {
                 await onBehalfOf.uploadActor.updateUpload(uploader.uploadInfo, withUpdate: state)
+            }
+            switch state {
+            case .success(_), .canceled, .failure(_): onBehalfOf.acknowledgeUpload(ofFile: uploader.uploadInfo.videoFile)
+            default: do { }
             }
         }
     }

@@ -142,7 +142,7 @@ public final class MuxUpload {
             InternalUploaderDelegate { [weak self] state in self?.handleStateUpdate(state) }
         )
         fileWorker.start()
-        uploadManager.registerUploader(fileWorker, withId: id + 1)
+        uploadManager.registerUploader(fileWorker, withId: id)
         self.fileWorker = fileWorker
     }
     
@@ -223,7 +223,7 @@ public final class MuxUpload {
         
         handleStateUpdate(uploader.currentState)
         uploader.addDelegate(
-            withToken: id,
+            withToken: self.id,
             InternalUploaderDelegate { [weak self] state in self?.handleStateUpdate(state) }
         )
     }
