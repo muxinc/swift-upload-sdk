@@ -14,10 +14,7 @@ struct ContentView: View {
     var body: some View {
         NavigationView {
             ZStack(alignment: .bottomTrailing) {
-                CreateUploadScreen() // TODO: Not here
-                // UploadList
-                // Upload CTA (optional), NavigationLink to CreateUpload, Label is Floating Btton
-                
+                UploadListScreen()
                 // TODO: only if there's already some uploads
                 NavigationLink {
                     CreateUploadScreen()

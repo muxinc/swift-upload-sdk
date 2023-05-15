@@ -12,7 +12,7 @@ struct UploadListScreen: View {
     @EnvironmentObject var uploadListVM: UploadListViewModel
     
     var body: some View {
-        ZStack {
+        ZStack(alignment: .top) {
             WindowBackground
             ListContianer(uploadList: [])
         }

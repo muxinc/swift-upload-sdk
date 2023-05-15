@@ -86,6 +86,8 @@ fileprivate struct ErrorView: View {
 
 
 fileprivate struct ThumbnailView: View {
+    @Environment(\.dismiss) private var dismiss
+    
     var body: some View {
         VStack {
             ZStack {
@@ -131,7 +133,7 @@ fileprivate struct ThumbnailView: View {
             StretchyDefaultButton("Upload") {
                 if let preparedMedia = preparedMedia {
                     let upload = uploadCreationVM.startUpload(preparedMedia: preparedMedia, forceRestart: true)
-                    // TODO: Dismiss self
+                    dismiss()
                 }
             }
             .padding()
