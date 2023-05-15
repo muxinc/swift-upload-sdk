@@ -7,13 +7,14 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		354421B32A0D628E00C6FD1F /* BigUploadCTA.swift in Sources */ = {isa = PBXBuildFile; fileRef = 354421B22A0D628E00C6FD1F /* BigUploadCTA.swift */; };
+		354421B32A0D628E00C6FD1F /* UploadCTA.swift in Sources */ = {isa = PBXBuildFile; fileRef = 354421B22A0D628E00C6FD1F /* UploadCTA.swift */; };
 		354421B62A11731B00C6FD1F /* UploadCreationViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 354421B52A11731B00C6FD1F /* UploadCreationViewModel.swift */; };
 		356FB4162A0C191000EA4362 /* Buttons.swift in Sources */ = {isa = PBXBuildFile; fileRef = 356FB4152A0C191000EA4362 /* Buttons.swift */; };
 		3570FE112A09883400E91965 /* FakeBackend.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3570FE102A09883400E91965 /* FakeBackend.swift */; };
 		3570FE132A0B15D800E91965 /* CreateUploadScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3570FE122A0B15D800E91965 /* CreateUploadScreen.swift */; };
 		3570FE162A0BFCD200E91965 /* Mux Colors.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3570FE152A0BFCD200E91965 /* Mux Colors.swift */; };
 		3570FE192A0C05EE00E91965 /* MuxNavBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3570FE182A0C05EE00E91965 /* MuxNavBar.swift */; };
+		3588AAAD2A12D7A80063E4DA /* UploadListScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3588AAAC2A12D7A80063E4DA /* UploadListScreen.swift */; };
 		358E3CB529A921B2005261CB /* Test_AppApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 358E3CA529A921B2005261CB /* Test_AppApp.swift */; };
 		358E3CB629A921B2005261CB /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 358E3CA629A921B2005261CB /* Assets.xcassets */; };
 		358E3CB729A921B2005261CB /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 358E3CA829A921B2005261CB /* Preview Assets.xcassets */; };
@@ -40,13 +41,14 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		354421B22A0D628E00C6FD1F /* BigUploadCTA.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BigUploadCTA.swift; sourceTree = "<group>"; };
+		354421B22A0D628E00C6FD1F /* UploadCTA.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UploadCTA.swift; sourceTree = "<group>"; };
 		354421B52A11731B00C6FD1F /* UploadCreationViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UploadCreationViewModel.swift; sourceTree = "<group>"; };
 		356FB4152A0C191000EA4362 /* Buttons.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Buttons.swift; sourceTree = "<group>"; };
 		3570FE102A09883400E91965 /* FakeBackend.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FakeBackend.swift; sourceTree = "<group>"; };
 		3570FE122A0B15D800E91965 /* CreateUploadScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateUploadScreen.swift; sourceTree = "<group>"; };
 		3570FE152A0BFCD200E91965 /* Mux Colors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Mux Colors.swift"; sourceTree = "<group>"; };
 		3570FE182A0C05EE00E91965 /* MuxNavBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MuxNavBar.swift; sourceTree = "<group>"; };
+		3588AAAC2A12D7A80063E4DA /* UploadListScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UploadListScreen.swift; sourceTree = "<group>"; };
 		358E3C7729A92167005261CB /* Test App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Test App.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		358E3C9129A92168005261CB /* Test AppUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Test AppUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		358E3CA529A921B2005261CB /* Test_AppApp.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Test_AppApp.swift; sourceTree = "<group>"; };
@@ -167,6 +169,7 @@
 			children = (
 				358E3CAA29A921B2005261CB /* UploadScreen.swift */,
 				3570FE122A0B15D800E91965 /* CreateUploadScreen.swift */,
+				3588AAAC2A12D7A80063E4DA /* UploadListScreen.swift */,
 			);
 			path = Screens;
 			sourceTree = "<group>";
@@ -178,7 +181,7 @@
 				358E3CAF29A921B2005261CB /* UploadProgressView.swift */,
 				358E3CB029A921B2005261CB /* ImagePicker.swift */,
 				358E3CB129A921B2005261CB /* ButtonThemes.swift */,
-				354421B22A0D628E00C6FD1F /* BigUploadCTA.swift */,
+				354421B22A0D628E00C6FD1F /* UploadCTA.swift */,
 			);
 			path = Widgets;
 			sourceTree = "<group>";
@@ -312,6 +315,7 @@
 			files = (
 				3570FE132A0B15D800E91965 /* CreateUploadScreen.swift in Sources */,
 				358E3CBB29A921B2005261CB /* UploadingView.swift in Sources */,
+				3588AAAD2A12D7A80063E4DA /* UploadListScreen.swift in Sources */,
 				356FB4162A0C191000EA4362 /* Buttons.swift in Sources */,
 				3570FE192A0C05EE00E91965 /* MuxNavBar.swift in Sources */,
 				358E3CB829A921B2005261CB /* UploadScreen.swift in Sources */,
@@ -320,7 +324,7 @@
 				354421B62A11731B00C6FD1F /* UploadCreationViewModel.swift in Sources */,
 				358E3CB929A921B2005261CB /* UploadScreenViewModel.swift in Sources */,
 				358E3CBA29A921B2005261CB /* ContentView.swift in Sources */,
-				354421B32A0D628E00C6FD1F /* BigUploadCTA.swift in Sources */,
+				354421B32A0D628E00C6FD1F /* UploadCTA.swift in Sources */,
 				3570FE162A0BFCD200E91965 /* Mux Colors.swift in Sources */,
 				358E3CB529A921B2005261CB /* Test_AppApp.swift in Sources */,
 				3570FE112A09883400E91965 /* FakeBackend.swift in Sources */,

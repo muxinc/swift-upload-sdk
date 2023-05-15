@@ -174,7 +174,7 @@ fileprivate struct ProcessingView: View {
 fileprivate struct EmptyView: View {
     var body: some View {
         VStack {
-            BigUploadCTA()
+            UploadCTA()
                 .padding(
                     EdgeInsets(
                         top: 64,
@@ -185,6 +185,92 @@ fileprivate struct EmptyView: View {
                 )
             Spacer()
         }
+    }
+}
+
+fileprivate struct UploadCTA: View {
+    @EnvironmentObject var uploadCreationVM: UploadCreationViewModel
+    @State var inPickFlow = false // True when picking photos or resolving the related permission prompt, or when first launching the screen
+    
+    private var pickerConfig: PHPickerConfiguration = {
+        let mediaFilter = PHPickerFilter.any(of: [.videos])
+        var photoPickerConfig = PHPickerConfiguration(photoLibrary: .shared())
+        photoPickerConfig.filter = mediaFilter
+        photoPickerConfig.preferredAssetRepresentationMode = .current
+        photoPickerConfig.selectionLimit = 1
+        if #available(iOS 15.0, *) {
+            photoPickerConfig.selection = .default
+        }
+        return photoPickerConfig
+    }()
+    
+    var body: some View {
+        Button { [self] in
+            switch uploadCreationVM.photosAuthStatus {
+            case .can_auth(_): do {
+                inPickFlow = true
+                uploadCreationVM.requestPhotosAccess()
+            }
+            case .authorized(_): do {
+                inPickFlow = true
+            }
+            case .cant_auth(_): do {
+                NSLog("!! This app  cannot ask for or gain Photos access permissions for some reason. We don't expect to see this on a real device unless 'NSPhotoLibraryAddUsageDescription' is gone from the app plist")
+            }
+            }
+        } label : {
+            BigUploadCTALabel()
+        }
+        .contentShape(Rectangle())
+        .disabled(shouldDisableButton())
+        .sheet(
+            isPresented: Binding<Bool>(
+                get: { self.shouldShowPhotoPicker() },
+                set: { value, _ in inPickFlow = value && isAuthorizedForPhotos() }
+            ),
+            content: { ImagePicker(
+                pickerConfiguration: self.pickerConfig,
+                delegate: { (images: [PHPickerResult]) in
+                    // Only 0 or 1 images can be selected
+                    if let firstVideo = images.first {
+                        inPickFlow = false
+                        uploadCreationVM.tryToPrepare(from: firstVideo)
+                    }
+                }
+            )}
+        )
+        .onAppear {
+            inPickFlow = true
+        }
+    }
+    
+    private func shouldShowPhotoPicker() -> Bool {
+        if isAuthorizedForPhotos() {
+            return inPickFlow
+        } else {
+            return false
+        }
+    }
+    
+    private func shouldDisableButton() -> Bool {
+        if isAuthorizedForPhotos() {
+            return false
+        } else {
+            return inPickFlow
+        }
+    }
+    
+    private func isAuthorizedForPhotos() -> Bool {
+        switch uploadCreationVM.photosAuthStatus {
+        case .authorized(_): return true
+        default: return false
+        }
+    }
+    
+    let actionOnMediaAvailable: (PHAsset, URL) -> Void
+    
+    init(_ actionOnMediaAvailable: @escaping (PHAsset, URL) -> Void = {_,_ in }) {
+        self.actionOnMediaAvailable = actionOnMediaAvailable
     }
 }
 
