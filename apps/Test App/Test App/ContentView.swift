@@ -27,13 +27,10 @@ struct ContentView: View {
                         Image("Mux-y Add")
                             .padding()
                             .background(Green50.clipShape(Circle()))
-                            .border(.red)
                     }
-                    .border(.blue)
                     .padding(24.0)
                 }
             }
-            .border(.yellow)
         }
         .preferredColorScheme(.dark)
     }
