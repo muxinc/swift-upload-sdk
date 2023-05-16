@@ -5,6 +5,7 @@
 //  Created by Emily Dixon on 2/10/23.
 //
 
+import AVFoundation
 import Foundation
 
 /**
@@ -14,7 +15,7 @@ struct UploadInfo : Codable {
 
     var id: String
     /**
-     URI of the upload's destinatoin
+     URI of the upload destination
      */
     var uploadURL: URL
     /**
@@ -33,4 +34,28 @@ struct UploadInfo : Codable {
      True if the user opted out of sending us performance metrics
      */
     var optOutOfEventTracking: Bool
+}
+
+extension UploadInfo {
+
+    init(
+        id: String,
+        uploadURL: URL,
+        videoFile: URL,
+        transportSettings: MuxUpload.TransportSettings,
+        optOutOfEventTracking: Bool
+    ) {
+        self.id = id
+        self.uploadURL = uploadURL
+        self.videoFile = videoFile
+        self.chunkSize = transportSettings.chunkSize
+        self.retriesPerChunk = transportSettings.retriesPerChunk
+        self.optOutOfEventTracking = optOutOfEventTracking
+    }
+
+    func sourceAsset() -> AVAsset {
+        AVAsset(
+            url: uploadURL
+        )
+    }
 }

@@ -5,7 +5,10 @@
 //  Created by Emily Dixon on 2/7/23.
 //
 
+import AVFoundation
 import Foundation
+
+public typealias UploadResult = Result<MuxUpload.Success, MuxUpload.UploadError>
 
 ///
 /// Uploads a video file to a previously-created Mux Video Direct Upload.
@@ -45,13 +48,93 @@ import Foundation
 /// this topic, see ``UploadManager``
 ///
 public final class MuxUpload : Hashable, Equatable {
- 
-    private let uploadInfo: UploadInfo
+
+    private var input: UploadInput
+
+    private var internalStatus: UploadInput.Status {
+        input.status
+    }
+
+    private var uploadInfo: UploadInfo? {
+        input.uploadInfo
+    }
+
+    /// Indicates the status of the upload as it goes
+    /// through its lifecycle
+    public enum InputStatus {
+        /// Upload initialized and not yet started
+        case ready(AVAsset)
+        /// Upload started by a call to ``MuxUpload.start(forceRestart:``
+        case started(AVAsset)
+        /// Upload is being prepared for transport to the
+        /// server. If input standardization was enabled,
+        /// this stage includes the inspection and standardization
+        /// of input formats
+        case preparing(AVAsset)
+        /// SDK is waiting for confirmation to continue the
+        /// upload despite being unable to standardize input
+        case awaitingUploadConfirmation(AVAsset)
+        /// Transport of upload inputs is in progress
+        case uploadInProgress(AVAsset, Status)
+        /// Upload has been paused
+        case uploadPaused(AVAsset, Status)
+        /// Upload has succeeded
+        case uploadSucceeded(AVAsset, Status, UploadResult)
+        /// Upload has failed
+        case uploadFailed(AVAsset, Status, UploadResult)
+    }
+
+    public var inputStatus: InputStatus {
+        switch input.status {
+        case .ready(let sourceAsset):
+            return InputStatus.ready(sourceAsset)
+        case .started(let sourceAsset):
+            return InputStatus.started(sourceAsset)
+        case .underInspection(let sourceAsset):
+            return InputStatus.preparing(sourceAsset)
+        case .standardizing(let sourceAsset):
+            return InputStatus.preparing(sourceAsset)
+        case .standardizationSucceeded(let sourceAsset):
+            return InputStatus.preparing(sourceAsset)
+        case .standardizationFailed(let sourceAsset):
+            return InputStatus.preparing(sourceAsset)
+        case .awaitingUploadConfirmation(let uploadInfo):
+            return InputStatus.awaitingUploadConfirmation(
+                uploadInfo.sourceAsset()
+            )
+        case .uploadInProgress(let uploadInfo):
+            return InputStatus.uploadInProgress(
+                uploadInfo.sourceAsset(),
+                uploadStatus
+            )
+        case .uploadPaused(let uploadInfo):
+            return InputStatus.uploadPaused(
+                uploadInfo.sourceAsset(),
+                uploadStatus
+            )
+        case .uploadSucceeded(let uploadInfo):
+            return InputStatus.uploadSucceeded(
+                uploadInfo.sourceAsset(),
+                uploadStatus,
+                .success(.init(finalState: uploadStatus))
+            )
+        case .uploadFailed(let uploadInfo):
+            #warning("Separate error property")
+            return InputStatus.uploadFailed(
+                uploadInfo.sourceAsset(),
+                uploadStatus,
+                .failure(.init(lastStatus: uploadStatus, code: MuxErrorCase.unknown, message: "", reason: nil))
+            )
+        }
+    }
+
     private let manageBySDK: Bool
     private var id: String {
-        uploadInfo.id
+        uploadInfo!.id
     }
     private let uploadManager: UploadManager
+    private let inputInspector: UploadInputInspector = UploadInputInspector()
+    private let inputStandardizer: UploadInputStandardizer = UploadInputStandardizer()
     
     private var lastSeenStatus: Status = Status(progress: Progress(totalUnitCount: 0), updatedTime: 0, startTime: 0, isPaused: false)
     
@@ -95,20 +178,87 @@ public final class MuxUpload : Hashable, Equatable {
         videoFileURL: URL,
         chunkSize: Int = 8 * 1024 * 1024, // Google recommends at least 8M
         retriesPerChunk: Int = 3,
-        optOutOfEventTracking: Bool = false
+        optOutOfEventTracking: Bool = false,
+        standardizationSettings: StandardizationSettings = .enabled(resolution: .preset1920x1080)
     ) {
+        let transportSettings = TransportSettings(
+            chunkSize: chunkSize,
+            retriesPerChunk: retriesPerChunk
+        )
+
+        let inputSourceAsset = AVAsset(url: videoFileURL)
+
+        let input = UploadInput(status: .ready(inputSourceAsset))
+
+        self.init(
+            input: input,
+            transportSettings: transportSettings,
+            optOutOfEventTracking: optOutOfEventTracking,
+            standardizationSettings: standardizationSettings,
+            uploadManager: .shared
+        )
+    }
+
+    public convenience init(
+        uploadURL: URL,
+        inputFileURL: URL,
+        transportSettings: TransportSettings = TransportSettings(),
+        optOutOfEventTracking: Bool,
+        standardizationSettings: StandardizationSettings = .enabled(resolution: .preset1920x1080)
+    ) {
+        let inputSourceAsset = AVAsset(url: inputFileURL)
+        let input = UploadInput(status: .ready(inputSourceAsset))
+
+        self.init(
+            input: input,
+            manage: true,
+            transportSettings: transportSettings,
+            optOutOfEventTracking: optOutOfEventTracking,
+            standardizationSettings: standardizationSettings,
+            uploadManager: .shared
+        )
+    }
+
+    init(
+        input: UploadInput,
+        manage: Bool = true,
+        transportSettings: TransportSettings = TransportSettings(),
+        optOutOfEventTracking: Bool,
+        standardizationSettings: StandardizationSettings,
+        uploadManager: UploadManager
+    ) {
+        self.input = input
+        self.manageBySDK = manage
+        self.uploadManager = uploadManager
+
         let uploadInfo = UploadInfo(
             id: UUID().uuidString,
             uploadURL: uploadURL,
-            videoFile: videoFileURL,
-            chunkSize: chunkSize,
-            retriesPerChunk: retriesPerChunk,
+            videoFile: URL(string: "file://")!,
+            chunkSize: transportSettings.chunkSize,
+            retriesPerChunk: transportSettings.retriesPerChunk,
             optOutOfEventTracking: optOutOfEventTracking
         )
+    }
+
+    internal convenience init(
+        wrapping uploader: ChunkedFileUploader,
+        uploadManager: UploadManager
+    ) {
+        let input = UploadInput(status: .uploadInProgress(uploader.uploadInfo))
 
         self.init(
-            uploadInfo: uploadInfo,
+            input: input,
+            optOutOfEventTracking: uploader.uploadInfo.optOutOfEventTracking,
+            standardizationSettings: .disabled, // fix this
             uploadManager: .shared
+        )
+        self.fileWorker = uploader
+
+        handleStateUpdate(uploader.currentState)
+        uploader.addDelegate(
+            withToken: id,
+            InternalUploaderDelegate { [weak self] state in self?.handleStateUpdate(state) }
         )
     }
 
@@ -156,12 +306,14 @@ public final class MuxUpload : Hashable, Equatable {
     /**
     URL to the file that will be uploaded
      */
-    public var videoFile: URL { get { return uploadInfo.videoFile } }
+    public var videoFile: URL { get { return uploadInfo!.videoFile } }
     
     /**
      The remote endpoint that this object uploads to
      */
-    public var uploadURL: URL { get { return uploadInfo.uploadURL } }
+
+    public var uploadURL: URL { get { return uploadInfo!.uploadURL } }
+    // TODO: Computed Properties for some other UploadInfo properties
     
     /**
      Begins the upload. You can control what happens when the upload is already started. If `forceRestart` is true, the upload will be restarted. Otherwise, nothing will happen. The default is not to restart
@@ -187,7 +339,7 @@ public final class MuxUpload : Hashable, Equatable {
             cancel()
         }
         let completedUnitCount = UInt64({ self.lastSeenStatus.progress?.completedUnitCount ?? 0 }())
-        let fileWorker = ChunkedFileUploader(uploadInfo: uploadInfo, startingAtByte: completedUnitCount)
+        let fileWorker = ChunkedFileUploader(uploadInfo: uploadInfo!, startingAtByte: completedUnitCount)
         fileWorker.addDelegate(
             withToken: id,
             InternalUploaderDelegate { [self] state in handleStateUpdate(state) }
@@ -273,33 +425,7 @@ public final class MuxUpload : Hashable, Equatable {
     public func hash(into hasher: inout Hasher) {
         hasher.combine(videoFile)
         hasher.combine(uploadURL)
-    }
-   
-    
-    internal init (
-        uploadInfo: UploadInfo,
-        manage: Bool = true,
-        uploadManager: UploadManager
-    ) {
-        self.uploadInfo = uploadInfo
-        self.manageBySDK = manage
-        self.uploadManager = uploadManager
-    }
-    
-    internal convenience init(wrapping uploader: ChunkedFileUploader, uploadManager: UploadManager) {
-        self.init(
-            uploadInfo: uploader.uploadInfo,
-            manage: true,
-            uploadManager: uploadManager
-        )
-        self.fileWorker = uploader
-        
-        handleStateUpdate(uploader.currentState)
-        uploader.addDelegate(
-            withToken: self.id,
-            InternalUploaderDelegate { [weak self] state in self?.handleStateUpdate(state) }
-        )
-    }
+    }   
 }
 
 extension MuxUpload.UploadError {
