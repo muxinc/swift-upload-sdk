@@ -43,7 +43,7 @@ struct UploadEvent: Codable {
 
         self.deviceModel = device.model
 
-        self.appName = Bundle.main.appName
+        self.appName = Bundle.main.bundleIdentifier
         self.appVersion = Bundle.main.appVersion
 
         if #available(iOS 16, *) {

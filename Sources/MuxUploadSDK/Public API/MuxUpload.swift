@@ -53,18 +53,16 @@ public final class MuxUpload : Hashable, Equatable {
     public convenience init(
         uploadURL: URL,
         videoFileURL: URL,
-        videoMIMEType: String = "video/*", // TODO: We can guess this, so make it optional,
         chunkSize: Int = 8 * 1024 * 1024, // Google recommends at least 8M
         retriesPerChunk: Int = 3,
-        retryBaseTimeInterval: TimeInterval = 0.5
+        optOutOfEventTracking: Bool = false
     ) {
         let uploadInfo = UploadInfo(
             uploadURL: uploadURL,
             videoFile: videoFileURL,
-            videoMIMEType: videoMIMEType,
             chunkSize: chunkSize,
             retriesPerChunk: retriesPerChunk,
-            retryBaseTime: retryBaseTimeInterval
+            optOutOfEventTracking: optOutOfEventTracking
         )
 
         self.init(
@@ -131,7 +129,7 @@ public final class MuxUpload : Hashable, Equatable {
     public func start(forceRestart: Bool = false) {
         if self.manageBySDK {
             // See if there's anything in progress already
-            fileWorker = UploadManager.shared.findUploaderFor(videoFile: videoFile)
+            fileWorker = uploadManager.findUploaderFor(videoFile: videoFile)
         }
         if fileWorker != nil && !forceRestart {
             MuxUploadSDK.logger?.warning("start() called but upload is in progress")
@@ -166,7 +164,7 @@ public final class MuxUpload : Hashable, Equatable {
      */
     public func cancel() {
         fileWorker?.cancel()
-        UploadManager.shared.acknowledgeUpload(ofFile: videoFile)
+        uploadManager.acknowledgeUpload(ofFile: videoFile)
         
         lastSeenStatus = Status(progress: nil, updatedTime: 0, startTime: 0, isPaused: true)
         progressHandler = nil

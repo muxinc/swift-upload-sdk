@@ -109,12 +109,14 @@ class ChunkedFileUploader {
                     duration = asset.duration
                 }
 
-                reporter.report(
-                    startTime: success.startTime,
-                    endTime: success.finishTime,
-                    fileSize: fileSize,
-                    videoDuration: duration.seconds
-                )
+                if !uploadInfo.optOutOfEventTracking {
+                    reporter.report(
+                        startTime: success.startTime,
+                        endTime: success.finishTime,
+                        fileSize: fileSize,
+                        videoDuration: duration.seconds
+                    )
+                }
 
                 notifyStateFromWorker(.success(success))
             } catch {
@@ -262,10 +264,8 @@ fileprivate actor Worker {
             let chunkWorker = ChunkWorker(
                 uploadURL: uploadInfo.uploadURL,
                 fileChunk: chunk,
-                videoMIMEType: uploadInfo.videoMIMEType,
                 chunkProgress: chunkProgress,
-                maxRetries: uploadInfo.retriesPerChunk,
-                backOffBaseTime: uploadInfo.retryBaseTime
+                maxRetries: uploadInfo.retriesPerChunk
             )
             chunkWorker.addDelegate {[self] update in
                 // Called on the main thread
