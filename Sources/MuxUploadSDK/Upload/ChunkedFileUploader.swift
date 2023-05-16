@@ -109,12 +109,14 @@ class ChunkedFileUploader {
                     duration = asset.duration
                 }
 
-                reporter.report(
-                    startTime: success.startTime,
-                    endTime: success.finishTime,
-                    fileSize: fileSize,
-                    videoDuration: duration.seconds
-                )
+                if !uploadInfo.optOutOfEventTracking {
+                    reporter.report(
+                        startTime: success.startTime,
+                        endTime: success.finishTime,
+                        fileSize: fileSize,
+                        videoDuration: duration.seconds
+                    )
+                }
 
                 notifyStateFromWorker(.success(success))
             } catch {
