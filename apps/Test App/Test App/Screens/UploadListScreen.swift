@@ -14,7 +14,7 @@ struct UploadListScreen: View {
     var body: some View {
         ZStack(alignment: .top) {
             WindowBackground
-            ListContianer(uploadList: [])
+            ListContianer()
         }
     }
 }
@@ -24,7 +24,7 @@ fileprivate struct ListContianer: View {
     @EnvironmentObject var listVM: UploadListViewModel
     
     var body: some View {
-        if uploadList.isEmpty {
+        if listVM.lastKnownUploads.isEmpty {
             EmptyList()
         } else {
             LazyVStack {
@@ -33,12 +33,6 @@ fileprivate struct ListContianer: View {
                 }
             }
         }
-    }
-    
-    private let uploadList: [MuxUpload]
-    
-    init(uploadList: [MuxUpload]) {
-        self.uploadList = uploadList
     }
 }
 
@@ -66,7 +60,7 @@ struct ListContent_Previews: PreviewProvider {
     static var previews: some View {
         ZStack(alignment: .top) {
             WindowBackground
-            ListContianer(uploadList: [])
+            ListContianer()
         }
     }
 }

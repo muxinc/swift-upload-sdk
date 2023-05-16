@@ -117,9 +117,14 @@ public final class UploadManager {
     }
     
     private func notifyDelegates() {
-        self.uploadsUpdateDelegatesByToken
-            .map { it in it.value }
-            .forEach { it in it(self.allManagedUploads()) }
+        Task.detached {
+            await MainActor.run {
+                self.uploadsUpdateDelegatesByToken
+                    .map { it in it.value }
+                    .forEach { it in it(self.allManagedUploads()) }
+                
+            }
+        }
     }
     
     /// The shared instance of this object that should be used

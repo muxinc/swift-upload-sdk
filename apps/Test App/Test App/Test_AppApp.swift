@@ -14,15 +14,16 @@ struct Test_AppApp: App {
     
     static var logger = Logger(subsystem: "mux", category: "default")
     
-    @StateObject
-    private var uploadScreenViewModel: UploadScreenViewModel = UploadScreenViewModel()
+    @StateObject private var uploadScreenViewModel: UploadScreenViewModel = UploadScreenViewModel()
     @StateObject private var uploadCreationVM = UploadCreationViewModel()
+    @StateObject private var uploadListVM = UploadListViewModel()
     
     var body: some Scene {
         WindowGroup {
             ContentView()
                 .environmentObject(uploadScreenViewModel)
-                .environmentObject(UploadCreationViewModel())
+                .environmentObject(uploadCreationVM)
+                .environmentObject(uploadListVM)
         }
     }
     
