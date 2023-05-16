@@ -40,7 +40,6 @@ enum NavScreen {
 struct ContentView_Previews: PreviewProvider {
     static var previews: some View {
         ContentView()
-            .environmentObject(UploadScreenViewModel())
             .environmentObject(UploadCreationViewModel())
             .environmentObject(UploadListViewModel())
     }

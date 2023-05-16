@@ -291,7 +291,6 @@ struct ContentContainer_Previews: PreviewProvider {
 struct EntireScreen_Previews: PreviewProvider {
     static var previews: some View {
         CreateUploadScreen()
-            .environmentObject(UploadScreenViewModel())
             .environmentObject(UploadCreationViewModel())
     }
 }
@@ -302,7 +301,6 @@ struct Thumbnail_Previews: PreviewProvider {
             WindowBackground.ignoresSafeArea()
             ThumbnailView(preparedMedia: PreparedUpload(thumbnail: nil, localVideoFile: URL(string: "file:///")!, remoteURL: URL(string: "file:///")!))
         }
-        .environmentObject(UploadScreenViewModel())
         .environmentObject(UploadCreationViewModel())
     }
 }
@@ -313,7 +311,6 @@ struct EmptyView_Previews: PreviewProvider {
             WindowBackground.ignoresSafeArea()
             EmptyView()
         }
-        .environmentObject(UploadScreenViewModel())
         .environmentObject(UploadCreationViewModel())
     }
 }
@@ -324,7 +321,6 @@ struct ErrorView_Previews: PreviewProvider {
             WindowBackground.ignoresSafeArea()
             ErrorView()
         }
-        .environmentObject(UploadScreenViewModel())
         .environmentObject(UploadCreationViewModel())
     }
 }
@@ -335,7 +331,6 @@ struct ProgressView_Previews: PreviewProvider {
             WindowBackground.ignoresSafeArea()
             ProcessingView()
         }
-        .environmentObject(UploadScreenViewModel())
         .environmentObject(UploadCreationViewModel())
     }
 }
