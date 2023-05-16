@@ -33,7 +33,9 @@ class UploadItemViewModel: ObservableObject {
             case .succeeded: do {
                 Task.detached {
                     await MainActor.run {
-                        self.thumbnail = image
+                        if (self.thumbnail == nil) {
+                            self.thumbnail = image
+                        }
                     }
                 }
             }
@@ -41,7 +43,7 @@ class UploadItemViewModel: ObservableObject {
                 fatalError()
             }
             
-            self.thumbnailGenerator = nil
+            //self.thumbnailGenerator = nil
         }
         
     }
@@ -52,6 +54,7 @@ class UploadItemViewModel: ObservableObject {
     @Published var thumbnail: CGImage?
     
     init(asset: AVAsset) {
+        //Test_AppApp.logger.info("Initializing list item viewmodel")
         self.asset = asset
     }
 }

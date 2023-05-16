@@ -44,8 +44,7 @@ fileprivate struct ListContianer: View {
 
 fileprivate struct ListItem: View {
     
-    @EnvironmentObject var uploadItemVM: UploadItemViewModel
-    
+    @StateObject var uploadItemVM: UploadItemViewModel
     let upload: MuxUpload
     
     var body: some View {
@@ -90,6 +89,16 @@ fileprivate struct ListItem: View {
         .onAppear {
             uploadItemVM.startExtractingThumbnail()
         }
+    }
+    
+    init(upload: MuxUpload) {
+        self.upload = upload
+        _uploadItemVM = StateObject(
+            wrappedValue: {
+                return UploadItemViewModel(asset: AVAsset(url: upload.videoFile))
+                
+            }()
+        )
     }
 }
 

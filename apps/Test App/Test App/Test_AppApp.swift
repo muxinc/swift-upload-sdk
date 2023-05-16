@@ -28,6 +28,6 @@ struct Test_AppApp: App {
     }
     
     public init() {
-        MuxUploadSDK.enableDefaultLogging()
+        //MuxUploadSDK.enableDefaultLogging() // note: Kind of noisy on the simulator
     }
 }
