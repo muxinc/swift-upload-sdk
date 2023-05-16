@@ -88,8 +88,9 @@ fileprivate struct ListItem: View {
                         .padding(
                             EdgeInsets(top: 0, leading: 0, bottom: 8, trailing: 0)
                         )
-                    ProgressView()
+                    ProgressView(value: 0.6)
                         .progressViewStyle(.linear)
+                        .tint(Green50)
                         .padding(
                             EdgeInsets(top: 0, leading: 0, bottom: 4, trailing: 0)
                         )
