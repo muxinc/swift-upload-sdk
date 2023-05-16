@@ -136,8 +136,7 @@ class UploadScreenViewModel: ObservableObject {
     private func beginUploadToMux(videoFile: URL) {
         let upload = MuxUpload(
             uploadURL: URL(string: PUT_URL)!,
-            videoFileURL: videoFile,
-            videoMIMEType: "video/*"
+            videoFileURL: videoFile
         )
 
         upload.progressHandler = { state in
