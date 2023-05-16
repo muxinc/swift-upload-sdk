@@ -20,10 +20,6 @@ struct UploadInfo : Codable {
      */
     var videoFile: URL
     /**
-     The MIME type of the video to send. `video/\*` is an an acceptable value
-     */
-    var videoMIMEType: String // TODO: Better type for this?
-    /**
      The size of the outgoing chunks, in bytes
      */
     var chunkSize: Int
@@ -31,8 +27,4 @@ struct UploadInfo : Codable {
      The number of failed upload attempts, per chunk, to retry
      **/
     var retriesPerChunk: Int
-    /**
-     This the base value for calculating expoential backoff in the event of I/O failures
-     */
-    var retryBaseTime: TimeInterval
 }

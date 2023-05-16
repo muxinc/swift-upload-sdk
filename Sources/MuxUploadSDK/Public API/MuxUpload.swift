@@ -53,18 +53,14 @@ public final class MuxUpload {
     public convenience init(
         uploadURL: URL,
         videoFileURL: URL,
-        videoMIMEType: String = "video/*", // TODO: We can guess this, so make it optional,
         chunkSize: Int = 8 * 1024 * 1024, // Google recommends *at least* 8M,
-        retriesPerChunk: Int = 3,
-        retryBaseTimeInterval: TimeInterval = 0.5
+        retriesPerChunk: Int = 3
     ) {
         let uploadInfo = UploadInfo(
             uploadURL: uploadURL,
             videoFile: videoFileURL,
-            videoMIMEType: videoMIMEType,
             chunkSize: chunkSize,
-            retriesPerChunk: retriesPerChunk,
-            retryBaseTime: retryBaseTimeInterval
+            retriesPerChunk: retriesPerChunk
         )
 
         self.init(

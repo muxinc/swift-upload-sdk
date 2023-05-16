@@ -262,10 +262,8 @@ fileprivate actor Worker {
             let chunkWorker = ChunkWorker(
                 uploadURL: uploadInfo.uploadURL,
                 fileChunk: chunk,
-                videoMIMEType: uploadInfo.videoMIMEType,
                 chunkProgress: chunkProgress,
-                maxRetries: uploadInfo.retriesPerChunk,
-                backOffBaseTime: uploadInfo.retryBaseTime
+                maxRetries: uploadInfo.retriesPerChunk
             )
             chunkWorker.addDelegate {[self] update in
                 // Called on the main thread

@@ -14,9 +14,7 @@ class ChunkWorker {
     let uploadURL: URL
     let chunk: FileChunk
     let maxRetries: Int
-    let backOffBaseTime: TimeInterval
     let chunkProgress: Progress
-    let fileMIMEType: String
     
     private var chunkStartTime: TimeInterval? = nil
     private var lastSeenUpdate: Update = Update(progress: Progress(totalUnitCount: 10), bytesSinceLastUpdate: 0, chunkStartTime: 0, eventTime: 0)
@@ -61,7 +59,6 @@ class ChunkWorker {
                         uploadURL: uploadURL,
                         chunk: chunk,
                         chunkStartTime: Date().timeIntervalSince1970,
-                        fileMIMEType: fileMIMEType,
                         urlSession: urlSession
                     )
                     
@@ -151,20 +148,16 @@ class ChunkWorker {
         self.init(
             uploadURL: uploadInfo.uploadURL,
             fileChunk: fileChunk,
-            videoMIMEType: uploadInfo.videoMIMEType,
             chunkProgress: chunkProgress,
-            maxRetries: uploadInfo.retriesPerChunk,
-            backOffBaseTime: uploadInfo.retryBaseTime
+            maxRetries: uploadInfo.retriesPerChunk
         )
     }
     
-    init(uploadURL: URL, fileChunk: FileChunk, videoMIMEType: String, chunkProgress: Progress, maxRetries: Int, backOffBaseTime: TimeInterval) {
+    init(uploadURL: URL, fileChunk: FileChunk, chunkProgress: Progress, maxRetries: Int) {
         self.uploadURL = uploadURL
         self.chunk = fileChunk
         self.maxRetries = maxRetries
-        self.backOffBaseTime = backOffBaseTime
         self.chunkProgress = chunkProgress
-        self.fileMIMEType = videoMIMEType
     }
 }
 
@@ -174,26 +167,24 @@ fileprivate actor ChunkActor {
     let uploadURL: URL
     let chunk: FileChunk
     let chunkStartTime: TimeInterval
-    let fileMIMEType: String
     let urlSession: URLSession
     
     func upload() async throws -> URLResponse {
         let contentRangeValue = "bytes \(chunk.startByte)-\(chunk.endByte - 1)/\(chunk.totalFileSize)"
         var request = URLRequest(url: uploadURL)
         request.httpMethod = "PUT"
-        request.setValue(fileMIMEType, forHTTPHeaderField: "Content-Type")
+        request.setValue("video/*", forHTTPHeaderField: "Content-Type")
         request.setValue(contentRangeValue, forHTTPHeaderField: "Content-Range")
         
         let (_, response) = try await urlSession.upload(for: request, from: chunk.chunkData)
         return response
     }
     
-    init(uploadURL: URL, chunk: FileChunk, chunkStartTime: TimeInterval, fileMIMEType: String, urlSession: URLSession) {
+    init(uploadURL: URL, chunk: FileChunk, chunkStartTime: TimeInterval, urlSession: URLSession) {
         self.uploadURL = uploadURL
         self.chunk = chunk
         self.chunkStartTime = chunkStartTime
         self.urlSession = urlSession
-        self.fileMIMEType = fileMIMEType
     }
 }
 
