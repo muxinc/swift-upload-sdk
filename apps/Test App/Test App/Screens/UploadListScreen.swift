@@ -43,7 +43,7 @@ fileprivate struct ListItem: View {
     let upload: MuxUpload
     
     var body: some View {
-        ZStack {
+        ZStack(alignment: .bottom) {
             if let image = uploadItemVM.thumbnail {
                 GeometryReader { proxy in
                     RoundedRectangle(cornerRadius: 4.0)
@@ -70,7 +70,13 @@ fileprivate struct ListItem: View {
                     .foregroundColor(Gray30)
                     .background(Gray90.clipShape(RoundedRectangle(cornerRadius: 4.0)))
             }
-            // TODO: Progress Overlay here
+            ZStack {
+                TransparentScrim
+                Text("I am the overlay")
+                    .foregroundColor(White)
+            }
+            .frame(maxWidth: .infinity, maxHeight: 64.0)
+            .border(.yellow)
         }
         .padding(
             EdgeInsets(
