@@ -141,11 +141,11 @@
 			isa = PBXGroup;
 			children = (
 				358E3CA529A921B2005261CB /* Test_AppApp.swift */,
+				358E3CAC29A921B2005261CB /* ContentView.swift */,
 				358E3CA629A921B2005261CB /* Assets.xcassets */,
 				358E3CA729A921B2005261CB /* Preview Content */,
 				3570FE0F2A09881200E91965 /* Fake Server Backend */,
 				358E3CA929A921B2005261CB /* Screens */,
-				358E3CAC29A921B2005261CB /* ContentView.swift */,
 				354421B42A11726700C6FD1F /* View Models */,
 				3570FE142A0BFAC300E91965 /* Mux Style */,
 				358E3CAD29A921B2005261CB /* Widgets */,
