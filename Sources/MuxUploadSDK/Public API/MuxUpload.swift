@@ -107,7 +107,12 @@ public final class MuxUpload : Hashable, Equatable {
     /**
      True if this upload is currently in progress and not paused
      */
-    var inProgress: Bool { get { fileWorker != nil } }
+    public var inProgress: Bool { get { fileWorker != nil && !complete } }
+    
+    /**
+     True if this upload was completed
+     */
+    public var complete: Bool { get { lastSeenStatus.progress?.completedUnitCount ?? 0 > 0 && lastSeenStatus.progress?.fractionCompleted ?? 0 >= 1.0 } }
     
     /**
     URL to the file that will be uploaded

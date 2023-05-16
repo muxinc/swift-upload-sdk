@@ -73,40 +73,40 @@ fileprivate struct ListItem: View {
                     .foregroundColor(Gray30)
                     .background(Gray90.clipShape(RoundedRectangle(cornerRadius: 4.0)))
             }
-            // TODO: Only when the upload is in-progress
-            HStack() {
-                // TODO: Compute these
-                VStack (alignment: .leading, spacing: 0) {
-                    Text("Uploading...")
-                        .font(.system(
-                            size: 14.0,
-                            weight: .light)
-                        )
-                        .foregroundColor(White)
-                        .frame(alignment: .leading)
-                        .padding(
-                            EdgeInsets(top: 0, leading: 0, bottom: 8, trailing: 0)
-                        )
-                    ProgressView(value: uploadItemVM.uploadProgress?.progress?.fractionCompleted ?? 0)
-                        .progressViewStyle(.linear)
-                        .tint(Green50)
-                        .padding(
-                            EdgeInsets(top: 0, leading: 0, bottom: 4, trailing: 0)
-                        )
-                    Text(statusLine(status: uploadItemVM.uploadProgress))
-                        .font(.system(
-                            size: 14.0,
-                            weight: .light)
-                        )
-                        .foregroundColor(White)
-                        .frame(alignment: .leading)
+            if upload.inProgress {
+                HStack() {
+                    VStack (alignment: .leading, spacing: 0) {
+                        Text("Uploading...")
+                            .font(.system(
+                                size: 14.0,
+                                weight: .light)
+                            )
+                            .foregroundColor(White)
+                            .frame(alignment: .leading)
+                            .padding(
+                                EdgeInsets(top: 0, leading: 0, bottom: 8, trailing: 0)
+                            )
+                        ProgressView(value: uploadItemVM.uploadProgress?.progress?.fractionCompleted ?? 0)
+                            .progressViewStyle(.linear)
+                            .tint(Green50)
+                            .padding(
+                                EdgeInsets(top: 0, leading: 0, bottom: 4, trailing: 0)
+                            )
+                        Text(statusLine(status: uploadItemVM.uploadProgress))
+                            .font(.system(
+                                size: 14.0,
+                                weight: .light)
+                            )
+                            .foregroundColor(White)
+                            .frame(alignment: .leading)
+                    }
+                    .padding()
                 }
-                .padding()
+                .background(TransparentScrim)
+                .frame(maxWidth: .infinity, maxHeight: 64.0)
+                .clipShape(RoundedRectangle(cornerRadius: 4.0))
+                //            .border(.yellow)
             }
-            .background(TransparentScrim)
-            .frame(maxWidth: .infinity, maxHeight: 64.0)
-            .clipShape(RoundedRectangle(cornerRadius: 4.0))
-            //            .border(.yellow)
         }
         .padding(
             EdgeInsets(
