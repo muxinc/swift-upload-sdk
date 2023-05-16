@@ -71,18 +71,42 @@ fileprivate struct ListItem: View {
                     .background(Gray90.clipShape(RoundedRectangle(cornerRadius: 4.0)))
             }
             // TODO: Only when the upload is in-progress
-            ZStack {
-                TransparentScrim
-                if let status = uploadItemVM.uploadProgress {
-                    
-                } else {
-                    Text("missing status")
+            HStack() {
+                // TODO: Compute these
+                var dataRate = 1.3 * 1024
+                var progressPct = 0.6
+                var completedUnits = 13
+                var totalUnits = 29
+                VStack (alignment: .leading, spacing: 0) {
+                    Text("Uploading...")
+                        .font(.system(
+                            size: 14.0,
+                            weight: .light)
+                        )
                         .foregroundColor(White)
+                        .frame(alignment: .leading)
+                        .padding(
+                            EdgeInsets(top: 0, leading: 0, bottom: 8, trailing: 0)
+                        )
+                    ProgressView()
+                        .progressViewStyle(.linear)
+                        .padding(
+                            EdgeInsets(top: 0, leading: 0, bottom: 4, trailing: 0)
+                        )
+                    Text("3.4Kb in 5s (666.8Kb/s)")
+                        .font(.system(
+                            size: 14.0,
+                            weight: .light)
+                        )
+                        .foregroundColor(White)
+                        .frame(alignment: .leading)
                 }
-                
+                .padding()
             }
+            .background(TransparentScrim)
             .frame(maxWidth: .infinity, maxHeight: 64.0)
-            .border(.yellow)
+            .clipShape(RoundedRectangle(cornerRadius: 4.0))
+//            .border(.yellow)
         }
         .padding(
             EdgeInsets(
