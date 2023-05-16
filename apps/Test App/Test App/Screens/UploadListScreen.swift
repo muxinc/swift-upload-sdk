@@ -15,7 +15,10 @@ struct UploadListScreen: View {
     var body: some View {
         ZStack(alignment: .top) {
             WindowBackground
-            ListContianer()
+            VStack(spacing: 0) {
+                MuxNavBar()
+                ListContianer()
+            }
         }
     }
 }
@@ -168,6 +171,13 @@ fileprivate struct EmptyList: View {
                     .padding(EdgeInsets(top: 64, leading: 20, bottom: 0, trailing: 20))
             }
         }
+    }
+}
+
+struct UploadListScreen_Previews: PreviewProvider {
+    static var previews: some View {
+        UploadListScreen()
+            .environmentObject(UploadListViewModel())
     }
 }
 
