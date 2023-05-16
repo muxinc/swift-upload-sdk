@@ -24,7 +24,6 @@ struct Test_AppApp: App {
             ContentView()
                 // TODO: Some of these should certainly be narrower scope
                 .environmentObject(uploadScreenViewModel)
-                .environmentObject(uploadCreationVM)
                 .environmentObject(uploadListVM)
         }
     }

@@ -9,6 +9,9 @@ import SwiftUI
 import PhotosUI
 
 struct CreateUploadScreen: View {
+    
+    @StateObject var uploadCreationVM: UploadCreationViewModel = UploadCreationViewModel()
+    
     var body: some View {
         ZStack { // Outer window
             Gray100.ignoresSafeArea(.container)
@@ -17,9 +20,8 @@ struct CreateUploadScreen: View {
                 ScreenContent(exportState: uploadCreationVM.exportState)
             }
         }
+        .environmentObject(uploadCreationVM)
     }
-    
-    @EnvironmentObject var uploadCreationVM: UploadCreationViewModel
 }
 
 fileprivate struct ScreenContent: View {
