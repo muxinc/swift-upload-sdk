@@ -95,8 +95,7 @@ fileprivate struct ListItem: View {
         self.upload = upload
         _uploadItemVM = StateObject(
             wrappedValue: {
-                return UploadItemViewModel(asset: AVAsset(url: upload.videoFile))
-                
+                UploadItemViewModel(asset: AVAsset(url: upload.videoFile))
             }()
         )
     }
