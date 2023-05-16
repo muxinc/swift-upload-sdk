@@ -12,8 +12,8 @@ import Foundation
  
  TODO: usage here
  */
-public final class MuxUpload {
-    
+public final class MuxUpload : Hashable, Equatable {
+ 
     private let uploadInfo: UploadInfo
     private let manageBySDK: Bool
     private let id: Int
@@ -209,6 +209,17 @@ public final class MuxUpload {
         default: do {}
         }
     }
+    
+    public static func == (lhs: MuxUpload, rhs: MuxUpload) -> Bool {
+        lhs.videoFile == rhs.videoFile
+        && lhs.uploadURL == rhs.uploadURL
+    }
+    
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(videoFile)
+        hasher.combine(uploadURL)
+    }
+   
     
     private init (uploadInfo: UploadInfo, manage: Bool = true, uploadManager: UploadManager) {
         self.uploadInfo = uploadInfo

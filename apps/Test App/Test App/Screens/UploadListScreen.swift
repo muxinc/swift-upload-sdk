@@ -7,6 +7,7 @@
 
 import SwiftUI
 import MuxUploadSDK
+import AVFoundation
 
 struct UploadListScreen: View {
     @EnvironmentObject var uploadListVM: UploadListViewModel
@@ -28,8 +29,13 @@ fileprivate struct ListContianer: View {
             EmptyList()
         } else {
             LazyVStack {
-                ForEach(listVM.lastKnownUploads.map({ $0.uploadStatus }), id: \.self) { item in
-                    Text("TODO")
+                ForEach(listVM.lastKnownUploads, id: \.self) { upload in
+                    ListItem(upload: upload)
+                        .environmentObject(
+                            UploadItemViewModel(
+                                asset: AVAsset(url: upload.videoFile)
+                            )
+                        )
                 }
             }
         }
@@ -37,8 +43,53 @@ fileprivate struct ListContianer: View {
 }
 
 fileprivate struct ListItem: View {
+    
+    @EnvironmentObject var uploadItemVM: UploadItemViewModel
+    
+    let upload: MuxUpload
+    
     var body: some View {
-        Text("DO")
+        ZStack {
+            if let image = uploadItemVM.thumbnail {
+                GeometryReader { proxy in
+                    RoundedRectangle(cornerRadius: 4.0)
+                        .strokeBorder(style: StrokeStyle(lineWidth: 1.0))
+                        .foregroundColor(Gray30)
+                        .background(
+                            Image(
+                                image,
+                                scale: 1.0,
+                                label: Text("")
+                            )
+                            .resizable( )
+                            .scaledToFit()
+                            .aspectRatio(contentMode: .fill)
+                            .frame(maxWidth: proxy.size.width, maxHeight: proxy.size.height, alignment: .center)
+                            .clipShape(
+                                RoundedRectangle(cornerRadius: 4.0)
+                            )
+                        )
+                }
+            } else {
+                RoundedRectangle(cornerRadius: 4.0)
+                    .strokeBorder(style: StrokeStyle(lineWidth: 1.0))
+                    .foregroundColor(Gray30)
+                    .background(Gray90.clipShape(RoundedRectangle(cornerRadius: 4.0)))
+            }
+            // TODO: Progress Overlay here
+        }
+        .padding(
+            EdgeInsets(
+                top: 64,
+                leading: 20,
+                bottom: 0,
+                trailing: 20
+            )
+        )
+        .frame(height: 228)
+        .onAppear {
+            uploadItemVM.startExtractingThumbnail()
+        }
     }
 }
 
@@ -62,6 +113,7 @@ struct ListContent_Previews: PreviewProvider {
             WindowBackground
             ListContianer()
         }
+        .environmentObject(UploadListViewModel())
     }
 }
 
@@ -70,14 +122,18 @@ struct EmptyList_Previews: PreviewProvider {
         ZStack(alignment: .top) {
             WindowBackground
             EmptyList()
-               
+            
         }
     }
 }
 
 struct UploadListItem_Previews: PreviewProvider {
     static var previews: some View {
-        UploadListScreen()
-            .environmentObject(UploadListViewModel())
+        ZStack {
+            WindowBackground
+            let upload = MuxUpload(uploadURL: URL(string: "file:///")!, videoFileURL: URL(string: "file:///")!)
+            ListItem(upload: upload)
+                .environmentObject(UploadItemViewModel(asset: AVAsset(url: URL(string: "file:///")!)))
+        }
     }
 }

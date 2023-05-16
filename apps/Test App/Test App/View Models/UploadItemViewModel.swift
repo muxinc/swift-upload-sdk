@@ -8,9 +8,9 @@
 import Foundation
 import AVFoundation
 
-class UploaadItemViewModel: ObservableObject {
+class UploadItemViewModel: ObservableObject {
     
-    func extractThumbnail() {
+    func startExtractingThumbnail() {
         guard thumbnailGenerator == nil else {
             return
         }
@@ -40,6 +40,8 @@ class UploaadItemViewModel: ObservableObject {
             @unknown default:
                 fatalError()
             }
+            
+            self.thumbnailGenerator = nil
         }
         
     }
