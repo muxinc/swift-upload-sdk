@@ -140,7 +140,7 @@ public final class UploadManager {
                 manager.notifyDelegates()
             }
             switch state {
-            case .success(_), .canceled, .failure(_): manager.acknowledgeUpload(ofFile: uploader.uploadInfo.videoFile)
+            case .success(_), .canceled: manager.acknowledgeUpload(ofFile: uploader.uploadInfo.videoFile)
             default: do { }
             }
         }
