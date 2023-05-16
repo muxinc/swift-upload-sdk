@@ -126,13 +126,18 @@ fileprivate struct ListItem: View {
         let totalTimeSecs = status.updatedTime - status.startTime
         let totalTimeMs = Int64((totalTimeSecs) * 1000)
         let kbytesPerSec = (progress.completedUnitCount) / totalTimeMs // bytes/milli = kb/sec
-        let elapsedTimeFormatter = NumberFormatter()
-        elapsedTimeFormatter.minimumSignificantDigits = 4
-        elapsedTimeFormatter.maximumSignificantDigits = 4
-        let formattedTime = elapsedTimeFormatter.string(for: totalTimeSecs) ?? ""
-        let formattedDataRate = elapsedTimeFormatter.string(for: kbytesPerSec) ?? ""
+        let fourSigs = NumberFormatter()
+        fourSigs.minimumSignificantDigits = 4
+        fourSigs.maximumSignificantDigits = 4
+        let twoSigs = NumberFormatter()
+        twoSigs.minimumSignificantDigits = 2
+        twoSigs.maximumSignificantDigits = 2
         
-        return "\(elapsedBytesOfTotal(status: status)) in \(formattedTime)s \(formattedDataRate)KB/s"
+        let formattedTime = twoSigs.string(for: totalTimeSecs) ?? ""
+        let formattedDataRate = fourSigs.string(for: kbytesPerSec) ?? ""
+        let formattedMBytes = twoSigs.string(for: progress.completedUnitCount / 1000 / 1000) ?? ""
+        
+        return "\(formattedMBytes) KB in \(formattedTime)s (\(formattedDataRate) KB/s)"
     }
     
     private func elapsedBytesOfTotal(status: MuxUpload.Status) -> String {
