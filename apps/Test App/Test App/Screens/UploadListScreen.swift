@@ -73,10 +73,6 @@ fileprivate struct ListItem: View {
             // TODO: Only when the upload is in-progress
             HStack() {
                 // TODO: Compute these
-                var dataRate = 1.3 * 1024
-                var progressPct = 0.6
-                var completedUnits = 13
-                var totalUnits = 29
                 VStack (alignment: .leading, spacing: 0) {
                     Text("Uploading...")
                         .font(.system(
@@ -88,13 +84,13 @@ fileprivate struct ListItem: View {
                         .padding(
                             EdgeInsets(top: 0, leading: 0, bottom: 8, trailing: 0)
                         )
-                    ProgressView(value: 0.6)
+                    ProgressView(value: uploadItemVM.uploadProgress?.progress?.fractionCompleted ?? 0)
                         .progressViewStyle(.linear)
                         .tint(Green50)
                         .padding(
                             EdgeInsets(top: 0, leading: 0, bottom: 4, trailing: 0)
                         )
-                    Text("3.4Kb in 5s (666.8Kb/s)")
+                    Text(statusLine(status: uploadItemVM.uploadProgress))
                         .font(.system(
                             size: 14.0,
                             weight: .light)
@@ -107,7 +103,7 @@ fileprivate struct ListItem: View {
             .background(TransparentScrim)
             .frame(maxWidth: .infinity, maxHeight: 64.0)
             .clipShape(RoundedRectangle(cornerRadius: 4.0))
-//            .border(.yellow)
+            //            .border(.yellow)
         }
         .padding(
             EdgeInsets(
@@ -121,6 +117,29 @@ fileprivate struct ListItem: View {
         .onAppear {
             uploadItemVM.startExtractingThumbnail()
         }
+    }
+    
+    private func statusLine(status: MuxUpload.Status?) -> String {
+        guard let status = status, let progress = status.progress, status.startTime > 0 else {
+            return "missing status"
+        }
+        let totalTimeSecs = status.updatedTime - status.startTime
+        let totalTimeMs = Int64((totalTimeSecs) * 1000)
+        let kbytesPerSec = (progress.completedUnitCount) / totalTimeMs // bytes/milli = kb/sec
+        let elapsedTimeFormatter = NumberFormatter()
+        elapsedTimeFormatter.minimumSignificantDigits = 4
+        elapsedTimeFormatter.maximumSignificantDigits = 4
+        let formattedTime = elapsedTimeFormatter.string(for: totalTimeSecs) ?? ""
+        let formattedDataRate = elapsedTimeFormatter.string(for: kbytesPerSec) ?? ""
+        
+        return "\(elapsedBytesOfTotal(status: status)) in \(formattedTime)s \(formattedDataRate)KB/s"
+    }
+    
+    private func elapsedBytesOfTotal(status: MuxUpload.Status) -> String {
+        guard let progress = status.progress else {
+            return "unknown"
+        }
+        return "\(progress.completedUnitCount / 1000)KB"
     }
     
     init(upload: MuxUpload) {
