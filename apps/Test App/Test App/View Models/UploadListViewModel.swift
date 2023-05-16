@@ -11,13 +11,15 @@ import MuxUploadSDK
 
 class UploadListViewModel : ObservableObject {
     
-    // TODO: Observe Upload progress also
-    
     init() {
         UploadManager.shared.addUploadsUpdatedDelegate(id: 0) { uploads in
-            self.lastKnownUploads = uploads
+            var uploadSet = Set(self.lastKnownUploads)
+            uploads.forEach {
+                uploadSet.insert($0)
+            }
+            self.lastKnownUploads = Array(uploadSet)
         }
     }
     
-    @Published var lastKnownUploads: [MuxUpload] = []
+    @Published var lastKnownUploads: [MuxUpload] = Array()
 }

@@ -140,7 +140,7 @@ fileprivate struct ListItem: View {
         let formattedDataRate = fourSigs.string(for: kbytesPerSec) ?? ""
         let formattedMBytes = twoSigs.string(for: progress.completedUnitCount / 1000 / 1000) ?? ""
         
-        return "\(formattedMBytes) KB in \(formattedTime)s (\(formattedDataRate) KB/s)"
+        return "\(formattedMBytes) MB in \(formattedTime)s (\(formattedDataRate) KB/s)"
     }
     
     private func elapsedBytesOfTotal(status: MuxUpload.Status) -> String {
