@@ -31,11 +31,6 @@ fileprivate struct ListContianer: View {
             LazyVStack {
                 ForEach(listVM.lastKnownUploads, id: \.self) { upload in
                     ListItem(upload: upload)
-                        .environmentObject(
-                            UploadItemViewModel(
-                                asset: AVAsset(url: upload.videoFile)
-                            )
-                        )
                 }
             }
         }
