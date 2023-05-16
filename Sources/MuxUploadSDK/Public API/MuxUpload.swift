@@ -54,13 +54,15 @@ public final class MuxUpload {
         uploadURL: URL,
         videoFileURL: URL,
         chunkSize: Int = 8 * 1024 * 1024, // Google recommends *at least* 8M,
-        retriesPerChunk: Int = 3
+        retriesPerChunk: Int = 3,
+        optOutOfEventTracking: Bool = false
     ) {
         let uploadInfo = UploadInfo(
             uploadURL: uploadURL,
             videoFile: videoFileURL,
             chunkSize: chunkSize,
-            retriesPerChunk: retriesPerChunk
+            retriesPerChunk: retriesPerChunk,
+            optOutOfEventTracking: optOutOfEventTracking
         )
 
         self.init(

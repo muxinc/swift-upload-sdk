@@ -172,10 +172,9 @@ final class UploadPersistenceTests: XCTestCase {
         return UploadInfo(
             uploadURL: URL(string: "https://dummy.site/page/\(basename)")!,
             videoFile: URL(string: "file://path/to/dummy/file/\(basename)")!,
-            videoMIMEType: "dummy/data",
             chunkSize: 100,
             retriesPerChunk: 3,
-            retryBaseTime: 0.5
+            optOutOfEventTracking: true
         )
     }
 }

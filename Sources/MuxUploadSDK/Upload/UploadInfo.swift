@@ -27,4 +27,8 @@ struct UploadInfo : Codable {
      The number of failed upload attempts, per chunk, to retry
      **/
     var retriesPerChunk: Int
+    /**
+     True if the user opted out of sending us performance metrics
+     */
+    var optOutOfEventTracking: Bool
 }
