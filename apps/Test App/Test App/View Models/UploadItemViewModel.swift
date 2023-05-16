@@ -7,6 +7,7 @@
 
 import Foundation
 import AVFoundation
+import MuxUploadSDK
 
 class UploadItemViewModel: ObservableObject {
     
@@ -42,19 +43,22 @@ class UploadItemViewModel: ObservableObject {
             @unknown default:
                 fatalError()
             }
-            
-            //self.thumbnailGenerator = nil
         }
         
     }
     
     private let asset: AVAsset
+    private let upload: MuxUpload
     private var thumbnailGenerator: AVAssetImageGenerator?
     
     @Published var thumbnail: CGImage?
     
-    init(asset: AVAsset) {
-        //Test_AppApp.logger.info("Initializing list item viewmodel")
+    init(asset: AVAsset, upload: MuxUpload) {
         self.asset = asset
+        self.upload = upload
+        
+        upload.progressHandler = { state in
+            Test_AppApp.logger.info("Upload progressing from ViewModel: \(state.progress)")
+        }
     }
 }

@@ -90,7 +90,7 @@ fileprivate struct ListItem: View {
         self.upload = upload
         _uploadItemVM = StateObject(
             wrappedValue: {
-                UploadItemViewModel(asset: AVAsset(url: upload.videoFile))
+                UploadItemViewModel(asset: AVAsset(url: upload.videoFile), upload: upload)
             }()
         )
     }
@@ -136,7 +136,6 @@ struct UploadListItem_Previews: PreviewProvider {
             WindowBackground
             let upload = MuxUpload(uploadURL: URL(string: "file:///")!, videoFileURL: URL(string: "file:///")!)
             ListItem(upload: upload)
-                .environmentObject(UploadItemViewModel(asset: AVAsset(url: URL(string: "file:///")!)))
         }
     }
 }
