@@ -16,6 +16,7 @@
 		3570FE192A0C05EE00E91965 /* MuxNavBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3570FE182A0C05EE00E91965 /* MuxNavBar.swift */; };
 		3588AAAD2A12D7A80063E4DA /* UploadListScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3588AAAC2A12D7A80063E4DA /* UploadListScreen.swift */; };
 		3588AAAF2A12E4970063E4DA /* UploadListViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3588AAAE2A12E4970063E4DA /* UploadListViewModel.swift */; };
+		3588AAB52A13DA080063E4DA /* UploadItemViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3588AAB42A13DA080063E4DA /* UploadItemViewModel.swift */; };
 		358E3CB529A921B2005261CB /* Test_AppApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 358E3CA529A921B2005261CB /* Test_AppApp.swift */; };
 		358E3CB629A921B2005261CB /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 358E3CA629A921B2005261CB /* Assets.xcassets */; };
 		358E3CB729A921B2005261CB /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 358E3CA829A921B2005261CB /* Preview Assets.xcassets */; };
@@ -51,6 +52,7 @@
 		3570FE182A0C05EE00E91965 /* MuxNavBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MuxNavBar.swift; sourceTree = "<group>"; };
 		3588AAAC2A12D7A80063E4DA /* UploadListScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UploadListScreen.swift; sourceTree = "<group>"; };
 		3588AAAE2A12E4970063E4DA /* UploadListViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UploadListViewModel.swift; sourceTree = "<group>"; };
+		3588AAB42A13DA080063E4DA /* UploadItemViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UploadItemViewModel.swift; sourceTree = "<group>"; };
 		358E3C7729A92167005261CB /* Test App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Test App.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		358E3C9129A92168005261CB /* Test AppUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Test AppUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		358E3CA529A921B2005261CB /* Test_AppApp.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Test_AppApp.swift; sourceTree = "<group>"; };
@@ -93,6 +95,7 @@
 				358E3CAB29A921B2005261CB /* UploadScreenViewModel.swift */,
 				354421B52A11731B00C6FD1F /* UploadCreationViewModel.swift */,
 				3588AAAE2A12E4970063E4DA /* UploadListViewModel.swift */,
+				3588AAB42A13DA080063E4DA /* UploadItemViewModel.swift */,
 			);
 			path = "View Models";
 			sourceTree = "<group>";
@@ -330,6 +333,7 @@
 				358E3CBA29A921B2005261CB /* ContentView.swift in Sources */,
 				354421B32A0D628E00C6FD1F /* UploadCTA.swift in Sources */,
 				3570FE162A0BFCD200E91965 /* Mux Colors.swift in Sources */,
+				3588AAB52A13DA080063E4DA /* UploadItemViewModel.swift in Sources */,
 				358E3CB529A921B2005261CB /* Test_AppApp.swift in Sources */,
 				3570FE112A09883400E91965 /* FakeBackend.swift in Sources */,
 				358E3CBE29A921B2005261CB /* ButtonThemes.swift in Sources */,
