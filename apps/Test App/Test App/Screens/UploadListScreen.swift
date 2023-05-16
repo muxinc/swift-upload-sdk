@@ -70,10 +70,16 @@ fileprivate struct ListItem: View {
                     .foregroundColor(Gray30)
                     .background(Gray90.clipShape(RoundedRectangle(cornerRadius: 4.0)))
             }
+            // TODO: Only when the upload is in-progress
             ZStack {
                 TransparentScrim
-                Text("I am the overlay")
-                    .foregroundColor(White)
+                if let status = uploadItemVM.uploadProgress {
+                    
+                } else {
+                    Text("missing status")
+                        .foregroundColor(White)
+                }
+                
             }
             .frame(maxWidth: .infinity, maxHeight: 64.0)
             .border(.yellow)
@@ -86,7 +92,7 @@ fileprivate struct ListItem: View {
                 trailing: 20
             )
         )
-        .frame(height: 228)
+        .frame(height: Test_AppApp.THUMBNAIL_HEIGHT)
         .onAppear {
             uploadItemVM.startExtractingThumbnail()
         }

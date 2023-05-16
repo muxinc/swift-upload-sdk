@@ -52,6 +52,7 @@ class UploadItemViewModel: ObservableObject {
     private var thumbnailGenerator: AVAssetImageGenerator?
     
     @Published var thumbnail: CGImage?
+    @Published var uploadProgress: MuxUpload.Status?
     
     init(asset: AVAsset, upload: MuxUpload) {
         self.asset = asset
@@ -59,6 +60,7 @@ class UploadItemViewModel: ObservableObject {
         
         upload.progressHandler = { state in
             Test_AppApp.logger.info("Upload progressing from ViewModel: \(state.progress)")
+            self.uploadProgress = state
         }
     }
 }

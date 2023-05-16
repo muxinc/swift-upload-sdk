@@ -23,7 +23,7 @@ struct BigUploadCTA: View {
                     .foregroundColor(White)
             }
         }
-        .frame(height: 228)
+        .frame(height: Test_AppApp.THUMBNAIL_HEIGHT)
     }
 }
 
