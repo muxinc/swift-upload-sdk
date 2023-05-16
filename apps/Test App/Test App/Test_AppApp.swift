@@ -21,6 +21,7 @@ struct Test_AppApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                // TODO: Some of these should certainly be narrower scope
                 .environmentObject(uploadScreenViewModel)
                 .environmentObject(uploadCreationVM)
                 .environmentObject(uploadListVM)
