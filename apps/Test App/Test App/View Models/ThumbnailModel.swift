@@ -9,7 +9,7 @@ import Foundation
 import AVFoundation
 import MuxUploadSDK
 
-class UploadItemViewModel: ObservableObject {
+class ThumbnailModel: ObservableObject {
     
     func startExtractingThumbnail() {
         guard thumbnailGenerator == nil else {

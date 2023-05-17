@@ -9,7 +9,7 @@ import Foundation
 import AVFoundation
 import MuxUploadSDK
 
-class UploadListViewModel : ObservableObject {
+class UploadListModel : ObservableObject {
     
     init() {
         UploadManager.shared.addUploadsUpdatedDelegate(id: 0) { uploads in

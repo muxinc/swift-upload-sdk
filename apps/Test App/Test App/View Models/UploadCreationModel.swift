@@ -9,7 +9,7 @@ import Foundation
 import PhotosUI
 import MuxUploadSDK
 
-class UploadCreationViewModel : ObservableObject {
+class UploadCreationModel : ObservableObject {
     
     struct PickerError: Error {
         
@@ -207,7 +207,7 @@ struct PreparedUpload {
 }
 
 enum ExportState {
-    case not_started, preparing, failure(UploadCreationViewModel.PickerError?), ready(PreparedUpload)
+    case not_started, preparing, failure(UploadCreationModel.PickerError?), ready(PreparedUpload)
 }
 
 enum PhotosAuthState {

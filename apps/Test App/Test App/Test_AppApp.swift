@@ -15,7 +15,7 @@ struct Test_AppApp: App {
     static var logger = Logger(subsystem: "mux", category: "default")
     static let THUMBNAIL_HEIGHT = 228.0
     
-    @StateObject private var uploadListVM = UploadListViewModel()
+    @StateObject private var uploadListVM = UploadListModel()
     
     var body: some Scene {
         WindowGroup {

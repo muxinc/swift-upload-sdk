@@ -10,7 +10,7 @@ import MuxUploadSDK
 import AVFoundation
 
 struct UploadListScreen: View {
-    @EnvironmentObject var uploadListVM: UploadListViewModel
+    @EnvironmentObject var uploadListVM: UploadListModel
     
     var body: some View {
         ZStack(alignment: .top) {
@@ -25,7 +25,7 @@ struct UploadListScreen: View {
 
 fileprivate struct ListContianer: View {
     
-    @EnvironmentObject var listVM: UploadListViewModel
+    @EnvironmentObject var listVM: UploadListModel
     
     var body: some View {
         if listVM.lastKnownUploads.isEmpty {
@@ -42,7 +42,7 @@ fileprivate struct ListContianer: View {
 
 fileprivate struct ListItem: View {
     
-    @StateObject var uploadItemVM: UploadItemViewModel
+    @StateObject var uploadItemVM: ThumbnailModel
     let upload: MuxUpload
     
     var body: some View {
@@ -154,7 +154,7 @@ fileprivate struct ListItem: View {
         self.upload = upload
         _uploadItemVM = StateObject(
             wrappedValue: {
-                UploadItemViewModel(asset: AVAsset(url: upload.videoFile), upload: upload)
+                ThumbnailModel(asset: AVAsset(url: upload.videoFile), upload: upload)
             }()
         )
     }
@@ -177,7 +177,7 @@ fileprivate struct EmptyList: View {
 struct UploadListScreen_Previews: PreviewProvider {
     static var previews: some View {
         UploadListScreen()
-            .environmentObject(UploadListViewModel())
+            .environmentObject(UploadListModel())
     }
 }
 
@@ -187,7 +187,7 @@ struct ListContent_Previews: PreviewProvider {
             WindowBackground
             ListContianer()
         }
-        .environmentObject(UploadListViewModel())
+        .environmentObject(UploadListModel())
     }
 }
 
