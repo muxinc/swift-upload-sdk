@@ -22,7 +22,6 @@
 		358E3CB729A921B2005261CB /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 358E3CA829A921B2005261CB /* Preview Assets.xcassets */; };
 		358E3CBA29A921B2005261CB /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 358E3CAC29A921B2005261CB /* ContentView.swift */; };
 		358E3CBD29A921B2005261CB /* ImagePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 358E3CB029A921B2005261CB /* ImagePicker.swift */; };
-		358E3CBE29A921B2005261CB /* ButtonThemes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 358E3CB129A921B2005261CB /* ButtonThemes.swift */; };
 		358E3CC129A921DC005261CB /* Test_AppUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 358E3CB329A921B2005261CB /* Test_AppUITests.swift */; };
 		358E3CC229A921E0005261CB /* Test_AppUITestsLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 358E3CB429A921B2005261CB /* Test_AppUITestsLaunchTests.swift */; };
 		358E3CC729A9223B005261CB /* MuxUploadSDK in Frameworks */ = {isa = PBXBuildFile; productRef = 358E3CC629A9223B005261CB /* MuxUploadSDK */; };
@@ -56,7 +55,6 @@
 		358E3CA829A921B2005261CB /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		358E3CAC29A921B2005261CB /* ContentView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		358E3CB029A921B2005261CB /* ImagePicker.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ImagePicker.swift; sourceTree = "<group>"; };
-		358E3CB129A921B2005261CB /* ButtonThemes.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ButtonThemes.swift; sourceTree = "<group>"; };
 		358E3CB329A921B2005261CB /* Test_AppUITests.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Test_AppUITests.swift; sourceTree = "<group>"; };
 		358E3CB429A921B2005261CB /* Test_AppUITestsLaunchTests.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Test_AppUITestsLaunchTests.swift; sourceTree = "<group>"; };
 		358E3CC429A9221F005261CB /* mux-vod-upload-ios */ = {isa = PBXFileReference; lastKnownFileType = wrapper; name = "mux-vod-upload-ios"; path = ../..; sourceTree = "<group>"; };
@@ -174,7 +172,6 @@
 			isa = PBXGroup;
 			children = (
 				358E3CB029A921B2005261CB /* ImagePicker.swift */,
-				358E3CB129A921B2005261CB /* ButtonThemes.swift */,
 				354421B22A0D628E00C6FD1F /* UploadCTA.swift */,
 			);
 			path = Widgets;
@@ -320,7 +317,6 @@
 				3588AAB52A13DA080063E4DA /* UploadItemViewModel.swift in Sources */,
 				358E3CB529A921B2005261CB /* Test_AppApp.swift in Sources */,
 				3570FE112A09883400E91965 /* FakeBackend.swift in Sources */,
-				358E3CBE29A921B2005261CB /* ButtonThemes.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
