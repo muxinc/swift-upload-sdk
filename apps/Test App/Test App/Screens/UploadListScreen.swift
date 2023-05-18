@@ -31,9 +31,11 @@ fileprivate struct ListContianer: View {
         if listVM.lastKnownUploads.isEmpty {
             EmptyList()
         } else {
-            LazyVStack {
-                ForEach(listVM.lastKnownUploads, id: \.self) { upload in
-                    ListItem(upload: upload)
+            ScrollView {
+                LazyVStack {
+                    ForEach(listVM.lastKnownUploads, id: \.self) { upload in
+                        ListItem(upload: upload)
+                    }
                 }
             }
         }

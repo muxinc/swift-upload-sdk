@@ -18,6 +18,11 @@ class UploadListModel : ObservableObject {
                 uploadSet.insert($0)
             }
             self.lastKnownUploads = Array(uploadSet)
+                .sorted(
+                    by: { lhs, rhs in
+                        lhs.uploadStatus.startTime >= rhs.uploadStatus.startTime
+                    }
+                )
         }
     }
     
