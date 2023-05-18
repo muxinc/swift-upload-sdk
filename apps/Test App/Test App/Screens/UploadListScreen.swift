@@ -167,7 +167,7 @@ fileprivate struct EmptyList: View {
                 .navigationBarHidden(true)
         } label: {
             ZStack(alignment: .top) {
-                BigUploadCTA()
+                BigUploadCTALabel()
                     .padding(EdgeInsets(top: 64, leading: 20, bottom: 0, trailing: 20))
             }
         }
