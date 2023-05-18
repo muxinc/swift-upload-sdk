@@ -243,7 +243,7 @@ fileprivate struct UploadCTA: View {
                 }
             )}
         )
-        .onAppear {
+        .task {
             inPickFlow = true
         }
     }
