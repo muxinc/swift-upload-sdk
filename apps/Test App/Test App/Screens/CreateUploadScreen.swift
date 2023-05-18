@@ -10,7 +10,7 @@ import PhotosUI
 
 struct CreateUploadScreen: View {
     
-    @StateObject var uploadCreationVM: UploadCreationViewModel = UploadCreationViewModel()
+    @StateObject var uploadCreationVM: UploadCreationModel = UploadCreationModel()
     
     var body: some View {
         ZStack { // Outer window
@@ -143,7 +143,7 @@ fileprivate struct ThumbnailView: View {
     }
     
     let preparedMedia: PreparedUpload?
-    @EnvironmentObject var uploadCreationVM: UploadCreationViewModel
+    @EnvironmentObject var uploadCreationVM: UploadCreationModel
     
     init(preparedMedia: PreparedUpload?) {
         self.preparedMedia = preparedMedia
@@ -193,7 +193,7 @@ fileprivate struct EmptyView: View {
 }
 
 fileprivate struct UploadCTA: View {
-    @EnvironmentObject var uploadCreationVM: UploadCreationViewModel
+    @EnvironmentObject var uploadCreationVM: UploadCreationModel
     @State var inPickFlow = false // True when picking photos or resolving the related permission prompt, or when first launching the screen
     
     private var pickerConfig: PHPickerConfiguration = {
@@ -284,14 +284,14 @@ struct ContentContainer_Previews: PreviewProvider {
             PreparedUpload(thumbnail: nil, localVideoFile: URL(string: "file:///")!, remoteURL: URL(string: "file:///")!)
         )
         ScreenContent(exportState: exportState)
-            .environmentObject(UploadCreationViewModel())
+            .environmentObject(UploadCreationModel())
     }
 }
 
 struct EntireScreen_Previews: PreviewProvider {
     static var previews: some View {
         CreateUploadScreen()
-            .environmentObject(UploadCreationViewModel())
+            .environmentObject(UploadCreationModel())
     }
 }
 
@@ -301,7 +301,7 @@ struct Thumbnail_Previews: PreviewProvider {
             WindowBackground.ignoresSafeArea()
             ThumbnailView(preparedMedia: PreparedUpload(thumbnail: nil, localVideoFile: URL(string: "file:///")!, remoteURL: URL(string: "file:///")!))
         }
-        .environmentObject(UploadCreationViewModel())
+        .environmentObject(UploadCreationModel())
     }
 }
 
@@ -311,7 +311,7 @@ struct EmptyView_Previews: PreviewProvider {
             WindowBackground.ignoresSafeArea()
             EmptyView()
         }
-        .environmentObject(UploadCreationViewModel())
+        .environmentObject(UploadCreationModel())
     }
 }
 
@@ -321,7 +321,7 @@ struct ErrorView_Previews: PreviewProvider {
             WindowBackground.ignoresSafeArea()
             ErrorView()
         }
-        .environmentObject(UploadCreationViewModel())
+        .environmentObject(UploadCreationModel())
     }
 }
 
@@ -331,6 +331,6 @@ struct ProgressView_Previews: PreviewProvider {
             WindowBackground.ignoresSafeArea()
             ProcessingView()
         }
-        .environmentObject(UploadCreationViewModel())
+        .environmentObject(UploadCreationModel())
     }
 }
