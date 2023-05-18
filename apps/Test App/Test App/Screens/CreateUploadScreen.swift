@@ -17,14 +17,14 @@ struct CreateUploadScreen: View {
             Gray100.ignoresSafeArea(.container)
             VStack(spacing: 0) {
                 MuxNavBar(leadingNavButton: .close, title: "Create a New Upload")
-                ScreenContent(exportState: uploadCreationVM.exportState)
+                ScreenContentView(exportState: uploadCreationVM.exportState)
             }
         }
         .environmentObject(uploadCreationVM)
     }
 }
 
-fileprivate struct ScreenContent: View {
+fileprivate struct ScreenContentView: View {
     var body: some View {
         ZStack {
             WindowBackground
@@ -283,7 +283,7 @@ struct ContentContainer_Previews: PreviewProvider {
         let exportState = ExportState.ready(
             PreparedUpload(thumbnail: nil, localVideoFile: URL(string: "file:///")!, remoteURL: URL(string: "file:///")!)
         )
-        ScreenContent(exportState: exportState)
+        ScreenContentView(exportState: exportState)
             .environmentObject(UploadCreationModel())
     }
 }

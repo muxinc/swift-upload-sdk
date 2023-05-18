@@ -9,6 +9,8 @@ import PhotosUI
 import MuxUploadSDK
 
 struct ContentView: View {
+    @EnvironmentObject var uploadListModel: UploadListModel
+    
     var body: some View {
         NavigationView {
             ZStack(alignment: .bottomTrailing) {
@@ -17,12 +19,14 @@ struct ContentView: View {
                     CreateUploadScreen()
                         .navigationBarHidden(true)
                 } label : {
-                    ZStack {
-                        Image("Mux-y Add")
-                            .padding()
-                            .background(Green50.clipShape(Circle()))
+                    if !uploadListModel.lastKnownUploads.isEmpty {
+                        ZStack {
+                            Image("Mux-y Add")
+                                .padding()
+                                .background(Green50.clipShape(Circle()))
+                        }
+                        .padding(24.0)
                     }
-                    .padding(24.0)
                 }
             }
         }
