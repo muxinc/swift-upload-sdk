@@ -165,7 +165,7 @@ fileprivate struct ListItem: View {
 fileprivate struct EmptyList: View {
     var body: some View {
         NavigationLink {
-            CreateUploadScreen()
+            CreateUploadView()
                 .navigationBarHidden(true)
         } label: {
             ZStack(alignment: .top) {

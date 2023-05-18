@@ -16,7 +16,7 @@ struct ContentView: View {
             ZStack(alignment: .bottomTrailing) {
                 UploadListScreen()
                 NavigationLink {
-                    CreateUploadScreen()
+                    CreateUploadView()
                         .navigationBarHidden(true)
                 } label : {
                     if !uploadListModel.lastKnownUploads.isEmpty {

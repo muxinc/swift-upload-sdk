@@ -11,10 +11,10 @@
 		354421B62A11731B00C6FD1F /* UploadCreationModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 354421B52A11731B00C6FD1F /* UploadCreationModel.swift */; };
 		356FB4162A0C191000EA4362 /* Buttons.swift in Sources */ = {isa = PBXBuildFile; fileRef = 356FB4152A0C191000EA4362 /* Buttons.swift */; };
 		3570FE112A09883400E91965 /* FakeBackend.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3570FE102A09883400E91965 /* FakeBackend.swift */; };
-		3570FE132A0B15D800E91965 /* CreateUploadScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3570FE122A0B15D800E91965 /* CreateUploadScreen.swift */; };
+		3570FE132A0B15D800E91965 /* CreateUploadView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3570FE122A0B15D800E91965 /* CreateUploadView.swift */; };
 		3570FE162A0BFCD200E91965 /* Mux Colors.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3570FE152A0BFCD200E91965 /* Mux Colors.swift */; };
 		3570FE192A0C05EE00E91965 /* MuxNavBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3570FE182A0C05EE00E91965 /* MuxNavBar.swift */; };
-		3588AAAD2A12D7A80063E4DA /* UploadListScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3588AAAC2A12D7A80063E4DA /* UploadListScreen.swift */; };
+		3588AAAD2A12D7A80063E4DA /* UploadListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3588AAAC2A12D7A80063E4DA /* UploadListView.swift */; };
 		3588AAB52A13DA080063E4DA /* ThumbnailModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3588AAB42A13DA080063E4DA /* ThumbnailModel.swift */; };
 		358E3CB529A921B2005261CB /* Test_AppApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 358E3CA529A921B2005261CB /* Test_AppApp.swift */; };
 		358E3CB629A921B2005261CB /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 358E3CA629A921B2005261CB /* Assets.xcassets */; };
@@ -43,10 +43,10 @@
 		354421B52A11731B00C6FD1F /* UploadCreationModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UploadCreationModel.swift; sourceTree = "<group>"; };
 		356FB4152A0C191000EA4362 /* Buttons.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Buttons.swift; sourceTree = "<group>"; };
 		3570FE102A09883400E91965 /* FakeBackend.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FakeBackend.swift; sourceTree = "<group>"; };
-		3570FE122A0B15D800E91965 /* CreateUploadScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateUploadScreen.swift; sourceTree = "<group>"; };
+		3570FE122A0B15D800E91965 /* CreateUploadView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateUploadView.swift; sourceTree = "<group>"; };
 		3570FE152A0BFCD200E91965 /* Mux Colors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Mux Colors.swift"; sourceTree = "<group>"; };
 		3570FE182A0C05EE00E91965 /* MuxNavBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MuxNavBar.swift; sourceTree = "<group>"; };
-		3588AAAC2A12D7A80063E4DA /* UploadListScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UploadListScreen.swift; sourceTree = "<group>"; };
+		3588AAAC2A12D7A80063E4DA /* UploadListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UploadListView.swift; sourceTree = "<group>"; };
 		3588AAB42A13DA080063E4DA /* ThumbnailModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThumbnailModel.swift; sourceTree = "<group>"; };
 		358E3C7729A92167005261CB /* Test App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Test App.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		358E3C9129A92168005261CB /* Test AppUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Test AppUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -165,8 +165,8 @@
 		358E3CA929A921B2005261CB /* Screens */ = {
 			isa = PBXGroup;
 			children = (
-				3570FE122A0B15D800E91965 /* CreateUploadScreen.swift */,
-				3588AAAC2A12D7A80063E4DA /* UploadListScreen.swift */,
+				3570FE122A0B15D800E91965 /* CreateUploadView.swift */,
+				3588AAAC2A12D7A80063E4DA /* UploadListView.swift */,
 			);
 			path = Screens;
 			sourceTree = "<group>";
@@ -308,8 +308,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				3570FE132A0B15D800E91965 /* CreateUploadScreen.swift in Sources */,
-				3588AAAD2A12D7A80063E4DA /* UploadListScreen.swift in Sources */,
+				3570FE132A0B15D800E91965 /* CreateUploadView.swift in Sources */,
+				3588AAAD2A12D7A80063E4DA /* UploadListView.swift in Sources */,
 				356FB4162A0C191000EA4362 /* Buttons.swift in Sources */,
 				3570FE192A0C05EE00E91965 /* MuxNavBar.swift in Sources */,
 				358E3CBD29A921B2005261CB /* ImagePicker.swift in Sources */,

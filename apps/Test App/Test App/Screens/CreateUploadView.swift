@@ -8,7 +8,7 @@
 import SwiftUI
 import PhotosUI
 
-struct CreateUploadScreen: View {
+struct CreateUploadView: View {
     
     @StateObject var uploadCreationVM: UploadCreationModel = UploadCreationModel()
     
@@ -290,7 +290,7 @@ struct ContentContainer_Previews: PreviewProvider {
 
 struct EntireScreen_Previews: PreviewProvider {
     static var previews: some View {
-        CreateUploadScreen()
+        CreateUploadView()
             .environmentObject(UploadCreationModel())
     }
 }
