@@ -25,6 +25,7 @@
 		358E3CC229A921E0005261CB /* Test_AppUITestsLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 358E3CB429A921B2005261CB /* Test_AppUITestsLaunchTests.swift */; };
 		358E3CC729A9223B005261CB /* MuxUploadSDK in Frameworks */ = {isa = PBXBuildFile; productRef = 358E3CC629A9223B005261CB /* MuxUploadSDK */; };
 		35ECAC7E2A1582D100C8AADB /* UploadListModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35ECAC7D2A1582D100C8AADB /* UploadListModel.swift */; };
+		35ECAC802A168C6400C8AADB /* Mux Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 35ECAC7F2A168C6400C8AADB /* Mux Assets.xcassets */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -58,6 +59,7 @@
 		358E3CB429A921B2005261CB /* Test_AppUITestsLaunchTests.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Test_AppUITestsLaunchTests.swift; sourceTree = "<group>"; };
 		358E3CC429A9221F005261CB /* mux-vod-upload-ios */ = {isa = PBXFileReference; lastKnownFileType = wrapper; name = "mux-vod-upload-ios"; path = ../..; sourceTree = "<group>"; };
 		35ECAC7D2A1582D100C8AADB /* UploadListModel.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = UploadListModel.swift; sourceTree = "<group>"; };
+		35ECAC7F2A168C6400C8AADB /* Mux Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Mux Assets.xcassets"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -100,6 +102,7 @@
 		3570FE142A0BFAC300E91965 /* Mux Style */ = {
 			isa = PBXGroup;
 			children = (
+				35ECAC7F2A168C6400C8AADB /* Mux Assets.xcassets */,
 				3570FE172A0C05D800E91965 /* Mux Views */,
 				3570FE152A0BFCD200E91965 /* Mux Colors.swift */,
 			);
@@ -287,6 +290,7 @@
 			files = (
 				358E3CB729A921B2005261CB /* Preview Assets.xcassets in Resources */,
 				358E3CB629A921B2005261CB /* Assets.xcassets in Resources */,
+				35ECAC802A168C6400C8AADB /* Mux Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
