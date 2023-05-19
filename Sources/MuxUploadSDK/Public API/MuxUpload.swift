@@ -12,8 +12,8 @@ import Foundation
  
  TODO: usage here
  */
-public final class MuxUpload {
-    
+public final class MuxUpload : Hashable, Equatable {
+ 
     private let uploadInfo: UploadInfo
     private let manageBySDK: Bool
     private let id: Int
@@ -26,7 +26,7 @@ public final class MuxUpload {
     /**
      Represents the state of an upload in progress.
      */
-    public struct Status : Sendable {
+    public struct Status : Sendable, Hashable {
         public let progress: Progress?
         public let updatedTime: TimeInterval
         public let startTime: TimeInterval
@@ -53,7 +53,7 @@ public final class MuxUpload {
     public convenience init(
         uploadURL: URL,
         videoFileURL: URL,
-        chunkSize: Int = 8 * 1024 * 1024, // Google recommends *at least* 8M,
+        chunkSize: Int = 8 * 1024 * 1024, // Google recommends at least 8M
         retriesPerChunk: Int = 3,
         optOutOfEventTracking: Bool = false
     ) {
@@ -82,7 +82,7 @@ public final class MuxUpload {
      */
     public var progressHandler: StateHandler?
 
-    public struct Success : Sendable {
+    public struct Success : Sendable, Hashable {
         public let finalState: Status
     }
 
@@ -105,7 +105,12 @@ public final class MuxUpload {
     /**
      True if this upload is currently in progress and not paused
      */
-    var inProgress: Bool { get { fileWorker != nil } }
+    public var inProgress: Bool { get { fileWorker != nil && !complete } }
+    
+    /**
+     True if this upload was completed
+     */
+    public var complete: Bool { get { lastSeenStatus.progress?.completedUnitCount ?? 0 > 0 && lastSeenStatus.progress?.fractionCompleted ?? 0 >= 1.0 } }
     
     /**
     URL to the file that will be uploaded
@@ -126,12 +131,12 @@ public final class MuxUpload {
             // See if there's anything in progress already
             fileWorker = uploadManager.findUploaderFor(videoFile: videoFile)
         }
-        guard !forceRestart && fileWorker == nil else {
+        if fileWorker != nil && !forceRestart {
             MuxUploadSDK.logger?.warning("start() called but upload is in progress")
             return
         }
         if forceRestart {
-            fileWorker?.cancel()
+            cancel()
         }
         let completedUnitCount = UInt64({ self.lastSeenStatus.progress?.completedUnitCount ?? 0 }())
         let fileWorker = ChunkedFileUploader(uploadInfo: uploadInfo, startingAtByte: completedUnitCount)
@@ -140,6 +145,7 @@ public final class MuxUpload {
             InternalUploaderDelegate { [weak self] state in self?.handleStateUpdate(state) }
         )
         fileWorker.start()
+        uploadManager.registerUploader(fileWorker, withId: id)
         self.fileWorker = fileWorker
     }
     
@@ -154,7 +160,7 @@ public final class MuxUpload {
     }
     
     /**
-     Cancels an ongoing download. Temp files will be deleted asynchronously. State and Delegates will be cleared. Your delegates will recieve no further calls
+     Cancels an ongoing download. State and Delegates will be cleared. Your delegates will recieve no further calls
      */
     public func cancel() {
         fileWorker?.cancel()
@@ -207,6 +213,17 @@ public final class MuxUpload {
         }
     }
     
+    public static func == (lhs: MuxUpload, rhs: MuxUpload) -> Bool {
+        lhs.videoFile == rhs.videoFile
+        && lhs.uploadURL == rhs.uploadURL
+    }
+    
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(videoFile)
+        hasher.combine(uploadURL)
+    }
+   
+    
     private init (uploadInfo: UploadInfo, manage: Bool = true, uploadManager: UploadManager) {
         self.uploadInfo = uploadInfo
         self.manageBySDK = manage
@@ -220,7 +237,7 @@ public final class MuxUpload {
         
         handleStateUpdate(uploader.currentState)
         uploader.addDelegate(
-            withToken: id,
+            withToken: self.id,
             InternalUploaderDelegate { [weak self] state in self?.handleStateUpdate(state) }
         )
     }
