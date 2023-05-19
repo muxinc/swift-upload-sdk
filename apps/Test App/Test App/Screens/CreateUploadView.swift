@@ -245,6 +245,9 @@ fileprivate struct UploadCTA: View {
         )
         .task {
             inPickFlow = true
+            if case .can_auth(_) = uploadCreationVM.photosAuthStatus {
+                uploadCreationVM.requestPhotosAccess()
+            }
         }
     }
     
