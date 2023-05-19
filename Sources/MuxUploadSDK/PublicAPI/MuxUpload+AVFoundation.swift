@@ -10,13 +10,13 @@ extension MuxUpload {
     public convenience init(
         uploadURL: URL,
         inputAsset: AVAsset,
-        settings: UploadSettings
+        options: UploadOptions
     ) {
         let input = UploadInput(status: .ready(inputAsset))
 
         self.init(
             input: input,
-            settings: settings,
+            options: options,
             uploadManager: .shared
         )
     }

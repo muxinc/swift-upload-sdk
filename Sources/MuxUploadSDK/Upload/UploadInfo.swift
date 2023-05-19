@@ -42,7 +42,7 @@ extension UploadInfo {
         id: String,
         uploadURL: URL,
         videoFile: URL,
-        transportSettings: UploadSettings.Transport,
+        transportSettings: UploadOptions.Transport,
         optOutOfEventTracking: Bool
     ) {
         self.id = id

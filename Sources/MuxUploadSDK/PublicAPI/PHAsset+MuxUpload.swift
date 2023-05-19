@@ -19,7 +19,7 @@ extension PHAsset {
     ///    - requestOptions: options used when requesting
     ///    an ``AVAsset`` from the `imageManager`
     ///    - uploadURL: the direct upload URL
-    ///    - settings: the upload settings
+    ///    - options: the upload settings
     ///    - completion: receives the initialized MuxUpload
     ///    when it is ready, receives nil if initialization
     ///    failed or if the ``PHAsset`` is not a video.
@@ -27,7 +27,7 @@ extension PHAsset {
         from imageManager: PHImageManager = .default(),
         requestOptions: PHVideoRequestOptions,
         uploadURL: URL,
-        settings: UploadSettings,
+        options: UploadOptions,
         completion: @escaping (MuxUpload?) -> ()
     ) {
         if mediaType != .video {
@@ -44,7 +44,7 @@ extension PHAsset {
                     MuxUpload(
                         uploadURL: uploadURL,
                         inputAsset: unwrappedAsset,
-                        settings: settings
+                        options: options
                     )
                 }
 

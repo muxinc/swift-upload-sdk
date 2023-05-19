@@ -4,7 +4,8 @@
 
 import Foundation
 
-public struct UploadSettings {
+/// Settings for the direct upload
+public struct UploadOptions {
 
     /// Settings to control the SDK network operations to
     /// transport the direct upload input to Mux
