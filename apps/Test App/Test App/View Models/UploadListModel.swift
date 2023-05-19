@@ -25,8 +25,8 @@ class UploadListModel : ObservableObject {
                             lhs.uploadStatus.startTime >= rhs.uploadStatus.startTime
                         }
                     )
-            }
-                    )
+                }
+            )
         )
     }
     
