@@ -26,9 +26,7 @@ extension MuxUpload {
         using inputAsset: PHAsset,
         requestOptions: PHVideoRequestOptions,
         uploadURL: URL,
-        transportsettings: TransportSettings = TransportSettings(),
-        optOutOfEventTracking: Bool,
-        standardizationSettings: StandardizationSettings = .enabled(resolution: .preset1920x1080),
+        settings: UploadSettings,
         completion: @escaping (MuxUpload?) -> ()
     ) {
 
@@ -46,9 +44,7 @@ extension MuxUpload {
                     MuxUpload(
                         uploadURL: uploadURL,
                         inputAsset: unwrappedAsset,
-                        transportSettings: transportsettings,
-                        optOutOfEventTracking: optOutOfEventTracking,
-                        standardizationSettings: standardizationSettings
+                        settings: settings
                     )
                 }
 

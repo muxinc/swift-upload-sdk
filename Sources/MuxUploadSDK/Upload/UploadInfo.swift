@@ -42,7 +42,7 @@ extension UploadInfo {
         id: String,
         uploadURL: URL,
         videoFile: URL,
-        transportSettings: MuxUpload.TransportSettings,
+        transportSettings: UploadSettings.Transport,
         optOutOfEventTracking: Bool
     ) {
         self.id = id

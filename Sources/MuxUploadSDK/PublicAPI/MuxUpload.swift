@@ -49,6 +49,7 @@ public typealias UploadResult = Result<MuxUpload.Success, MuxUpload.UploadError>
 ///
 public final class MuxUpload : Hashable, Equatable {
 
+    private var settings: UploadSettings
     private var input: UploadInput
 
     private var internalStatus: UploadInput.Status {
@@ -167,23 +168,37 @@ public final class MuxUpload : Hashable, Equatable {
 
     }
 
-    /// Creates a new `MuxUpload` with the given confguration
-    /// - Parameters
-    ///   - uploadURL: the PUT URL for your direct upload
-    ///   - videoFileURL: A URL to the input video file
-    ///   - retriesPerChunk: The number of times each chunk of the file upload can be retried before failure is declared
-    ///   - optOutOfEventTracking: This SDK collects performance and reliability data that helps make the Upload SDK the best it can be. If you do not wish to share this information with Mux, you may pass `true` for this parameter
+    /// Initializes a MuxUpload with the given configuration
+    /// - Parameters:
+    ///     - uploadURL: the URL of the direct upload
+    ///     - videoFileURL: the file:// URL of the upload
+    ///     input
+    ///     - chunkSize: the size of chunks when uploading,
+    ///     at least 8M is recommended
+    ///     - retriesPerChunk: number of retry attempts for
+    ///     a failed chunk upload request
+    ///     - inputStandardization: enable or disable input
+    ///     standardization by the SDK locally
+    ///     - optOutOfEventTracking: opt out of event tracking
     public convenience init(
         uploadURL: URL,
         videoFileURL: URL,
         chunkSize: Int = 8 * 1024 * 1024, // Google recommends at least 8M
         retriesPerChunk: Int = 3,
-        optOutOfEventTracking: Bool = false,
-        standardizationSettings: StandardizationSettings = .enabled(resolution: .preset1920x1080)
+        inputStandardization: UploadSettings.InputStandardization = .init(
+            targetResolution: UploadSettings.InputStandardization.ResolutionPreset.default
+        ),
+        optOutOfEventTracking: Bool = false
     ) {
-        let transportSettings = TransportSettings(
-            chunkSize: chunkSize,
-            retriesPerChunk: retriesPerChunk
+        let uploadSettings = UploadSettings(
+            inputStandardization: inputStandardization,
+            transport: UploadSettings.Transport(
+                chunkSize: chunkSize,
+                retriesPerChunk: retriesPerChunk
+            ),
+            eventTracking: UploadSettings.EventTracking(
+                optedOut: optOutOfEventTracking
+            )
         )
 
         let inputSourceAsset = AVAsset(url: videoFileURL)
@@ -192,9 +207,7 @@ public final class MuxUpload : Hashable, Equatable {
 
         self.init(
             input: input,
-            transportSettings: transportSettings,
-            optOutOfEventTracking: optOutOfEventTracking,
-            standardizationSettings: standardizationSettings,
+            settings: uploadSettings,
             uploadManager: .shared
         )
     }
@@ -202,9 +215,7 @@ public final class MuxUpload : Hashable, Equatable {
     public convenience init(
         uploadURL: URL,
         inputFileURL: URL,
-        transportSettings: TransportSettings = TransportSettings(),
-        optOutOfEventTracking: Bool,
-        standardizationSettings: StandardizationSettings = .enabled(resolution: .preset1920x1080)
+        settings: UploadSettings
     ) {
         let inputSourceAsset = AVAsset(url: inputFileURL)
         let input = UploadInput(status: .ready(inputSourceAsset))
@@ -212,9 +223,7 @@ public final class MuxUpload : Hashable, Equatable {
         self.init(
             input: input,
             manage: true,
-            transportSettings: transportSettings,
-            optOutOfEventTracking: optOutOfEventTracking,
-            standardizationSettings: standardizationSettings,
+            settings: settings,
             uploadManager: .shared
         )
     }
@@ -222,22 +231,21 @@ public final class MuxUpload : Hashable, Equatable {
     init(
         input: UploadInput,
         manage: Bool = true,
-        transportSettings: TransportSettings = TransportSettings(),
-        optOutOfEventTracking: Bool,
-        standardizationSettings: StandardizationSettings,
+        settings: UploadSettings,
         uploadManager: UploadManager
     ) {
         self.input = input
         self.manageBySDK = manage
+        self.settings = settings
         self.uploadManager = uploadManager
 
         let uploadInfo = UploadInfo(
             id: UUID().uuidString,
             uploadURL: uploadURL,
             videoFile: URL(string: "file://")!,
-            chunkSize: transportSettings.chunkSize,
-            retriesPerChunk: transportSettings.retriesPerChunk,
-            optOutOfEventTracking: optOutOfEventTracking
+            chunkSize: settings.transport.chunkSize,
+            retriesPerChunk: settings.transport.retriesPerChunk,
+            optOutOfEventTracking: settings.eventTracking.optedOut
         )
     }
 
@@ -249,8 +257,7 @@ public final class MuxUpload : Hashable, Equatable {
 
         self.init(
             input: input,
-            optOutOfEventTracking: uploader.uploadInfo.optOutOfEventTracking,
-            standardizationSettings: .disabled, // fix this
+            settings: UploadSettings(eventTracking: .init(optedOut: true)),
             uploadManager: .shared
         )
         self.fileWorker = uploader
@@ -339,7 +346,10 @@ public final class MuxUpload : Hashable, Equatable {
             cancel()
         }
         let completedUnitCount = UInt64({ self.lastSeenStatus.progress?.completedUnitCount ?? 0 }())
-        let fileWorker = ChunkedFileUploader(uploadInfo: uploadInfo!, startingAtByte: completedUnitCount)
+        let fileWorker = ChunkedFileUploader(
+            uploadInfo: uploadInfo!,
+            startingAtByte: completedUnitCount
+        )
         fileWorker.addDelegate(
             withToken: id,
             InternalUploaderDelegate { [self] state in handleStateUpdate(state) }

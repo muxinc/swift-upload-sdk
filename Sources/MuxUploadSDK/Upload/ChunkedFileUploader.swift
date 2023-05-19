@@ -182,7 +182,10 @@ class ChunkedFileUploader {
         }
     }
     
-    convenience init(uploadInfo: UploadInfo, startingAtByte: UInt64 = 0) {
+    convenience init(
+        uploadInfo: UploadInfo,
+        startingAtByte: UInt64 = 0
+    ) {
         self.init(
             uploadInfo: uploadInfo,
             file: ChunkedFile(chunkSize: uploadInfo.chunkSize),
@@ -190,7 +193,11 @@ class ChunkedFileUploader {
         )
     }
     
-    init(uploadInfo: UploadInfo, file: ChunkedFile, startingByte: UInt64 = 0) {
+    init(
+        uploadInfo: UploadInfo,
+        file: ChunkedFile,
+        startingByte: UInt64 = 0
+    ) {
         self.uploadInfo = uploadInfo
         self.file = file
         self.lastReadCount = startingByte

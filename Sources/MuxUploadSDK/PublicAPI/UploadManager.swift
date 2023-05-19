@@ -182,11 +182,14 @@ internal actor UploadCacheActor {
     func getUpload(uploadID: String) async -> ChunkedFileUploader? {
         // reminder: doesn't start the uploader, just makes it
         return await Task<ChunkedFileUploader?, Never> {
-            let optEntry = try? persistence.readEntry(uploadID: uploadID)
-            guard let entry = optEntry else {
-                return nil
-            }
-            return ChunkedFileUploader(uploadInfo: entry.uploadInfo, startingAtByte: entry.lastSuccessfulByte)
+            try? persistence
+                .readEntry(uploadID: uploadID)
+                .map({ entry in
+                    return ChunkedFileUploader(
+                        uploadInfo: entry.uploadInfo,
+                        startingAtByte: entry.lastSuccessfulByte
+                    )
+                })
         }.value
     }
 
@@ -208,7 +211,10 @@ internal actor UploadCacheActor {
     func getAllUploads() async -> [ChunkedFileUploader] {
         return await Task<[ChunkedFileUploader]?, Never> {
             return try? persistence.readAll().compactMap { it in
-                ChunkedFileUploader(uploadInfo: it.uploadInfo, startingAtByte: it.lastSuccessfulByte)
+                ChunkedFileUploader(
+                    uploadInfo: it.uploadInfo,
+                    startingAtByte: it.lastSuccessfulByte
+                )
             }
         }.value ?? []
     }
