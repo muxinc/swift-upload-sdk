@@ -83,7 +83,7 @@ public final class UploadManager {
     }
     
     /// Removes an ``UploadsUpdatedDelegate``
-    public func removeUploadsUpdatedDelegate(_ delegate: any UploadsUpdatedDelegate) {
+    public func removeUploadsUpdatedDelegate<Delegate: UploadsUpdatedDelegate>(_ delegate: Delegate) {
         uploadsUpdateDelegatesByToken.removeValue(forKey: ObjectIdentifier(delegate))
     }
     
