@@ -12,19 +12,35 @@ import MuxUploadSDK
 class UploadListModel : ObservableObject {
     
     init() {
-        UploadManager.shared.addUploadsUpdatedDelegate(id: 0) { uploads in
-            var uploadSet = Set(self.lastKnownUploads)
-            uploads.forEach {
-                uploadSet.insert($0)
+        UploadManager.shared.addUploadsUpdatedDelegate(
+            Delegate(
+                handler: { uploads in
+                var uploadSet = Set(self.lastKnownUploads)
+                uploads.forEach {
+                    uploadSet.insert($0)
+                }
+                self.lastKnownUploads = Array(uploadSet)
+                    .sorted(
+                        by: { lhs, rhs in
+                            lhs.uploadStatus.startTime >= rhs.uploadStatus.startTime
+                        }
+                    )
             }
-            self.lastKnownUploads = Array(uploadSet)
-                .sorted(
-                    by: { lhs, rhs in
-                        lhs.uploadStatus.startTime >= rhs.uploadStatus.startTime
-                    }
-                )
-        }
+                    )
+        )
     }
     
     @Published var lastKnownUploads: [MuxUpload] = Array()
+}
+
+fileprivate class Delegate: UploadsUpdatedDelegate {
+    let handler: ([MuxUpload]) -> Void
+    
+    func uploadListUpdated(with list: [MuxUpload]) {
+        handler(list)
+    }
+    
+    init(handler: @escaping ([MuxUpload]) -> Void) {
+        self.handler = handler
+    }
 }

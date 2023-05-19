@@ -22,7 +22,7 @@ import Foundation
 public final class UploadManager {
     
     private var uploadersByURL: [URL : ChunkedFileUploader] = [:]
-    private var uploadsUpdateDelegatesByToken: [Int : UploadsUpdatedDelegate] = [:]
+    private var uploadsUpdateDelegatesByToken: [ObjectIdentifier : any UploadsUpdatedDelegate] = [:]
     private let uploadActor = UploadCacheActor()
     private lazy var uploaderDelegate: FileUploaderDelegate = FileUploaderDelegate(manager: self)
     
@@ -77,17 +77,15 @@ public final class UploadManager {
         }
     }
     
-    /// Adds an ``UploadsUpdatedDelegate`` with the given ID. You can add as many of these as you like, each with a uniqe ID
-    public func addUploadsUpdatedDelegate(id: Int, _ delegate: UploadsUpdatedDelegate?) {
-        if let delegate = delegate {
-            uploadsUpdateDelegatesByToken[id] = delegate
-        } else {
-            uploadsUpdateDelegatesByToken.removeValue(forKey: id)
-        }
+    /// Adds an ``UploadsUpdatedDelegate`` You can add as many of these as you like
+    public func addUploadsUpdatedDelegate(_ delegate: (any UploadsUpdatedDelegate)) {
+        uploadsUpdateDelegatesByToken[ObjectIdentifier(delegate)] = delegate
     }
     
-    /// A delegate that handles changes to the list of active uploads
-    public typealias UploadsUpdatedDelegate = ([MuxUpload]) -> Void
+    /// Removes an ``UploadsUpdatedDelegate``
+    public func removeUploadsUpdatedDelegate(_ delegate: any UploadsUpdatedDelegate) {
+        uploadsUpdateDelegatesByToken.removeValue(forKey: ObjectIdentifier(delegate))
+    }
     
     internal func acknowledgeUpload(ofFile url: URL) {
         if let uploader = uploadersByURL[url] {
@@ -121,7 +119,7 @@ public final class UploadManager {
             await MainActor.run {
                 self.uploadsUpdateDelegatesByToken
                     .map { it in it.value }
-                    .forEach { it in it(self.allManagedUploads()) }
+                    .forEach { it in it.uploadListUpdated(with: self.allManagedUploads()) }
                 
             }
         }
@@ -146,6 +144,12 @@ public final class UploadManager {
         }
     }
 }
+
+/// A delegate that handles changes to the list of active uploads
+public protocol UploadsUpdatedDelegate: AnyObject {
+    func uploadListUpdated(with list: [MuxUpload])
+}
+
 
 /// Isolates/synchronizes multithreaded access to the upload cache.
 internal actor UploadCacheActor {
