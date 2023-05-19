@@ -28,7 +28,7 @@ class ChunkedFile {
     
     /// Reads the next chunk from the file, advancing the file for the next read
     ///  This method does synchronous I/O, so call it in the background
-    public func readNextChunk() -> Result<FileChunk, Error> {
+    func readNextChunk() -> Result<FileChunk, Error> {
         MuxUploadSDK.logger?.info("--readNextChunk(): called")
         do {
             guard fileHandle != nil else {
