@@ -78,7 +78,7 @@ public final class UploadManager {
     }
     
     /// Adds an ``UploadsUpdatedDelegate`` You can add as many of these as you like
-    public func addUploadsUpdatedDelegate(_ delegate: (any UploadsUpdatedDelegate)) {
+    public func addUploadsUpdatedDelegate<Delegate: UploadsUpdatedDelegate>(_ delegate: Delegate) {
         uploadsUpdateDelegatesByToken[ObjectIdentifier(delegate)] = delegate
     }
     
