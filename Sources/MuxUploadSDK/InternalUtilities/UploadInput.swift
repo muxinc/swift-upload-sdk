@@ -78,6 +78,10 @@ struct UploadInput {
             return uploadInfo
         }
     }
+}
 
-
+extension UploadInput {
+    init(asset: AVAsset) {
+        self.status = .ready(asset)
+    }
 }

@@ -12,10 +12,8 @@ extension MuxUpload {
         inputAsset: AVAsset,
         options: UploadOptions
     ) {
-        let input = UploadInput(status: .ready(inputAsset))
-
         self.init(
-            input: input,
+            input: UploadInput(asset: inputAsset),
             options: options,
             uploadManager: .shared
         )
