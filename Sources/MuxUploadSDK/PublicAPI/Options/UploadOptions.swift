@@ -92,6 +92,8 @@ public struct UploadOptions {
             targetResolution: .default
         )
 
+        // Kept private to an invalid combination of parameters
+        // being used for initialization
         private init(
             isEnabled: Bool,
             targetResolution: ResolutionPreset
@@ -100,7 +102,13 @@ public struct UploadOptions {
             self.targetResolution = targetResolution
         }
 
+        /// Used to initialize ``UploadOptions.InputStandardization``
+        /// with a target resolution
         ///
+        /// - Parameters:
+        ///     - targetResolution: if the input resolution
+        ///     exceeds 1080p, it will be set to the preset
+        ///     after undergoing standardization
         public init(
             targetResolution: ResolutionPreset
         ) {

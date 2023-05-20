@@ -11,7 +11,8 @@ import Foundation
 public typealias UploadResult = Result<MuxUpload.Success, MuxUpload.UploadError>
 
 ///
-/// Uploads a video file to a previously-created Mux Video Direct Upload.
+/// Uploads a media asset to Mux using a previously-created
+/// Direct Upload signed URL.
 ///
 /// This class is part of a full-stack workflow for uploading video files to Mux Video. In order to use this object you must first have
 /// created a [Direct Upload](https://docs.mux.com/guides/video/upload-files-directly) on your server backend.
@@ -66,7 +67,7 @@ public final class MuxUpload : Hashable, Equatable {
         input.uploadInfo
     }
 
-    /// Indicates the status of the upload as it goes
+    /// Indicates the status of the upload input as it goes
     /// through its lifecycle
     public enum InputStatus {
         /// Upload initialized and not yet started
@@ -91,6 +92,8 @@ public final class MuxUpload : Hashable, Equatable {
         case uploadFailed(AVAsset, Status, UploadResult)
     }
 
+    /// Current status of the upload input as it goes through
+    /// its lifecycle
     public var inputStatus: InputStatus {
         switch input.status {
         case .ready(let sourceAsset):
@@ -184,9 +187,12 @@ public final class MuxUpload : Hashable, Equatable {
 
     }
 
-    /// Initializes a MuxUpload with the given configuration
+    /// Initializes a MuxUpload from a local file URL with
+    /// the given configuration
     /// - Parameters:
-    ///     - uploadURL: the URL of the direct upload
+    ///    - uploadURL: the URL of the direct upload that's
+    ///    included in the create a new direct upload URL
+    ///    [response](https://docs.mux.com/api-reference#video/operation/create-direct-upload)
     ///     - videoFileURL: the file:// URL of the upload
     ///     input
     ///     - chunkSize: the size of chunks when uploading,
@@ -195,7 +201,8 @@ public final class MuxUpload : Hashable, Equatable {
     ///     a failed chunk upload request
     ///     - inputStandardization: enable or disable input
     ///     standardization by the SDK locally
-    ///     - optOutOfEventTracking: opt out of event tracking
+    ///     - eventTracking: options to opt out of event
+    ///     tracking
     public convenience init(
         uploadURL: URL,
         videoFileURL: URL,
@@ -204,40 +211,43 @@ public final class MuxUpload : Hashable, Equatable {
         inputStandardization: UploadOptions.InputStandardization = .init(
             targetResolution: UploadOptions.InputStandardization.ResolutionPreset.default
         ),
-        optOutOfEventTracking: Bool = false
+        eventTracking: UploadOptions.EventTracking = UploadOptions.EventTracking(optedOut: false)
     ) {
-        let uploadSettings = UploadOptions(
-            inputStandardization: inputStandardization,
-            transport: UploadOptions.Transport(
-                chunkSize: chunkSize,
-                retriesPerChunk: retriesPerChunk
-            ),
-            eventTracking: UploadOptions.EventTracking(
-                optedOut: optOutOfEventTracking
-            )
-        )
-
-        let inputSourceAsset = AVAsset(url: videoFileURL)
-
-        let input = UploadInput(status: .ready(inputSourceAsset))
-
         self.init(
-            input: input,
-            options: uploadSettings,
+            input: UploadInput(asset: AVAsset(url: videoFileURL)),
+            options: UploadOptions(
+                inputStandardization: inputStandardization,
+                transport: UploadOptions.Transport(
+                    chunkSize: chunkSize,
+                    retriesPerChunk: retriesPerChunk
+                ),
+                eventTracking: eventTracking
+            ),
             uploadManager: .shared
         )
     }
 
+    /// Initializes a MuxUpload from a local file URL
+    ///
+    /// - Parameters:
+    ///    - uploadURL: the URL of the direct upload that's
+    ///    included in the create a new direct upload URL
+    ///    [response](https://docs.mux.com/api-reference#video/operation/create-direct-upload)
+    ///     - inputFileURL: the file:// URL of the upload
+    ///     input
+    ///     - options: options used to control the direct
+    ///    upload of the input to Mux
     public convenience init(
         uploadURL: URL,
         inputFileURL: URL,
         options: UploadOptions
     ) {
-        let inputSourceAsset = AVAsset(url: inputFileURL)
-        let input = UploadInput(status: .ready(inputSourceAsset))
-
         self.init(
-            input: input,
+            input: UploadInput(
+                asset: AVAsset(
+                    url: inputFileURL
+                )
+            ),
             manage: true,
             options: options,
             uploadManager: .shared
