@@ -36,6 +36,10 @@ struct UploadInfo : Codable {
     var optOutOfEventTracking: Bool
 }
 
+extension UploadInfo: Equatable {
+    
+}
+
 extension UploadInfo {
 
     init(

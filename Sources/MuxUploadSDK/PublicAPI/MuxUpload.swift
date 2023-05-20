@@ -50,7 +50,13 @@ public typealias UploadResult = Result<MuxUpload.Success, MuxUpload.UploadError>
 public final class MuxUpload : Hashable, Equatable {
 
     private var options: UploadOptions
-    private var input: UploadInput
+    private var input: UploadInput {
+        didSet {
+            if oldValue.status != input.status {
+                inputStatusHandler?(inputStatus)
+            }
+        }
+    }
 
     private var internalStatus: UploadInput.Status {
         input.status
@@ -128,6 +134,16 @@ public final class MuxUpload : Hashable, Equatable {
             )
         }
     }
+
+    /**
+     Handles a change in the input status of the upload
+     */
+    public typealias InputStatusHandler = (InputStatus) -> ()
+
+    /**
+     If set will be notified of a change to a new input status
+     */
+    public var inputStatusHandler: InputStatusHandler?
 
     private let manageBySDK: Bool
     private var id: String {

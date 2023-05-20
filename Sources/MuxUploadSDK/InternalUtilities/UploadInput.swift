@@ -80,6 +80,10 @@ struct UploadInput {
     }
 }
 
+extension UploadInput.Status: Equatable {
+
+}
+
 extension UploadInput {
     init(asset: AVAsset) {
         self.status = .ready(asset)
