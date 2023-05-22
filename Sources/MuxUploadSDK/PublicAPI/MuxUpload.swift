@@ -58,6 +58,7 @@ public final class MuxUpload : Hashable, Equatable {
         }
     }
 
+
     private var internalStatus: UploadInput.Status {
         input.status
     }
@@ -66,12 +67,14 @@ public final class MuxUpload : Hashable, Equatable {
         input.uploadInfo
     }
 
+    private var inspectionResult: UploadInputFormatInspectionResult?
+
     /// Indicates the status of the upload input as it goes
     /// through its lifecycle
     public enum InputStatus {
         /// Upload initialized and not yet started
         case ready(AVAsset)
-        /// Upload started by a call to ``MuxUpload.start(forceRestart:``
+        /// Upload started by a call to ``MuxUpload.start(forceRestart:)``
         case started(AVAsset)
         /// Upload is being prepared for transport to the
         /// server. If input standardization was enabled,
@@ -82,13 +85,13 @@ public final class MuxUpload : Hashable, Equatable {
         /// upload despite being unable to standardize input
         case awaitingUploadConfirmation(AVAsset)
         /// Transport of upload inputs is in progress
-        case uploadInProgress(AVAsset, Status)
+        case uploadInProgress(AVAsset, TransportStatus)
         /// Upload has been paused
-        case uploadPaused(AVAsset, Status)
+        case uploadPaused(AVAsset, TransportStatus)
         /// Upload has succeeded
-        case uploadSucceeded(AVAsset, Status, UploadResult)
+        case uploadSucceeded(AVAsset, TransportStatus, UploadResult)
         /// Upload has failed
-        case uploadFailed(AVAsset, Status, UploadResult)
+        case uploadFailed(AVAsset, TransportStatus, UploadResult)
     }
 
     /// Current status of the upload input as it goes through
@@ -103,7 +106,7 @@ public final class MuxUpload : Hashable, Equatable {
             return InputStatus.preparing(sourceAsset)
         case .standardizing(let sourceAsset, _):
             return InputStatus.preparing(sourceAsset)
-        case .standardizationSucceeded(let sourceAsset, _):
+        case .standardizationSucceeded(let sourceAsset, _, _):
             return InputStatus.preparing(sourceAsset)
         case .standardizationFailed(let sourceAsset, _):
             return InputStatus.preparing(sourceAsset)
@@ -132,7 +135,7 @@ public final class MuxUpload : Hashable, Equatable {
             return InputStatus.uploadFailed(
                 uploadInfo.sourceAsset(),
                 uploadStatus,
-                .failure(.init(lastStatus: uploadStatus, code: MuxErrorCase.unknown, message: "", reason: nil))
+                .failure(.init(lastStatus: uploadStatus))
             )
         }
     }
@@ -155,14 +158,14 @@ public final class MuxUpload : Hashable, Equatable {
     private let inputInspector: UploadInputInspector = UploadInputInspector()
     private let inputStandardizer: UploadInputStandardizer = UploadInputStandardizer()
     
-    private var lastSeenStatus: Status = Status(progress: Progress(totalUnitCount: 0), updatedTime: 0, startTime: 0, isPaused: false)
+    private var lastSeenStatus: TransportStatus = TransportStatus(progress: Progress(totalUnitCount: 0), updatedTime: 0, startTime: 0, isPaused: false)
     
     internal var fileWorker: ChunkedFileUploader?
 
     /**
      Represents the state of an upload in progress.
      */
-    public struct Status : Sendable, Hashable {
+    public struct TransportStatus : Sendable, Hashable {
         public let progress: Progress?
         public let updatedTime: TimeInterval
         public let startTime: TimeInterval
@@ -173,7 +176,7 @@ public final class MuxUpload : Hashable, Equatable {
      An fatal error that ocurred during the upload process. The last-known state of the upload is available, as well as the Error that stopped the upload
      */
     public struct UploadError : Error {
-        public let lastStatus: Status
+        public let lastStatus: TransportStatus
         public let code: MuxErrorCase
         public let message: String
         public let reason: Error?
@@ -294,7 +297,7 @@ public final class MuxUpload : Hashable, Equatable {
     /**
      Handles state updates for this upload in your app.
      */
-    public typealias StateHandler = (Status) -> Void
+    public typealias StateHandler = (TransportStatus) -> Void
 
     /**
      If set will receive progress updates for this upload,
@@ -303,13 +306,13 @@ public final class MuxUpload : Hashable, Equatable {
     public var progressHandler: StateHandler?
 
     public struct Success : Sendable, Hashable {
-        public let finalState: Status
+        public let finalState: TransportStatus
     }
 
     /**
      The current status of the upload. This object is updated periodically. To listen for changes, use ``progressHandler``
      */
-    public var uploadStatus: Status { get { return lastSeenStatus } }
+    public var uploadStatus: TransportStatus { get { return lastSeenStatus } }
 
     /**
      Handles the final result of this upload in your app
@@ -388,6 +391,106 @@ public final class MuxUpload : Hashable, Equatable {
         if forceRestart {
             cancel()
         }
+
+        input.status = .started(input.sourceAsset, uploadInfo)
+
+        startInspection(videoFile: videoFile)
+    }
+
+    private func startUpload(
+        forceRestart: Bool
+    ) {
+
+        guard let videoFile else {
+            /// FIXME: Placeholder
+            resultHandler?(
+                .failure(
+                    UploadError(
+                        lastStatus: uploadStatus,
+                        code: .unknown,
+                        message: "",
+                        reason: nil
+                    )
+                )
+            )
+            return
+        }
+
+        if self.manageBySDK {
+            // See if there's anything in progress already
+            fileWorker = uploadManager.findUploader(
+                inputFileURL: videoFile
+            )
+        }
+        if fileWorker != nil && !forceRestart {
+            MuxUploadSDK.logger?.warning("start() called but upload is already in progress")
+            fileWorker?.addDelegate(
+                withToken: id,
+                InternalUploaderDelegate { [self] state in handleStateUpdate(state) }
+            )
+            fileWorker?.start()
+            return
+        }
+
+        // Start a new upload
+        if forceRestart {
+            cancel()
+        }
+
+        input.status = .started(input.sourceAsset, uploadInfo)
+
+        startInspection(videoFile: videoFile)
+    }
+
+    func startInspection(
+        videoFile: URL
+    ) {
+        if !uploadInfo.options.inputStandardization.isEnabled {
+            startNetworkTransport(videoFile: videoFile)
+        } else {
+            input.status = .underInspection(input.sourceAsset, uploadInfo)
+            let inspectionWorker = UploadInputInspectionWorker(
+                sourceInput: input.sourceAsset
+            )
+            inspectionWorker.performInspection { inspectionResult in
+                self.inspectionResult = inspectionResult
+
+                switch inspectionResult {
+                case .inspectionFailure:
+                    self.resultHandler?(
+                        .failure(
+                            UploadError(
+                                lastStatus: self.uploadStatus,
+                                code: .file,
+                                message: "",
+                                reason: nil
+                            )
+                        )
+                    )
+                    self.input.status = .uploadFailed(self.uploadInfo)
+                case .standard:
+                    self.startNetworkTransport(videoFile: videoFile)
+                case .nonstandard(
+                    let reasons
+                ):
+                    print("""
+                    Detected Nonstandard Reasons
+
+                    \(dump(reasons, indent: 4))
+
+                    """
+                    )
+
+                    // Skip format standardization
+                    self.startNetworkTransport(videoFile: videoFile)
+                }
+            }
+        }
+    }
+
+    func startNetworkTransport(
+        videoFile: URL
+    ) {
         let completedUnitCount = UInt64({ self.lastSeenStatus.progress?.completedUnitCount ?? 0 }())
         let fileWorker = ChunkedFileUploader(
             uploadInfo: input.uploadInfo,
@@ -421,7 +524,7 @@ public final class MuxUpload : Hashable, Equatable {
         fileWorker?.cancel()
         uploadManager.acknowledgeUpload(id: id)
         
-        lastSeenStatus = Status(progress: nil, updatedTime: 0, startTime: 0, isPaused: true)
+        lastSeenStatus = TransportStatus(progress: nil, updatedTime: 0, startTime: 0, isPaused: true)
         progressHandler = nil
         resultHandler = nil
     }
@@ -430,7 +533,7 @@ public final class MuxUpload : Hashable, Equatable {
         switch state {
         case .success(let result): do {
             if let notifySuccess = resultHandler {
-                let finalStatus = Status(progress: result.finalProgress, updatedTime: result.finishTime, startTime: result.startTime, isPaused: false)
+                let finalStatus = TransportStatus(progress: result.finalProgress, updatedTime: result.finishTime, startTime: result.startTime, isPaused: false)
                 notifySuccess(Result<Success, UploadError>.success(Success(finalState: finalStatus)))
             }
             fileWorker?.removeDelegate(withToken: id)
@@ -441,7 +544,7 @@ public final class MuxUpload : Hashable, Equatable {
                 let parsedError = error.parseAsUploadError(lastSeenUploadStatus: lastSeenStatus)
                 if case .cancelled = parsedError.code {
                     MuxUploadSDK.logger?.info("task canceled")
-                    let canceledStatus = MuxUpload.Status(
+                    let canceledStatus = MuxUpload.TransportStatus(
                         progress: lastSeenStatus.progress,
                         updatedTime: lastSeenStatus.updatedTime,
                         startTime: lastSeenStatus.startTime,
@@ -457,7 +560,7 @@ public final class MuxUpload : Hashable, Equatable {
         }
         case .uploading(let update): do {
             if let notifyProgress = progressHandler {
-                let status = Status(
+                let status = TransportStatus(
                     progress: update.progress,
                     updatedTime: update.updateTime,
                     startTime: update.startTime, isPaused: false
@@ -485,7 +588,7 @@ public final class MuxUpload : Hashable, Equatable {
 
 extension MuxUpload.UploadError {
     internal init(
-        lastStatus: MuxUpload.Status
+        lastStatus: MuxUpload.TransportStatus
     ) {
         self.lastStatus = lastStatus
         self.code = MuxErrorCase.unknown
@@ -510,7 +613,7 @@ public extension Error {
 
 extension Error {
     /// Parses Errors thrown by this SDK, wrapping the internal error types in a public error
-    func parseAsUploadError(lastSeenUploadStatus: MuxUpload.Status) -> MuxUpload.UploadError {
+    func parseAsUploadError(lastSeenUploadStatus: MuxUpload.TransportStatus) -> MuxUpload.UploadError {
         let error = self
         if (error.asCancellationError()) != nil {
             return MuxUpload.UploadError(

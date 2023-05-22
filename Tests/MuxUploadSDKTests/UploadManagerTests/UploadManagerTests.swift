@@ -8,6 +8,16 @@ import XCTest
 
 @testable import MuxUploadSDK
 
+extension UploadOptions {
+
+    static var inputStandardizationDisabled: UploadOptions {
+        UploadOptions(
+            inputStandardization: .disabled
+        )
+    }
+
+}
+
 class UploadManagerTests: XCTestCase {
 
     func testUploadManagerURLDeduplication() throws {
@@ -27,7 +37,7 @@ class UploadManagerTests: XCTestCase {
                 asset: AVAsset(url: videoInputURL),
                 info: UploadInfo(
                     uploadURL: uploadURL,
-                    options: .default
+                    options: .inputStandardizationDisabled
                 )
             ),
             uploadManager: uploadManager
@@ -38,7 +48,7 @@ class UploadManagerTests: XCTestCase {
                 asset: AVAsset(url: videoInputURL),
                 info: UploadInfo(
                     uploadURL: uploadURL,
-                    options: .default
+                    options: .inputStandardizationDisabled
                 )
             ),
             uploadManager: uploadManager

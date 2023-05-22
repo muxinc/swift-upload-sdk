@@ -14,7 +14,11 @@ struct UploadInput {
         case started(AVAsset, UploadInfo)
         case underInspection(AVAsset, UploadInfo)
         case standardizing(AVAsset, UploadInfo)
-        case standardizationSucceeded(AVAsset, UploadInfo)
+        case standardizationSucceeded(
+            source: AVAsset,
+            standardized: AVAsset?,
+            uploadInfo: UploadInfo
+        )
         case standardizationFailed(AVAsset, UploadInfo)
         case awaitingUploadConfirmation(UploadInfo)
         case uploadInProgress(UploadInfo)
@@ -35,7 +39,7 @@ struct UploadInput {
             return sourceAsset
         case .standardizing(let sourceAsset, _):
             return sourceAsset
-        case .standardizationSucceeded(let sourceAsset, _):
+        case .standardizationSucceeded(let sourceAsset, _, _):
             return sourceAsset
         case .standardizationFailed(let sourceAsset, _):
             return sourceAsset
@@ -62,7 +66,7 @@ struct UploadInput {
             return uploadInfo
         case .standardizing(_, let uploadInfo):
             return uploadInfo
-        case .standardizationSucceeded(_, let uploadInfo):
+        case .standardizationSucceeded(_, _, let uploadInfo):
             return uploadInfo
         case .standardizationFailed(_, let uploadInfo):
             return uploadInfo

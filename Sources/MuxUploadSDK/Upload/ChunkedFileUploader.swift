@@ -288,9 +288,9 @@ fileprivate actor Worker {
             let chunkResult = try await chunkWorker.getTask().value
             MuxUploadSDK.logger?.info("Completed Chunk:\n \(String(describing: chunkResult))")
         } while (readBytes == uploadInfo.options.transport.chunkSizeInBytes)
-        
+
         MuxUploadSDK.logger?.info("Finished uploading file: \(self.inputFileURL.relativeString)")
-        
+
         let finalState = ChunkedFileUploader.Update(
             progress: overallProgress,
             startTime: startTime,
