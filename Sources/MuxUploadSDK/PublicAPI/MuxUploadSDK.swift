@@ -16,23 +16,18 @@ public enum MuxUploadSDK {
 
 public extension MuxUploadSDK {
     
-    private static let SDK_VERSION = "0.3.0"
     
-    /// The ``Logger`` being used to log events from this SDK
+    /// The `Logger` being used to log events from this SDK
     static var logger: Logger? = nil
     
-    /// Enables logging by adding a ``Logger`` with `subsystem: "Mux"` and `category: "Upload"`
+    /// Enables logging by adding a `Logger` with `subsystem: "Mux"` and `category: "Upload"`
     static func enableDefaultLogging() {
         logger = Logger(subsystem: "Mux", category: "MuxUpload")
     }
     
-    /// Uses the specified ``Logger`` to log events from this SDK
+    /// Uses the specified `Logger` to log events from this SDK
     static func useLogger(logger: Logger) {
         self.logger = logger
     }
-    
-    /// Returns the current version of the Swift Upload SDK
-    static func versionString() -> String {
-        return SDK_VERSION
-    }
+
 }
