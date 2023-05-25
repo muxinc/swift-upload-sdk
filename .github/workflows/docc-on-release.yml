@@ -21,8 +21,8 @@ on:
 
 jobs:
   devdocs:
-    runs-on: ubuntu-latest
-    name: Generate and Upload Dokka Docs
+    runs-on: macos-latest
+    name: Generate and Upload DocC Docs
 
     env:
       AWS_EC2_METADATA_DISABLED: true
