@@ -9,6 +9,11 @@ import Foundation
 
 ///
 /// Uploads a video file to a previously-created Direct Upload.
+/// In order to use this object you must first have created a [Direct Upload](https://docs.mux.com/guides/video/upload-files-directly)
+/// on your server backend. Then, use the PUT URL created there to upload your video file.
+///
+/// Uploads created by this SDK are globally managed by default, and can be resumed after failures or even after process death. For more information on
+/// this topic, see ``UploadManager``
 ///
 public final class MuxUpload : Hashable, Equatable {
  
