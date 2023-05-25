@@ -16,7 +16,6 @@ public enum MuxUploadSDK {
 
 public extension MuxUploadSDK {
     
-    
     /// The `Logger` being used to log events from this SDK
     static var logger: Logger? = nil
     

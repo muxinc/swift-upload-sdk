@@ -8,7 +8,7 @@
 import Foundation
 
 /// Manages uploads in-progress by the Mux Upload SDK.
-/// If your ``MuxUpload`` is managed, you can get a new handle to it using ``getStartedUpload(ofFile:)``
+/// If your ``MuxUpload`` is managed, you can get a new handle to it using ``findStartedUpload(ofFile:)``
 ///
 /// To create a new upload, use ``MuxUpload``
 ///
@@ -16,9 +16,7 @@ import Foundation
 /// app without needing to manually track the tasks or their state
 ///
 /// Managed uploads only survive process death if they were paused or in progress. Success and failure must be handled
-/// by you, even if those events occur during (for instance) a ``BGTask``
-///
-/// (see ``MuxUpload.Builder.manage(automatically:)``)
+/// by you, even if those events occur during (for instance) a `BGTask`
 public final class UploadManager {
     
     private var uploadersByURL: [URL : ChunkedFileUploader] = [:]
@@ -68,7 +66,7 @@ public final class UploadManager {
     }
     
     /// Resumes all upload that were paused or interrupted
-    /// It can be handy to call this in your ``AppDelegate`` to resume uploads that have been killed by the process dying
+    /// It can be handy to call this in your early in your app init to resume uploads that have been killed by the process dying
     public func resumeAllUploads() {
         Task.detached { [self] in
             for upload in await uploadActor.getAllUploads() {
@@ -147,6 +145,7 @@ public final class UploadManager {
 
 /// A delegate that handles changes to the list of active uploads
 public protocol UploadsUpdatedDelegate: AnyObject {
+    /// Called when the global list of uploads changes. This happens whenever a new upload is started, or an existing one completes or fails
     func uploadListUpdated(with list: [MuxUpload])
 }
 
