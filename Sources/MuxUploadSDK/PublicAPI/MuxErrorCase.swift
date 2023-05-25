@@ -7,10 +7,16 @@
 
 import Foundation
 
+/// Represents the possible error cases from a ``MuxUpload``
 public enum MuxErrorCase : Int {
-    case unknown = -1,
-         cancelled = 0,
-         file = 1,
-         http = 2,
-         connection = 3
+    /// The cause of the error is not known
+    case unknown = -1
+    /// The upload was cancelled
+    case cancelled = 0
+    /// The input file could not be read or processed
+    case file = 1
+    /// The upload could not be completed due to an HTTP error
+    case http = 2
+    /// The upload could not be completed due to a connection error
+    case connection = 3
 }

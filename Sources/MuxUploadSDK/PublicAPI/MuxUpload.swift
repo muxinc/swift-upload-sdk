@@ -7,11 +7,10 @@
 
 import Foundation
 
-/**
- Uploads a video file to a previously-created Direct Upload. Create instances of this object using ``Builder``
- 
- TODO: usage here
- */
+///
+/// Uploads a video file to a previously-created Direct Upload. Create instances of this object using ``Builder``
+///
+/// TODO: Usage Here
 public final class MuxUpload : Hashable, Equatable {
  
     private let uploadInfo: UploadInfo
