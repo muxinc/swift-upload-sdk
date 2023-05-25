@@ -7,18 +7,25 @@
 
 import Foundation
 
-/// Manages uploads in-progress by the Mux Upload SDK.
-/// If your ``MuxUpload`` is managed, you can get a new handle to it using ``getStartedUpload(ofFile:)``
+/// Manages uploads in-progress by the Mux Upload SDK. Uploads are managed globally by default and can be started, paused,
+/// or cancelled from anywhere in your app.
 ///
-/// To create a new upload, use ``MuxUpload``
+/// This class is used to find and resume uploads previously-created via ``MuxUpload``. Upload tasks created by ``MuxUpload``
+/// are, by defauly globally managed. If your ``MuxUpload`` is managed, you can get a new handle to it anywhere by  using
+/// ``findStartedUpload(ofFile:)`` or ``allManagedUploads()``
 ///
+/// ## Handling failure, backgrounding, and process death
 /// Managed uploads can be resumed where they left off after process death, and can be accessed anywhere in your
-/// app without needing to manually track the tasks or their state
+/// app without needing to manually track the tasks or their state. Managed uploads only survive process death if they
+/// were paused, in progress, or have failed. Success must be handled by you, even if it occurs, eg, during a `BGTask`
 ///
-/// Managed uploads only survive process death if they were paused or in progress. Success and failure must be handled
-/// by you, even if those events occur during (for instance) a ``BGTask``
+/// ```swift
+/// // Call during app init
+/// UploadManager.resumeAllUploads()
+/// let restartedUploads = UploadManager.allManagedUploads()
+/// // ... do something with the restrted uploads, like subscribing to progress updates for instance
+/// ```
 ///
-/// (see ``MuxUpload.Builder.manage(automatically:)``)
 public final class UploadManager {
     
     private var uploadersByURL: [URL : ChunkedFileUploader] = [:]
@@ -68,7 +75,7 @@ public final class UploadManager {
     }
     
     /// Resumes all upload that were paused or interrupted
-    /// It can be handy to call this in your ``AppDelegate`` to resume uploads that have been killed by the process dying
+    /// It can be useful to call this during app initialization to resume uploads that have been killed by the process dying
     public func resumeAllUploads() {
         Task.detached { [self] in
             for upload in await uploadActor.getAllUploads() {
@@ -147,6 +154,7 @@ public final class UploadManager {
 
 /// A delegate that handles changes to the list of active uploads
 public protocol UploadsUpdatedDelegate: AnyObject {
+    /// Called when the global list of uploads changes. This happens whenever a new upload is started, or an existing one completes or fails
     func uploadListUpdated(with list: [MuxUpload])
 }
 

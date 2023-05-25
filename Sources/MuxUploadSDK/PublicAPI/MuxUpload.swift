@@ -7,11 +7,43 @@
 
 import Foundation
 
-/**
- Uploads a video file to a previously-created Direct Upload. Create instances of this object using ``Builder``
- 
- TODO: usage here
- */
+///
+/// Uploads a video file to a previously-created Mux Video Direct Upload.
+///
+/// This class is part of a full-stack workflow for uploading video files to Mux Video. In order to use this object you must first have
+/// created a [Direct Upload](https://docs.mux.com/guides/video/upload-files-directly) on your server backend.
+/// Then, use the PUT URL created there to upload your video file.
+///
+/// For example:
+/// ```swift
+/// let upload = MuxUpload(
+///   uploadURL: myMuxUploadURL,
+///   videoFileURL: myVideoFileURL,
+/// )
+///
+/// upload.progressHandler = { state in
+///   self.uploadScreenState = .uploading(state)
+/// }
+///
+/// upload.resultHandler = { result in
+///   switch result {
+///     case .success(let success):
+///     self.uploadScreenState = .done(success)
+///     self.upload = nil
+///     NSLog("Upload Success!")
+///     case .failure(let error):
+///     self.uploadScreenState = .failure(error)
+///     NSLog("!! Upload error: \(error.localizedDescription)")
+///   }
+/// }
+///
+/// self.upload = upload
+/// upload.start()
+/// ```
+///
+/// Uploads created by this SDK are globally managed by default, and can be resumed after failures or even after process death. For more information on
+/// this topic, see ``UploadManager``
+///
 public final class MuxUpload : Hashable, Equatable {
  
     private let uploadInfo: UploadInfo
@@ -50,6 +82,12 @@ public final class MuxUpload : Hashable, Equatable {
 
     }
 
+    /// Creates a new `MuxUpload` with the given confguration
+    /// - Parameters
+    ///   - uploadURL: the PUT URL for your direct upload
+    ///   - videoFileURL: A URL to the input video file
+    ///   - retriesPerChunk: The number of times each chunk of the file upload can be retried before failure is declared
+    ///   - optOutOfEventTracking: This SDK collects performance and reliability data that helps make the Upload SDK the best it can be. If you do not wish to share this information with Mux, you may pass `true` for this parameter
     public convenience init(
         uploadURL: URL,
         videoFileURL: URL,
@@ -213,11 +251,13 @@ public final class MuxUpload : Hashable, Equatable {
         }
     }
     
+    /// Two`MuxUpload`s with the same ``MuxUpload/videoFile`` and ``MuxUpload/uploadURL`` are considered equivalent
     public static func == (lhs: MuxUpload, rhs: MuxUpload) -> Bool {
         lhs.videoFile == rhs.videoFile
         && lhs.uploadURL == rhs.uploadURL
     }
     
+    /// This object's hash is computed based on its ``MuxUpload/videoFile`` and its ``MuxUpload/uploadURL``
     public func hash(into hasher: inout Hasher) {
         hasher.combine(videoFile)
         hasher.combine(uploadURL)
