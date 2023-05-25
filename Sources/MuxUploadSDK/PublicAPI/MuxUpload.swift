@@ -82,6 +82,12 @@ public final class MuxUpload : Hashable, Equatable {
 
     }
 
+    /// Creates a new `MuxUpload` with the given confguration
+    /// - Parameters
+    ///   - uploadURL: the PUT URL for your direct upload
+    ///   - videoFileURL: A URL to the input video file
+    ///   - retriesPerChunk: The number of times each chunk of the file upload can be retried before failure is declared
+    ///   - optOutOfEventTracking: This SDK collects performance and reliability data that helps make the Upload SDK the best it can be. If you do not wish to share this information with Mux, you may pass `true` for this parameter
     public convenience init(
         uploadURL: URL,
         videoFileURL: URL,
@@ -245,11 +251,13 @@ public final class MuxUpload : Hashable, Equatable {
         }
     }
     
+    /// Two`MuxUpload`s with the sanme ``MuxUpload/videoFile`` and ``MuxUpload/uploadURL`` are considered equivalent
     public static func == (lhs: MuxUpload, rhs: MuxUpload) -> Bool {
         lhs.videoFile == rhs.videoFile
         && lhs.uploadURL == rhs.uploadURL
     }
     
+    /// This object's hash is computed based on its ``MuxUpload/videoFile`` and its ``MuxUpload/uploadURL``
     public func hash(into hasher: inout Hasher) {
         hasher.combine(videoFile)
         hasher.combine(uploadURL)
