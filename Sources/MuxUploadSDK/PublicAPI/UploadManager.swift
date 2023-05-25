@@ -75,7 +75,7 @@ public final class UploadManager {
     }
     
     /// Resumes all upload that were paused or interrupted
-    /// It can be handy to call this in your early in your app init to resume uploads that have been killed by the process dying
+    /// It can be useful to call this during app initialization to resume uploads that have been killed by the process dying
     public func resumeAllUploads() {
         Task.detached { [self] in
             for upload in await uploadActor.getAllUploads() {
