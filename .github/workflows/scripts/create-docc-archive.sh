@@ -33,13 +33,12 @@ then
 else 
   readonly BUILD_CONFIGURATION=$target_build_configration
 fi
-fi [ -z $xcconfig_filename ]
+if [ -z $xcconfig_filename ]
 then
   readonly XCCONFIG_FILENAME="Release-Production"
 else
   readonly XCCONFIG_FILENAME=$target_xcconfig_filename
 fi
-
 
 readonly PROJECT="${TOP_DIR}/${PROJECT_NAME}.xcodeproj"
 readonly DOCC_ARCHIVE_NAME="${SCHEME}.doccarchive"
