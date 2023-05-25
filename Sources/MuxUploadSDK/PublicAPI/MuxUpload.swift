@@ -46,6 +46,13 @@ import Foundation
 ///
 public final class MuxUpload : Hashable, Equatable {
  
+<<<<<<< HEAD
+=======
+ TODO: usage here
+ */
+public final class MuxUpload : Hashable, Equatable {
+ 
+>>>>>>> fa58afcb2c44d4ff48b7717b1a97b2c9b1552710
     private let uploadInfo: UploadInfo
     private let manageBySDK: Bool
     private let id: Int
@@ -251,13 +258,19 @@ public final class MuxUpload : Hashable, Equatable {
         }
     }
     
+<<<<<<< HEAD
     /// Two`MuxUpload`s with the sanme ``MuxUpload/videoFile`` and ``MuxUpload/uploadURL`` are considered equivalent
+=======
+>>>>>>> fa58afcb2c44d4ff48b7717b1a97b2c9b1552710
     public static func == (lhs: MuxUpload, rhs: MuxUpload) -> Bool {
         lhs.videoFile == rhs.videoFile
         && lhs.uploadURL == rhs.uploadURL
     }
     
+<<<<<<< HEAD
     /// This object's hash is computed based on its ``MuxUpload/videoFile`` and its ``MuxUpload/uploadURL``
+=======
+>>>>>>> fa58afcb2c44d4ff48b7717b1a97b2c9b1552710
     public func hash(into hasher: inout Hasher) {
         hasher.combine(videoFile)
         hasher.combine(uploadURL)
