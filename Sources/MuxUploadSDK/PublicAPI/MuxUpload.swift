@@ -8,9 +8,38 @@
 import Foundation
 
 ///
-/// Uploads a video file to a previously-created Direct Upload.
-/// In order to use this object you must first have created a [Direct Upload](https://docs.mux.com/guides/video/upload-files-directly)
-/// on your server backend. Then, use the PUT URL created there to upload your video file.
+/// Uploads a video file to a previously-created Mux Video Direct Upload.
+///
+/// This class is part of a full-stack workflow for uploading video files to Mux Video. In order to use this object you must first have
+/// created a [Direct Upload](https://docs.mux.com/guides/video/upload-files-directly) on your server backend.
+/// Then, use the PUT URL created there to upload your video file.
+///
+/// For example:
+/// ```swift
+/// let upload = MuxUpload(
+///   uploadURL: myMuxUploadURL,
+///   videoFileURL: myVideoFileURL,
+/// )
+///
+/// upload.progressHandler = { state in
+///   self.uploadScreenState = .uploading(state)
+/// }
+///
+/// upload.resultHandler = { result in
+///   switch result {
+///     case .success(let success):
+///     self.uploadScreenState = .done(success)
+///     self.upload = nil
+///     NSLog("Upload Success!")
+///     case .failure(let error):
+///     self.uploadScreenState = .failure(error)
+///     NSLog("!! Upload error: \(error.localizedDescription)")
+///   }
+/// }
+///
+/// self.upload = upload
+/// upload.start()
+/// ```
 ///
 /// Uploads created by this SDK are globally managed by default, and can be resumed after failures or even after process death. For more information on
 /// this topic, see ``UploadManager``

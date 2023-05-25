@@ -8,8 +8,11 @@
 import Foundation
 
 /// Manages uploads in-progress by the Mux Upload SDK. Uploads are managed globally by default and can be started, paused,
-/// or cancelled from anywhere in your app. If your ``MuxUpload`` is managed, you can get a new handle to it using
-/// ``findStartedUpload(ofFile:)``
+/// or cancelled from anywhere in your app.
+///
+/// This class is used to find and resume uploads previously-created via ``MuxUpload``. Upload tasks created by ``MuxUpload``
+/// are, by defauly globally managed. If your ``MuxUpload`` is managed, you can get a new handle to it anywhere by  using
+/// ``findStartedUpload(ofFile:)`` or ``allManagedUploads()``
 ///
 /// ## Handling failure, backgrounding, and process death
 /// Managed uploads can be resumed where they left off after process death, and can be accessed anywhere in your
@@ -20,6 +23,7 @@ import Foundation
 /// // Call during app init
 /// UploadManager.resumeAllUploads()
 /// let restartedUploads = UploadManager.allManagedUploads()
+/// // ... do something with the restrted uploads, like subscribing to progress updates for instance
 /// ```
 ///
 public final class UploadManager {
