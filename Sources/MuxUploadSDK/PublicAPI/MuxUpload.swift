@@ -251,7 +251,7 @@ public final class MuxUpload : Hashable, Equatable {
         }
     }
     
-    /// Two`MuxUpload`s with the sanme ``MuxUpload/videoFile`` and ``MuxUpload/uploadURL`` are considered equivalent
+    /// Two`MuxUpload`s with the same ``MuxUpload/videoFile`` and ``MuxUpload/uploadURL`` are considered equivalent
     public static func == (lhs: MuxUpload, rhs: MuxUpload) -> Bool {
         lhs.videoFile == rhs.videoFile
         && lhs.uploadURL == rhs.uploadURL
