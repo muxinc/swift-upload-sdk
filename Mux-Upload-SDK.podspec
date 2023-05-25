@@ -8,7 +8,7 @@ Pod::Spec.new do |s|
   s.homepage         = 'https://github.com/muxinc/swift-upload-sdk'
   s.license          = 'Apache 2.0'
   s.author           = { 'Mux' => 'ios-sdk@mux.com' }
-  s.source           = { :git => 'https://github.com/muxinc/swift-upload-sdk.git', :tag => s.version.to_s }
+  s.source           = { :git => 'https://github.com/muxinc/swift-upload-sdk.git', :tag => "v#{s.version}" }
   s.social_media_url = 'https://twitter.com/muxhq'
 
   s.swift_version = '5.0'
