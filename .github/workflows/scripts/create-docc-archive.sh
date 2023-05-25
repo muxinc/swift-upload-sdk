@@ -13,14 +13,35 @@ readonly BUILD_DIR="${TOP_DIR}/.build"
 readonly DOCUMENTATION_DIR="${BUILD_DIR}/docs"
 readonly XCCONFIG_DIR="${TOP_DIR}/FrameworkXCConfigs/"
 
-# TODO: These should be provided in the env (by the action)
-readonly PROJECT_NAME="MuxSpaces"
-readonly SCHEME="MuxSpaces"
-readonly BUILD_CONFIGURATION="Release"
-readonly XCCONFIG_FILENAME="Release-Production"
+if [ -z $target_project ] 
+then
+    echo -e "\033[1;31m ERROR: Target project must be specified \033[0m"
+    exit 1
+else
+  readonly PROJECT_NAME=$target_project
+fi
+if [ -z $target_scheme ]
+then
+    echo -e "\033[1;31m ERROR: Target scheme must be specified \033[0m"
+    exit 1
+else 
+  readonly SCHEME=$target_scheme 
+fi
+if [ -z $target_build_configration ]
+then
+  readonly BUILD_CONFIGURATION="Release"
+else 
+  readonly BUILD_CONFIGURATION=$target_build_configration
+fi
+fi [ -z $xcconfig_filename ]
+then
+  readonly XCCONFIG_FILENAME="Release-Production"
+else
+  readonly XCCONFIG_FILENAME=$target_xcconfig_filename
+fi
+
 
 readonly PROJECT="${TOP_DIR}/${PROJECT_NAME}.xcodeproj"
-
 readonly DOCC_ARCHIVE_NAME="${SCHEME}.doccarchive"
 readonly DOCC_ARCHIVE_PATH="${BUILD_DIR}/${DOCC_ARCHIVE_NAME}"
 
@@ -59,7 +80,7 @@ docc_built_archive_path=$(find docs -type d -name "${DOCC_ARCHIVE_NAME}")
 
 if [ -z "${docc_built_archive_path}" ]
 then
-echo -e "\033[1;31m ERROR: Failed to locate Documentation Archive \033[0m"
+    echo -e "\033[1;31m ERROR: Failed to locate Documentation Archive \033[0m"
     exit 1
 else
     echo "▸ Located documentation archive at ${docc_built_archive_path}"
