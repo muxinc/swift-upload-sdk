@@ -124,23 +124,9 @@ fileprivate struct ListItem: View {
         }
     }
     
-    @State var restrartttt: Bool = false
-    
     private func statusLine(status: MuxUpload.Status?) -> String {
         guard let status = status, let progress = status.progress, status.startTime > 0 else {
             return "missing status"
-        }
-        
-        // TODO: Do not leave this in
-        if progress.fractionCompleted >= 0.5 {
-            let list = UploadManager.shared.allManagedUploads()
-            list.forEach { $0.pause() }
-            restrartttt = true
-            Task.detached {
-                try! await Task.sleep(nanoseconds:5_000_000_000)
-                NSLog("I wAAAAAAITED ")
-                list.forEach({ $0.start() })
-            }
         }
         
         let totalTimeSecs = status.updatedTime - status.startTime

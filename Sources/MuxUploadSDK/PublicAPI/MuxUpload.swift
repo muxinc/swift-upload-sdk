@@ -164,7 +164,6 @@ public final class MuxUpload : Hashable, Equatable {
      Begins the upload. You can control what happens when the upload is already started. If `forceRestart` is true, the upload will be restarted. Otherwise, nothing will happen. The default is not to restart
      */
     public func start(forceRestart: Bool = false) {
-        NSLog("START CALLED")
         if self.manageBySDK && fileWorker == nil {
             // See if there's anything in progress already
             fileWorker = uploadManager.findUploaderFor(videoFile: videoFile)
