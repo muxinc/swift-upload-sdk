@@ -55,8 +55,8 @@ class FakeBackend {
     let jsonEncoder: JSONEncoder
     let jsonDecoder: JSONDecoder
     
-    let MUX_ACCESS_TOKEN_ID = "68455ab8-2e9c-46f6-bdfb-f7a643b948ce"
-    let MUX_ACCESS_SECRET_KEY = "veICtTVwzg0cxLHPwD2XbuEBZsRUH9mEtdt5NJYYcLfpfbZK+PCufYcY6flRtCf5Wkx79ZKmmIY"
+    let MUX_ACCESS_TOKEN_ID = "YOUR ACCESS TOKEN ID HERE"
+    let MUX_ACCESS_SECRET_KEY = "YOUR SECRET KEY HERE"
     
     init(urlSession: URLSession) {
         self.urlSession = urlSession
