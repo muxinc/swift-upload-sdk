@@ -85,7 +85,7 @@ class ChunkedFile {
         let data = try fileHandle.read(upToCount: chunkSize)
         guard let data = data else {
             // No more data to read, we reached EOF. The caller shouldn't call us like this, but let's be safe
-            return FileChunk(startByte: 0, endByte: 0, totalFileSize: 0, chunkData: Data(capacity: 0))
+            return FileChunk(startByte: fileSize, endByte: fileSize, totalFileSize: fileSize, chunkData: Data(capacity: 0))
         }
         
         let nsData = NSData(data: data)
