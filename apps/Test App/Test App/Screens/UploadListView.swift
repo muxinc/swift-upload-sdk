@@ -44,12 +44,12 @@ fileprivate struct ListContianer: View {
 
 fileprivate struct ListItem: View {
     
-    @StateObject var uploadItemVM: ThumbnailModel
+    @StateObject var thumbnailModel: ThumbnailModel
     let upload: MuxUpload
     
     var body: some View {
         ZStack(alignment: .bottom) {
-            if let image = uploadItemVM.thumbnail {
+            if let image = thumbnailModel.thumbnail {
                 GeometryReader { proxy in
                     RoundedRectangle(cornerRadius: 4.0)
                         .strokeBorder(style: StrokeStyle(lineWidth: 1.0))
@@ -88,13 +88,13 @@ fileprivate struct ListItem: View {
                             .padding(
                                 EdgeInsets(top: 0, leading: 0, bottom: 8, trailing: 0)
                             )
-                        ProgressView(value: uploadItemVM.uploadProgress?.progress?.fractionCompleted ?? 0)
+                        ProgressView(value: thumbnailModel.uploadProgress?.progress?.fractionCompleted ?? 0)
                             .progressViewStyle(.linear)
                             .tint(Green50)
                             .padding(
                                 EdgeInsets(top: 0, leading: 0, bottom: 4, trailing: 0)
                             )
-                        Text(statusLine(status: uploadItemVM.uploadProgress))
+                        Text(statusLine(status: thumbnailModel.uploadProgress))
                             .font(.system(
                                 size: 14.0,
                                 weight: .light)
@@ -120,14 +120,29 @@ fileprivate struct ListItem: View {
         )
         .frame(height: Test_AppApp.THUMBNAIL_HEIGHT)
         .onAppear {
-            uploadItemVM.startExtractingThumbnail()
+            thumbnailModel.startExtractingThumbnail()
         }
     }
+    
+    @State var restrartttt: Bool = false
     
     private func statusLine(status: MuxUpload.Status?) -> String {
         guard let status = status, let progress = status.progress, status.startTime > 0 else {
             return "missing status"
         }
+        
+        // TODO: Do not leave this in
+        if progress.fractionCompleted >= 0.5 {
+            let list = UploadManager.shared.allManagedUploads()
+            list.forEach { $0.pause() }
+            restrartttt = true
+            Task.detached {
+                try! await Task.sleep(nanoseconds:5_000_000_000)
+                NSLog("I wAAAAAAITED ")
+                list.forEach({ $0.start() })
+            }
+        }
+        
         let totalTimeSecs = status.updatedTime - status.startTime
         let totalTimeMs = Int64((totalTimeSecs) * 1000)
         let kbytesPerSec = (progress.completedUnitCount) / totalTimeMs // bytes/milli = kb/sec
@@ -154,7 +169,7 @@ fileprivate struct ListItem: View {
     
     init(upload: MuxUpload) {
         self.upload = upload
-        _uploadItemVM = StateObject(
+        _thumbnailModel = StateObject(
             wrappedValue: {
                 ThumbnailModel(asset: AVAsset(url: upload.videoFile), upload: upload)
             }()

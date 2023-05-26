@@ -81,14 +81,14 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		354421B42A11726700C6FD1F /* View Models */ = {
+		354421B42A11726700C6FD1F /* Model */ = {
 			isa = PBXGroup;
 			children = (
 				35ECAC7D2A1582D100C8AADB /* UploadListModel.swift */,
 				354421B52A11731B00C6FD1F /* UploadCreationModel.swift */,
 				3588AAB42A13DA080063E4DA /* ThumbnailModel.swift */,
 			);
-			path = "View Models";
+			path = Model;
 			sourceTree = "<group>";
 		};
 		3570FE0F2A09881200E91965 /* Fake Server Backend */ = {
@@ -147,7 +147,7 @@
 				358E3CA729A921B2005261CB /* Preview Content */,
 				3570FE0F2A09881200E91965 /* Fake Server Backend */,
 				358E3CA929A921B2005261CB /* Screens */,
-				354421B42A11726700C6FD1F /* View Models */,
+				354421B42A11726700C6FD1F /* Model */,
 				3570FE142A0BFAC300E91965 /* Mux Style */,
 				358E3CAD29A921B2005261CB /* Widgets */,
 			);
