@@ -84,7 +84,7 @@ class ChunkedFile {
         }
         let data = try fileHandle.read(upToCount: chunkSize)
         guard let data = data else {
-            // No more data to read, we reached EOF. The caller shouldn't call us like this, but let's be safe
+            // Called while already at the end of the file. We read zero bytes, "ending" at the end of the file
             return FileChunk(startByte: fileSize, endByte: fileSize, totalFileSize: fileSize, chunkData: Data(capacity: 0))
         }
         
