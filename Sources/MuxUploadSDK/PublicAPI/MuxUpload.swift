@@ -216,6 +216,7 @@ public final class MuxUpload : Hashable, Equatable {
                 let finalStatus = Status(progress: result.finalProgress, updatedTime: result.finishTime, startTime: result.startTime, isPaused: false)
                 notifySuccess(Result<Success, UploadError>.success(Success(finalState: finalStatus)))
             }
+            fileWorker?.removeDelegate(withToken: id)
             fileWorker = nil
         }
         case .failure(let error): do {
@@ -234,6 +235,7 @@ public final class MuxUpload : Hashable, Equatable {
                     notifyFailure(Result.failure(parsedError))
                 }
             }
+            fileWorker?.removeDelegate(withToken: id)
             fileWorker = nil
         }
         case .uploading(let update): do {
