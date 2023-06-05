@@ -180,7 +180,7 @@ public final class MuxUpload : Hashable, Equatable {
         let fileWorker = ChunkedFileUploader(uploadInfo: uploadInfo, startingAtByte: completedUnitCount)
         fileWorker.addDelegate(
             withToken: id,
-            InternalUploaderDelegate { [weak self] state in self?.handleStateUpdate(state) }
+            InternalUploaderDelegate { [self] state in handleStateUpdate(state) }
         )
         fileWorker.start()
         uploadManager.registerUploader(fileWorker, withId: id)
