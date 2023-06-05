@@ -7,23 +7,31 @@
 
 import Foundation
 
-/// Manages uploads in-progress by the Mux Upload SDK.
-/// If your ``MuxUpload`` is managed, you can get a new handle to it using ``getStartedUpload(ofFile:)``
+/// Manages uploads in-progress by the Mux Upload SDK. Uploads are managed globally by default and can be started, paused,
+/// or cancelled from anywhere in your app.
 ///
-/// To create a new upload, use ``MuxUpload``
+/// This class is used to find and resume uploads previously-created via ``MuxUpload``. Upload tasks created by ``MuxUpload``
+/// are, by defauly globally managed. If your ``MuxUpload`` is managed, you can get a new handle to it anywhere by  using
+/// ``findStartedUpload(ofFile:)`` or ``allManagedUploads()``
 ///
+/// ## Handling failure, backgrounding, and process death
 /// Managed uploads can be resumed where they left off after process death, and can be accessed anywhere in your
-/// app without needing to manually track the tasks or their state
+/// app without needing to manually track the tasks or their state. Managed uploads only survive process death if they
+/// were paused, in progress, or have failed. Success must be handled by you, even if it occurs, eg, during a `BGTask`
 ///
-/// Managed uploads only survive process death if they were paused or in progress. Success and failure must be handled
-/// by you, even if those events occur during (for instance) a ``BGTask``
+/// ```swift
+/// // Call during app init
+/// UploadManager.resumeAllUploads()
+/// let restartedUploads = UploadManager.allManagedUploads()
+/// // ... do something with the restrted uploads, like subscribing to progress updates for instance
+/// ```
 ///
-/// (see ``MuxUpload.Builder.manage(automatically:)``)
 public final class UploadManager {
     
     private var uploadersByURL: [URL : ChunkedFileUploader] = [:]
+    private var uploadsUpdateDelegatesByToken: [ObjectIdentifier : any UploadsUpdatedDelegate] = [:]
     private let uploadActor = UploadCacheActor()
-    private lazy var uploaderDelegate: FileUploaderDelegate = FileUploaderDelegate(onBehalfOf: self)
+    private lazy var uploaderDelegate: FileUploaderDelegate = FileUploaderDelegate(manager: self)
     
     /// Finds an upload already in-progress and returns a new ``MuxUpload`` that can be observed
     /// to track and control its state
@@ -42,19 +50,6 @@ public final class UploadManager {
     public func allManagedUploads() -> [MuxUpload] {
         return uploadersByURL.compactMap { (key, value) in MuxUpload(wrapping: value, uploadManager: self) }
     }
-    
-    /// Call to remove a finished upload from the manger (so it will no longer be returned by other methods in this class).
-    /// If it was in-progress, it will be canceled
-    public func acknowledgeUpload(ofFile url: URL) {
-        if let uploader = uploadersByURL[url] {
-            uploader.cancel()
-        }
-        uploadersByURL.removeValue(forKey: url)
-        Task.detached {
-            await self.uploadActor.remove(uploadAt:url)
-        }
-    }
-    
     
     /// Attempts to resume an upload that was previously paused or interrupted by process death
     ///  If no upload was found in the cache, this method returns null without taking any action
@@ -80,12 +75,33 @@ public final class UploadManager {
     }
     
     /// Resumes all upload that were paused or interrupted
-    /// It can be handy to call this in your ``AppDelegate`` to resume uploads that have been killed by the process dying
+    /// It can be useful to call this during app initialization to resume uploads that have been killed by the process dying
     public func resumeAllUploads() {
         Task.detached { [self] in
             for upload in await uploadActor.getAllUploads() {
                 upload.addDelegate(withToken: Int.random(in: Int.min...Int.max), uploaderDelegate)
             }
+        }
+    }
+    
+    /// Adds an ``UploadsUpdatedDelegate`` You can add as many of these as you like
+    public func addUploadsUpdatedDelegate<Delegate: UploadsUpdatedDelegate>(_ delegate: Delegate) {
+        uploadsUpdateDelegatesByToken[ObjectIdentifier(delegate)] = delegate
+    }
+    
+    /// Removes an ``UploadsUpdatedDelegate``
+    public func removeUploadsUpdatedDelegate<Delegate: UploadsUpdatedDelegate>(_ delegate: Delegate) {
+        uploadsUpdateDelegatesByToken.removeValue(forKey: ObjectIdentifier(delegate))
+    }
+    
+    internal func acknowledgeUpload(ofFile url: URL) {
+        if let uploader = uploadersByURL[url] {
+            uploader.cancel()
+        }
+        uploadersByURL.removeValue(forKey: url)
+        Task.detached {
+            await self.uploadActor.remove(uploadAt:url)
+            self.notifyDelegates()
         }
     }
     
@@ -95,12 +111,24 @@ public final class UploadManager {
     
     internal func registerUploader(_ fileWorker: ChunkedFileUploader, withId id: Int) {
         uploadersByURL.updateValue(fileWorker, forKey: fileWorker.uploadInfo.videoFile)
-        fileWorker.addDelegate(withToken: id, uploaderDelegate)
+        fileWorker.addDelegate(withToken: id + 1, uploaderDelegate)
         Task.detached {
             await self.uploadActor.updateUpload(
                 fileWorker.uploadInfo,
                 withUpdate: fileWorker.currentState
             )
+            self.notifyDelegates()
+        }
+    }
+    
+    private func notifyDelegates() {
+        Task.detached {
+            await MainActor.run {
+                self.uploadsUpdateDelegatesByToken
+                    .map { it in it.value }
+                    .forEach { it in it.uploadListUpdated(with: self.allManagedUploads()) }
+                
+            }
         }
     }
     
@@ -109,20 +137,27 @@ public final class UploadManager {
     private init() { }
     
     private struct FileUploaderDelegate : ChunkedFileUploaderDelegate {
-        let onBehalfOf: UploadManager
+        let manager: UploadManager
         
         func chunkedFileUploader(_ uploader: ChunkedFileUploader, stateUpdated state: ChunkedFileUploader.InternalUploadState) {
-            switch state {
-            case .canceled: onBehalfOf.acknowledgeUpload(ofFile: uploader.uploadInfo.videoFile)
-            default: do { }
-            }
-            
             Task.detached {
-                await onBehalfOf.uploadActor.updateUpload(uploader.uploadInfo, withUpdate: state)
+                await manager.uploadActor.updateUpload(uploader.uploadInfo, withUpdate: state)
+                manager.notifyDelegates()
+            }
+            switch state {
+            case .success(_), .canceled: manager.acknowledgeUpload(ofFile: uploader.uploadInfo.videoFile)
+            default: do { }
             }
         }
     }
 }
+
+/// A delegate that handles changes to the list of active uploads
+public protocol UploadsUpdatedDelegate: AnyObject {
+    /// Called when the global list of uploads changes. This happens whenever a new upload is started, or an existing one completes or fails
+    func uploadListUpdated(with list: [MuxUpload])
+}
+
 
 /// Isolates/synchronizes multithreaded access to the upload cache.
 internal actor UploadCacheActor {

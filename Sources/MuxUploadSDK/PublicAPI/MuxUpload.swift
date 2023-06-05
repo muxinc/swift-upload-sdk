@@ -7,13 +7,45 @@
 
 import Foundation
 
-/**
- Uploads a video file to a previously-created Direct Upload. Create instances of this object using ``Builder``
+///
+/// Uploads a video file to a previously-created Mux Video Direct Upload.
+///
+/// This class is part of a full-stack workflow for uploading video files to Mux Video. In order to use this object you must first have
+/// created a [Direct Upload](https://docs.mux.com/guides/video/upload-files-directly) on your server backend.
+/// Then, use the PUT URL created there to upload your video file.
+///
+/// For example:
+/// ```swift
+/// let upload = MuxUpload(
+///   uploadURL: myMuxUploadURL,
+///   videoFileURL: myVideoFileURL,
+/// )
+///
+/// upload.progressHandler = { state in
+///   self.uploadScreenState = .uploading(state)
+/// }
+///
+/// upload.resultHandler = { result in
+///   switch result {
+///     case .success(let success):
+///     self.uploadScreenState = .done(success)
+///     self.upload = nil
+///     NSLog("Upload Success!")
+///     case .failure(let error):
+///     self.uploadScreenState = .failure(error)
+///     NSLog("!! Upload error: \(error.localizedDescription)")
+///   }
+/// }
+///
+/// self.upload = upload
+/// upload.start()
+/// ```
+///
+/// Uploads created by this SDK are globally managed by default, and can be resumed after failures or even after process death. For more information on
+/// this topic, see ``UploadManager``
+///
+public final class MuxUpload : Hashable, Equatable {
  
- TODO: usage here
- */
-public final class MuxUpload {
-    
     private let uploadInfo: UploadInfo
     private let manageBySDK: Bool
     private let id: Int
@@ -26,7 +58,7 @@ public final class MuxUpload {
     /**
      Represents the state of an upload in progress.
      */
-    public struct Status : Sendable {
+    public struct Status : Sendable, Hashable {
         public let progress: Progress?
         public let updatedTime: TimeInterval
         public let startTime: TimeInterval
@@ -50,21 +82,25 @@ public final class MuxUpload {
 
     }
 
+    /// Creates a new `MuxUpload` with the given confguration
+    /// - Parameters
+    ///   - uploadURL: the PUT URL for your direct upload
+    ///   - videoFileURL: A URL to the input video file
+    ///   - retriesPerChunk: The number of times each chunk of the file upload can be retried before failure is declared
+    ///   - optOutOfEventTracking: This SDK collects performance and reliability data that helps make the Upload SDK the best it can be. If you do not wish to share this information with Mux, you may pass `true` for this parameter
     public convenience init(
         uploadURL: URL,
         videoFileURL: URL,
-        videoMIMEType: String = "video/*", // TODO: We can guess this, so make it optional,
-        chunkSize: Int = 8 * 1024 * 1024, // Google recommends *at least* 8M,
+        chunkSize: Int = 8 * 1024 * 1024, // Google recommends at least 8M
         retriesPerChunk: Int = 3,
-        retryBaseTimeInterval: TimeInterval = 0.5
+        optOutOfEventTracking: Bool = false
     ) {
         let uploadInfo = UploadInfo(
             uploadURL: uploadURL,
             videoFile: videoFileURL,
-            videoMIMEType: videoMIMEType,
             chunkSize: chunkSize,
             retriesPerChunk: retriesPerChunk,
-            retryBaseTime: retryBaseTimeInterval
+            optOutOfEventTracking: optOutOfEventTracking
         )
 
         self.init(
@@ -84,7 +120,7 @@ public final class MuxUpload {
      */
     public var progressHandler: StateHandler?
 
-    public struct Success : Sendable {
+    public struct Success : Sendable, Hashable {
         public let finalState: Status
     }
 
@@ -107,7 +143,12 @@ public final class MuxUpload {
     /**
      True if this upload is currently in progress and not paused
      */
-    var inProgress: Bool { get { fileWorker != nil } }
+    public var inProgress: Bool { get { fileWorker != nil && !complete } }
+    
+    /**
+     True if this upload was completed
+     */
+    public var complete: Bool { get { lastSeenStatus.progress?.completedUnitCount ?? 0 > 0 && lastSeenStatus.progress?.fractionCompleted ?? 0 >= 1.0 } }
     
     /**
     URL to the file that will be uploaded
@@ -118,30 +159,38 @@ public final class MuxUpload {
      The remote endpoint that this object uploads to
      */
     public var uploadURL: URL { get { return uploadInfo.uploadURL } }
-    // TODO: Computed Properties for some other UploadInfo properties
     
     /**
      Begins the upload. You can control what happens when the upload is already started. If `forceRestart` is true, the upload will be restarted. Otherwise, nothing will happen. The default is not to restart
      */
     public func start(forceRestart: Bool = false) {
-        if self.manageBySDK {
+        // Use an existing globally-managed upload if desired & one exists
+        if self.manageBySDK && fileWorker == nil {
             // See if there's anything in progress already
-            fileWorker = UploadManager.shared.findUploaderFor(videoFile: videoFile)
+            fileWorker = uploadManager.findUploaderFor(videoFile: videoFile)
         }
-        guard !forceRestart && fileWorker == nil else {
-            MuxUploadSDK.logger?.warning("start() called but upload is in progress")
+        if fileWorker != nil && !forceRestart {
+            MuxUploadSDK.logger?.warning("start() called but upload is already in progress")
+            fileWorker?.addDelegate(
+                withToken: id,
+                InternalUploaderDelegate { [weak self] state in self?.handleStateUpdate(state) }
+            )
+            fileWorker?.start()
             return
         }
+        
+        // Start a new upload
         if forceRestart {
-            fileWorker?.cancel()
+            cancel()
         }
         let completedUnitCount = UInt64({ self.lastSeenStatus.progress?.completedUnitCount ?? 0 }())
         let fileWorker = ChunkedFileUploader(uploadInfo: uploadInfo, startingAtByte: completedUnitCount)
         fileWorker.addDelegate(
             withToken: id,
-            InternalUploaderDelegate { [weak self] state in self?.handleStateUpdate(state) }
+            InternalUploaderDelegate { [self] state in handleStateUpdate(state) }
         )
         fileWorker.start()
+        uploadManager.registerUploader(fileWorker, withId: id)
         self.fileWorker = fileWorker
     }
     
@@ -156,11 +205,11 @@ public final class MuxUpload {
     }
     
     /**
-     Cancels an ongoing download. Temp files will be deleted asynchronously. State and Delegates will be cleared. Your delegates will recieve no further calls
+     Cancels an ongoing download. State and Delegates will be cleared. Your delegates will recieve no further calls
      */
     public func cancel() {
         fileWorker?.cancel()
-        UploadManager.shared.acknowledgeUpload(ofFile: videoFile)
+        uploadManager.acknowledgeUpload(ofFile: videoFile)
         
         lastSeenStatus = Status(progress: nil, updatedTime: 0, startTime: 0, isPaused: true)
         progressHandler = nil
@@ -174,6 +223,7 @@ public final class MuxUpload {
                 let finalStatus = Status(progress: result.finalProgress, updatedTime: result.finishTime, startTime: result.startTime, isPaused: false)
                 notifySuccess(Result<Success, UploadError>.success(Success(finalState: finalStatus)))
             }
+            fileWorker?.removeDelegate(withToken: id)
             fileWorker = nil
         }
         case .failure(let error): do {
@@ -192,6 +242,7 @@ public final class MuxUpload {
                     notifyFailure(Result.failure(parsedError))
                 }
             }
+            fileWorker?.removeDelegate(withToken: id)
             fileWorker = nil
         }
         case .uploading(let update): do {
@@ -209,6 +260,19 @@ public final class MuxUpload {
         }
     }
     
+    /// Two`MuxUpload`s with the same ``MuxUpload/videoFile`` and ``MuxUpload/uploadURL`` are considered equivalent
+    public static func == (lhs: MuxUpload, rhs: MuxUpload) -> Bool {
+        lhs.videoFile == rhs.videoFile
+        && lhs.uploadURL == rhs.uploadURL
+    }
+    
+    /// This object's hash is computed based on its ``MuxUpload/videoFile`` and its ``MuxUpload/uploadURL``
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(videoFile)
+        hasher.combine(uploadURL)
+    }
+   
+    
     private init (uploadInfo: UploadInfo, manage: Bool = true, uploadManager: UploadManager) {
         self.uploadInfo = uploadInfo
         self.manageBySDK = manage
@@ -222,7 +286,7 @@ public final class MuxUpload {
         
         handleStateUpdate(uploader.currentState)
         uploader.addDelegate(
-            withToken: id,
+            withToken: self.id,
             InternalUploaderDelegate { [weak self] state in self?.handleStateUpdate(state) }
         )
     }
