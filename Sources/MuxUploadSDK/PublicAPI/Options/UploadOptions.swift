@@ -42,9 +42,9 @@ public struct UploadOptions {
         /// Preset to control the resolution of the standard
         /// input.
         ///
-        /// See ``UploadSettings.Standardization.targetResolution``
+        /// See ``UploadSettings.Standardization.maximumResolution``
         /// for more details.
-        public enum ResolutionPreset {
+        public enum MaximumResolution {
             /// Preset standardized upload input to the SDK
             /// default standard resolution of 1920x1080 (1080p).
             case `default`
@@ -81,7 +81,7 @@ public struct UploadOptions {
         /// not make changes to the resolution of the input.
         /// The input will be uploaded to Mux as-is.
         ///
-        public var targetResolution: ResolutionPreset = .default
+        public var maximumResolution: MaximumResolution = .default
 
         /// Disable all local input standardization by the SDK,
         /// any inputs provided to the `MuxUpload` instance
@@ -89,31 +89,31 @@ public struct UploadOptions {
         /// as they are with no local changes.
         public static let disabled: InputStandardization = InputStandardization(
             isEnabled: false,
-            targetResolution: .default
+            maximumResolution: .default
         )
 
         // Kept private to an invalid combination of parameters
         // being used for initialization
         private init(
             isEnabled: Bool,
-            targetResolution: ResolutionPreset
+            maximumResolution: MaximumResolution
         ) {
             self.isEnabled = isEnabled
-            self.targetResolution = targetResolution
+            self.maximumResolution = maximumResolution
         }
 
         /// Used to initialize ``UploadOptions.InputStandardization``
         /// with a target resolution
         ///
         /// - Parameters:
-        ///     - targetResolution: if the input resolution
+        ///     - maximumResolution: if the input resolution
         ///     exceeds 1080p, it will be set to the preset
         ///     after undergoing standardization
         public init(
-            targetResolution: ResolutionPreset
+            maximumResolution: MaximumResolution
         ) {
             self.isEnabled = true
-            self.targetResolution = targetResolution
+            self.maximumResolution = maximumResolution
         }
     }
 
@@ -147,7 +147,7 @@ public struct UploadOptions {
     ///     direct upload
     public init(
         inputStandardization: InputStandardization = InputStandardization(
-            targetResolution: .default
+            maximumResolution: .default
         ),
         transport: Transport = Transport(),
         eventTracking: EventTracking

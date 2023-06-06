@@ -209,7 +209,7 @@ public final class MuxUpload : Hashable, Equatable {
         chunkSize: Int = 8 * 1024 * 1024, // Google recommends at least 8M
         retriesPerChunk: Int = 3,
         inputStandardization: UploadOptions.InputStandardization = .init(
-            targetResolution: UploadOptions.InputStandardization.ResolutionPreset.default
+            maximumResolution: UploadOptions.InputStandardization.MaximumResolution.default
         ),
         eventTracking: UploadOptions.EventTracking = UploadOptions.EventTracking(optedOut: false)
     ) {
