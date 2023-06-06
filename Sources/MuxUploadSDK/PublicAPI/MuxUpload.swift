@@ -203,6 +203,7 @@ public final class MuxUpload : Hashable, Equatable {
     ///     standardization by the SDK locally
     ///     - eventTracking: options to opt out of event
     ///     tracking
+    @available(*, deprecated, renamed: "init(uploadURL:inputFileURL:options:)")
     public convenience init(
         uploadURL: URL,
         videoFileURL: URL,
