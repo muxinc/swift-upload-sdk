@@ -31,7 +31,7 @@ extension PHAsset {
     func prepareForDirectUpload(
         from imageManager: PHImageManager = .default(),
         requestOptions: PHVideoRequestOptions,
-        options: UploadOptions,
+        options: UploadOptions = .default,
         uploadURL: URL,
         completion: @escaping (MuxUpload?) -> ()
     ) {

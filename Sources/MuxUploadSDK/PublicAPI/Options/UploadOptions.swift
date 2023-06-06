@@ -130,6 +130,10 @@ public struct UploadOptions {
     ///
     public struct EventTracking {
 
+        static public var `default`: EventTracking {
+            EventTracking(optedOut: false)
+        }
+
         ///
         public var optedOut: Bool
 
@@ -141,6 +145,10 @@ public struct UploadOptions {
 
     /// Event tracking settings for the direct upload
     public var eventTracking: EventTracking
+
+    public static var `default`: UploadOptions {
+        UploadOptions()
+    }
 
     /// - Parameters:
     ///     - inputStandardization: settings to enable or
@@ -157,7 +165,7 @@ public struct UploadOptions {
             maximumResolution: .default
         ),
         transport: Transport = Transport(),
-        eventTracking: EventTracking
+        eventTracking: EventTracking = .default
     ) {
         self.transport = transport
         self.inputStandardization = inputStandardization
