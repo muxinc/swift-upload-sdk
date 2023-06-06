@@ -22,7 +22,6 @@ class ChunkedFileUploader {
     private var currentWorkTask: Task<(), Never>? = nil
     private var _currentState: InternalUploadState = .ready
     private var overallProgress: Progress = Progress()
-    private var lastSeenUpdate: InternalUploadState? = nil
     private var lastReadCount: UInt64 = 0
     private let reporter = Reporter()
     
@@ -121,20 +120,17 @@ class ChunkedFileUploader {
                 notifyStateFromWorker(.success(success))
             } catch {
                 file.close()
-                if let lastUpdate = lastSeenUpdate {
-                    switch lastUpdate {
-                    case .uploading(let update): do {
-                        if lastReadCount > 0 {
-                            lastReadCount = UInt64(update.progress.completedUnitCount)
-                        }
+                if error is CancellationError {
+                    MuxUploadSDK.logger?.debug("Task finished due to cancellation in state \(String(describing: self.currentState))")
+                    if case let .uploading(update) = self.currentState {
+                        self._currentState = .paused(update)
                     }
-                    default: break
-                    }
+                } else {
+                    MuxUploadSDK.logger?.debug("Task finished due to error in state \(String(describing: self.currentState))")
+                    let uploadError = InternalUploaderError(reason: error, lastByte: lastReadCount)
+                    notifyStateFromWorker(.failure(uploadError))
                 }
-                let uploadError = InternalUploaderError(reason: error, lastByte: lastReadCount)
-                notifyStateFromWorker(.failure(uploadError))
             }
-            
         }
         currentWorkTask = task
     }

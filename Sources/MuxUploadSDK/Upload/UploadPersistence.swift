@@ -27,7 +27,8 @@ class UploadPersistence {
                 try remove(entryAtAbsUrl: upload.uploadURL)
             }
         } catch {
-            MuxUploadSDK.logger?.critical("Swallowed error writing to UploadPersistence! Error below:\n\(error.localizedDescription)")
+            // This makes a lot of noise on the emulator, but might be worth logging if you're having issues around here
+            //MuxUploadSDK.logger?.critical("Swallowed error writing to UploadPersistence! Error below:\n\(error.localizedDescription)")
         }
     }
     
@@ -81,8 +82,6 @@ class UploadPersistence {
     
     func maybeOpenCache() throws {
         if cache == nil {
-            MuxUploadSDK.logger?.info("Had to populate write-through cache")
-            
             try self.uploadsFile.maybeOpenCache()
             self.cache = try uploadsFile.readContents().asDictionary()
             try cleanUpOldEntries() // Obligatory
@@ -207,7 +206,6 @@ fileprivate struct UploadsFileImpl : UploadsFile {
     func maybeOpenCache() throws {
         let dir = fileURL.deletingLastPathComponent()
         if !FileManager.default.fileExists(atPath: dir.path) {
-            MuxUploadSDK.logger?.info("Had to create temp dir")
             try FileManager.default.createDirectory(atPath: dir.path, withIntermediateDirectories: true)
         }
         
