@@ -173,7 +173,7 @@ public final class MuxUpload : Hashable, Equatable {
             MuxUploadSDK.logger?.warning("start() called but upload is already in progress")
             fileWorker?.addDelegate(
                 withToken: id,
-                InternalUploaderDelegate { [weak self] state in self?.handleStateUpdate(state) }
+                InternalUploaderDelegate { [self] state in handleStateUpdate(state) }
             )
             fileWorker?.start()
             return
