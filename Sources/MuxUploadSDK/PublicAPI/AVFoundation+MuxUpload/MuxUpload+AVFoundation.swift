@@ -10,9 +10,8 @@ extension MuxUpload {
     /// Initializes a MuxUpload from an ``AVAsset``
     ///
     /// - Parameters:
-    ///    - uploadURL: the URL of the direct upload that's
-    ///    included in the create a new direct upload URL
-    ///    [response](https://docs.mux.com/api-reference#video/operation/create-direct-upload)
+    ///    - uploadURL: the URL of your direct upload, see
+    ///    the [direct upload guide](https://docs.mux.com/api-reference#video/operation/create-direct-upload)
     ///     - inputAsset: the asset containing audiovisual
     ///     media to be used as the input for the direct
     ///     upload

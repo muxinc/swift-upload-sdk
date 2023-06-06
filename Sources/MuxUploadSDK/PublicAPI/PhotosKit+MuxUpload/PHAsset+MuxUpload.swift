@@ -22,9 +22,8 @@ extension PHAsset {
     ///    an ``AVAsset`` from a ``PHImageManager`
     ///    - options: options used to control the direct
     ///    upload of the input to Mux
-    ///    - uploadURL: the URL of the direct upload that's
-    ///    included in the create a new direct upload URL
-    ///    [response](https://docs.mux.com/api-reference#video/operation/create-direct-upload)
+    ///    - uploadURL: the URL of your direct upload, see
+    ///    the [direct upload guide](https://docs.mux.com/api-reference#video/operation/create-direct-upload)
     ///    - completion: called when initialized ``MuxUpload``
     ///    is ready, receives nil if the asset data request
     ///    failed or if the ``PHAsset`` callee is not a video
