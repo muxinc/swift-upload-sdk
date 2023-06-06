@@ -140,6 +140,7 @@ public final class UploadManager {
         let manager: UploadManager
         
         func chunkedFileUploader(_ uploader: ChunkedFileUploader, stateUpdated state: ChunkedFileUploader.InternalUploadState) {
+            NSLog("UploadManager: uploaded some")
             Task.detached {
                 await manager.uploadActor.updateUpload(uploader.uploadInfo, withUpdate: state)
                 manager.notifyDelegates()
