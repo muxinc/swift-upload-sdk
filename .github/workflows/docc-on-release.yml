@@ -51,6 +51,13 @@ jobs:
       #   with:
       #     arguments: ':library:dokkaHtml'
       # REQUIRED CONFIGURATION: You have to change upload-android to a suitable URL slug for your project
+      # TODO: Maybe useful: swift build -Xswiftc "-sdk" -Xswiftc "`xcrun --sdk iphonesimulator --show-sdk-path`" -Xswiftc "-target" -Xswiftc "x86_64-apple-ios13.0-simulator"
+      
+        # TODO: Builds swift build -Xswiftc "-sdk" -Xswiftc "`xcrun --sdk iphonesimulator --show-sdk-path`" -Xswiftc "-target" -Xswiftc "x86_64-apple-ios16.0-simulator"
+
+        # TODO: Run this or something like it (it doesn't look like it really builds any docs): 
+        # swift package -Xswiftc "-sdk" -Xswiftc "`xcrun --sdk iphonesimulator --show-sdk-path`" -Xswiftc "-target" -Xswiftc "arm64-apple-ios16.0-simulator" generate-documentation 
+
       - name: Generate Docc
         env:
           target_project: apps/DemoApp

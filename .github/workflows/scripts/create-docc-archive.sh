@@ -8,7 +8,8 @@
 
 readonly XCODE=$(xcodebuild -version | grep Xcode | cut -d " " -f2)
 
-readonly TOP_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )/.." && pwd )"
+#readonly TOP_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )/.." && pwd )"
+readonly TOP_DIR=$(pwd)
 readonly BUILD_DIR="${TOP_DIR}/.build"
 readonly DOCUMENTATION_DIR="${BUILD_DIR}/docs"
 readonly XCCONFIG_DIR="${TOP_DIR}/FrameworkXCConfigs/"
@@ -62,10 +63,10 @@ mkdir -p $DOCUMENTATION_DIR
 
 expanded_xcconfig_path="${XCCONFIG_DIR}/${XCCONFIG_FILENAME}.xcconfig"
 
+                    #-xcconfig $expanded_xcconfig_path \
 xcodebuild docbuild -project $PROJECT \
                     -scheme $SCHEME \
                     -configuration $BUILD_CONFIGURATION \
-                    -xcconfig $expanded_xcconfig_path \
                     -destination 'generic/platform=iOS' \
                     -sdk iphoneos \
                     -derivedDataPath "${DOCUMENTATION_DIR}" | xcbeautify \
