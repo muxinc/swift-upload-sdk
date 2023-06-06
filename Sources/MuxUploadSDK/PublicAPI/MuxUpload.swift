@@ -208,9 +208,7 @@ public final class MuxUpload : Hashable, Equatable {
         videoFileURL: URL,
         chunkSize: Int = 8 * 1024 * 1024, // Google recommends at least 8M
         retriesPerChunk: Int = 3,
-        inputStandardization: UploadOptions.InputStandardization = .init(
-            maximumResolution: UploadOptions.InputStandardization.MaximumResolution.default
-        ),
+        inputStandardization: UploadOptions.InputStandardization = .default,
         eventTracking: UploadOptions.EventTracking = UploadOptions.EventTracking(optedOut: false)
     ) {
         self.init(

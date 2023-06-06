@@ -33,6 +33,13 @@ public struct UploadOptions {
     /// Settings controlling direct upload input standardization
     public struct InputStandardization {
 
+        public static var `default`: InputStandardization {
+            InputStandardization(
+                isEnabled: true,
+                maximumResolution: .default
+            )
+        }
+
         /// If enabled the SDK will attempt to detect
         /// non-standard input formats and if so detected
         /// will attempt to standardize to a standard input
