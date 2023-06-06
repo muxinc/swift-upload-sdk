@@ -120,17 +120,6 @@ class ChunkedFileUploader {
                 notifyStateFromWorker(.success(success))
             } catch {
                 file.close()
-                if case let .uploading(update) = self.currentState {
-                    //switch lastUpdate {
-                    //case .uploading(let update): do {
-//                        if lastReadCount > 0 {
-//                            lastReadCount = UInt64(update.progress.completedUnitCount)
-//                        }
-                    //}
-                    //default: break
-                    //}
-                }
-                
                 if error is CancellationError {
                     MuxUploadSDK.logger?.debug("Task finished due to cancellation in state \(String(describing: self.currentState))")
                     if case let .uploading(update) = self.currentState {
