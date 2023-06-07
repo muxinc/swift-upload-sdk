@@ -60,7 +60,6 @@ jobs:
 
       - name: Generate Docc
         env:
-          target_project: apps/DemoApp
           target_scheme: MuxUploadSDK
         run: |
           .github/workflows/scripts/create-docc-archive.sh
