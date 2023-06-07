@@ -84,7 +84,9 @@ $(xcrun --find docc) process-archive transform-for-static-hosting "${source_arch
     --hosting-base-path "${hosting_base_path}"
 
 # Replace index.html with a redirect to documentation/muxspaces/
-sed -e "s/__VERSION__/${sdk_semantic_version}/" "../${WORKFLOWS_DIR}/scripts/index.html.template" > ${output_path}/index.html
+sed -e "s/__VERSION__/${sdk_semantic_version}/g" \
+    -e "s/__SLUG__/${DOCS_ROOT_DIR}" \
+    "../${WORKFLOWS_DIR}/scripts/index.html.template" > ${output_path}/index.html
 
 mkdir -p $DOCS_ROOT_DIR
 
