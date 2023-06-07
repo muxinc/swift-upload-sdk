@@ -10,9 +10,11 @@
 #  You have to change 'upload-android' to match a URL slug for your docs, like 'upload-android' or 'data-exoplayer'
 #  You have to supply the path to your dokka output. The default is library/build/dokka/html
 #  You may need to change the name of the Gradle task used for generating your Dokka docs
-name: Upload DocC DevDocs
+name: Upload DocC DevDocs (Staging)
 
 on:
+  # TODO: Not push?
+  push:
   workflow_dispatch:
 
 jobs:
