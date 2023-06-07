@@ -3,6 +3,7 @@
 # This script is intended to be run by a GitHub Action that supplies these env vars:
 #   target_scheme: The scheme to build and generate docs for
 #   devdocs_bucket: The destination bucket/directory name for this project
+#   sdk_semantic_version: The semantic version of the SDK, or 'staging'
 
 readonly XCODE=$(xcodebuild -version | grep Xcode | cut -d " " -f2)
 
@@ -97,6 +98,9 @@ mkdir -p $output_path
 $(xcrun --find docc) process-archive transform-for-static-hosting "${source_archive_path}" \
     --output-path "${output_path}" \
     --hosting-base-path "${hosting_base_path}"
+
+# Add a redirect to the actual doc page
+sed -e "s/__VERSION__/${sdk_semantic_version}/" ".github/workflows/scripts/index.html.template" > ${output_path}/index.html
 
 mkdir -p $static_documentation_root_directory_name
 

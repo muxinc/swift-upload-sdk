@@ -41,6 +41,7 @@ jobs:
         env:
           target_scheme: MuxUploadSDK
           devdocs_bucket: upload-swift
+          sdk_semantic_version: staging
         run: |
           .github/workflows/scripts/create-docc-archive.sh
       - name: Update the docs AWS bucket
