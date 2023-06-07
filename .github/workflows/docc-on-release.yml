@@ -61,6 +61,7 @@ jobs:
       - name: Generate Docc
         env:
           target_scheme: MuxUploadSDK
+          devdocs_bucket: upload-swift
         run: |
           .github/workflows/scripts/create-docc-archive.sh
       # - name: Update the docs AWS bucket
