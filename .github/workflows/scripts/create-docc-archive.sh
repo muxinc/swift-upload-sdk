@@ -100,7 +100,7 @@ $(xcrun --find docc) process-archive transform-for-static-hosting "${source_arch
     --hosting-base-path "${hosting_base_path}"
 
 # Add a redirect to the actual doc page
-sed -e "s/__VERSION__/${sdk_semantic_version}/" ".github/workflows/scripts/index.html.template" > ${output_path}/index.html
+sed -e "s/__VERSION__/${sdk_semantic_version}/" "../.github/workflows/scripts/index.html.template" > ${output_path}/index.html
 
 mkdir -p $static_documentation_root_directory_name
 
