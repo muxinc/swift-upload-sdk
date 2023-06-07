@@ -102,6 +102,7 @@ mkdir -p $static_documentation_root_directory_name
 
 mv $output_path $static_documentation_root_directory_name
 
+# TODO: Is this part required?
 zip -qry "${static_documentation_root_directory_name}.zip" "${static_documentation_root_directory_name}"
 
 cd ..

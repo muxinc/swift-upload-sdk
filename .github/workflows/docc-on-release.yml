@@ -36,11 +36,11 @@ jobs:
           distribution: 'temurin'
       - name: Parse the version out of the tag name
         id: version
-        run: >
+        run: |
           echo "version_name="$(echo ${{ github.event.release.tag_name }} | sed -E "s/^v//")"" >> $GITHUB_OUTPUT
       - name: Configure AWS
-        run: >
-          aws configure set aws_access_key_id ${{ secrets.AWS_DOCS_KEY }};
+        run: |
+          aws configure set aws_access_key_id ${{ secrets.AWS_DOCS_KEY }}
           aws configure set aws_secret_access_key ${{ secrets.AWS_DOCS_SECRET }}
       - name: Generate Docc
         env:
@@ -49,10 +49,13 @@ jobs:
         run: |
           .github/workflows/scripts/create-docc-archive.sh
       - name: Update the docs AWS bucket
+        # env:
+        #   target_scheme: MuxUploadSDK
+        #   devdocs_bucket: upload-swift
         run: |
-          aws s3 rm --recursive "s3://mux-devdocs/upload-android/latest/"
-          aws s3 sync library/build/dokka/html s3://mux-devdocs/upload-android/${{ steps.version.outputs.version_name }}/
-          aws s3 sync library/build/dokka/html s3://mux-devdocs/upload-android/latest/
+          aws s3 rm --recursive "s3://mux-devdocs/upload-swift/latest/"
+          aws s3 sync .build/MuxUploadSDK.doccarchive s3://mux-devdocs/upload-swift/${{ steps.version.outputs.version_name }}/
+          aws s3 sync .build/MuxUploadSDK.doccarchive s3://mux-devdocs/upload-swift/latest/
       - name: Update the devdocs site
         run: |
           echo "${{ secrets.DOCS_REPO_PAT }}" | gh auth login --with-token
