@@ -48,6 +48,7 @@ jobs:
         # env:
         #   target_scheme: MuxUploadSDK
         #   devdocs_bucket: upload-swift
+        # TODO: slug/version and slug/latest
         run: |
           aws s3 rm --recursive "s3://mux-devdocs/upload-swift/latest/"
           aws s3 sync .build/MuxUploadSDK.doccarchive s3://mux-devdocs/upload-swift/${{ steps.version.outputs.version_name }}/
