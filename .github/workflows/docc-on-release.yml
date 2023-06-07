@@ -38,38 +38,22 @@ jobs:
         id: version
         run: >
           echo "version_name="$(echo ${{ github.event.release.tag_name }} | sed -E "s/^v//")"" >> $GITHUB_OUTPUT
-      # TODO: We want this one
-      # - name: Configure AWS
-      #   run: >
-      #     aws configure set aws_access_key_id ${{ secrets.AWS_DOCS_KEY }};
-      #     aws configure set aws_secret_access_key ${{ secrets.AWS_DOCS_SECRET }}
-
-      # If you have a multi-module project or monorepo, you'll need to repeat these steps
-      # POSSIBLE CONFIGURATION: make sure the `arguments:` tag matches the correct task(s) for your project
-      # - name: Build Dokka Docs
-      #   uses: gradle/gradle-build-action@v2.4.2
-      #   with:
-      #     arguments: ':library:dokkaHtml'
-      # REQUIRED CONFIGURATION: You have to change upload-android to a suitable URL slug for your project
-      # TODO: Maybe useful: swift build -Xswiftc "-sdk" -Xswiftc "`xcrun --sdk iphonesimulator --show-sdk-path`" -Xswiftc "-target" -Xswiftc "x86_64-apple-ios13.0-simulator"
-      
-        # TODO: Builds swift build -Xswiftc "-sdk" -Xswiftc "`xcrun --sdk iphonesimulator --show-sdk-path`" -Xswiftc "-target" -Xswiftc "x86_64-apple-ios16.0-simulator"
-
-        # TODO: Run this or something like it (it doesn't look like it really builds any docs): 
-        # swift package -Xswiftc "-sdk" -Xswiftc "`xcrun --sdk iphonesimulator --show-sdk-path`" -Xswiftc "-target" -Xswiftc "arm64-apple-ios16.0-simulator" generate-documentation 
-
+      - name: Configure AWS
+        run: >
+          aws configure set aws_access_key_id ${{ secrets.AWS_DOCS_KEY }};
+          aws configure set aws_secret_access_key ${{ secrets.AWS_DOCS_SECRET }}
       - name: Generate Docc
         env:
           target_scheme: MuxUploadSDK
           devdocs_bucket: upload-swift
         run: |
           .github/workflows/scripts/create-docc-archive.sh
-      # - name: Update the docs AWS bucket
-      #   run: |
-      #     aws s3 rm --recursive "s3://mux-devdocs/upload-android/latest/"
-      #     aws s3 sync library/build/dokka/html s3://mux-devdocs/upload-android/${{ steps.version.outputs.version_name }}/
-      #     aws s3 sync library/build/dokka/html s3://mux-devdocs/upload-android/latest/
-      # - name: Update the devdocs site
-      #   run: |
-      #     echo "${{ secrets.DOCS_REPO_PAT }}" | gh auth login --with-token
-      #     gh workflow run -R muxinc/devdocs-directory deploy-to-s3
+      - name: Update the docs AWS bucket
+        run: |
+          aws s3 rm --recursive "s3://mux-devdocs/upload-android/latest/"
+          aws s3 sync library/build/dokka/html s3://mux-devdocs/upload-android/${{ steps.version.outputs.version_name }}/
+          aws s3 sync library/build/dokka/html s3://mux-devdocs/upload-android/latest/
+      - name: Update the devdocs site
+        run: |
+          echo "${{ secrets.DOCS_REPO_PAT }}" | gh auth login --with-token
+          gh workflow run -R muxinc/devdocs-directory deploy-to-s3
