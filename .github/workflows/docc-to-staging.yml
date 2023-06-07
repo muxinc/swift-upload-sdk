@@ -50,7 +50,7 @@ jobs:
         #   devdocs_bucket: upload-swift
         run: |
           aws s3 rm --recursive "s3://mux-devdocs/upload-swift/staging/"
-          aws s3 sync .build/upload-swift/docc-output-processed s3://mux-devdocs/upload-swift/staging/
+          aws s3 sync .build/upload-swift/staging s3://mux-devdocs/upload-swift/staging/
       - name: Update the devdocs site
         run: |
           echo "${{ secrets.DOCS_REPO_PAT }}" | gh auth login --with-token
