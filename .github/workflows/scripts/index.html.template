@@ -1,11 +1,11 @@
 <!DOCTYPE html>
 <meta charset="utf-8">
-<meta http-equiv="refresh" content="1; url=https://devdocs.mux.com/__SLUG__/__VERSION__/documentation/muxuploadsdk/">
+<meta http-equiv="refresh" content="1; url=https://devdocs.mux.com/__SLUG__/__VERSION__/documentation/muxuploadsdk/index.html">
 <script>
-  window.location.href = "https://devdocs.mux.com/__SLUG__/__VERSION__/documentation/muxuploadsdk/"
+  window.location.href = "https://devdocs.mux.com/__SLUG__/__VERSION__/documentation/muxuploadsdk/index.html"
 </script>
 <title>Redirecting...</title>
 If you are not redirected automatically, follow
-<a href="https://devdocs.mux.com/__SLUG__/__VERSION__/documentation/muxuploadsdk/">
+<a href="https://devdocs.mux.com/__SLUG__/__VERSION__/documentation/muxuploadsdk/index.html">
   this link
 </a>.
