@@ -13,9 +13,7 @@
 name: Upload DocC DevDocs
 
 on:
-  release:
-    types:
-      - published
+  workflow_dispatch:
 
 jobs:
   devdocs:
@@ -51,9 +49,8 @@ jobs:
         #   target_scheme: MuxUploadSDK
         #   devdocs_bucket: upload-swift
         run: |
-          aws s3 rm --recursive "s3://mux-devdocs/upload-swift/latest/"
-          aws s3 sync .build/MuxUploadSDK.doccarchive s3://mux-devdocs/upload-swift/${{ steps.version.outputs.version_name }}/
-          aws s3 sync .build/MuxUploadSDK.doccarchive s3://mux-devdocs/upload-swift/latest/
+          aws s3 rm --recursive "s3://mux-devdocs/upload-swift/staging/"
+          aws s3 sync .build/MuxUploadSDK.doccarchive s3://mux-devdocs/upload-swift/staging/
       - name: Update the devdocs site
         run: |
           echo "${{ secrets.DOCS_REPO_PAT }}" | gh auth login --with-token
