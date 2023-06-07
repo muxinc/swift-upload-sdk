@@ -14,13 +14,13 @@ readonly BUILD_DIR="${TOP_DIR}/.build"
 readonly DOCUMENTATION_DIR="${BUILD_DIR}/docs"
 readonly XCCONFIG_DIR="${TOP_DIR}/FrameworkXCConfigs/"
 
-if [ -z $target_project ] 
-then
-    echo -e "\033[1;31m ERROR: Target project must be specified \033[0m"
-    exit 1
-else
-  readonly PROJECT_NAME=$target_project
-fi
+# if [ -z $target_project ] 
+# then
+#     echo -e "\033[1;31m ERROR: Target project must be specified \033[0m"
+#     exit 1
+# else
+#   readonly PROJECT_NAME=$target_project
+# fi
 if [ -z $target_scheme ]
 then
     echo -e "\033[1;31m ERROR: Target scheme must be specified \033[0m"
@@ -28,20 +28,20 @@ then
 else 
   readonly SCHEME=$target_scheme 
 fi
-if [ -z $target_build_configration ]
-then
-  readonly BUILD_CONFIGURATION="Release"
-else 
-  readonly BUILD_CONFIGURATION=$target_build_configration
-fi
-if [ -z $xcconfig_filename ]
-then
-  readonly XCCONFIG_FILENAME="Release-Production"
-else
-  readonly XCCONFIG_FILENAME=$target_xcconfig_filename
-fi
+# if [ -z $target_build_configration ]
+# then
+#   readonly BUILD_CONFIGURATION="Release"
+# else 
+#   readonly BUILD_CONFIGURATION=$target_build_configration
+# fi
+# if [ -z $xcconfig_filename ]
+# then
+#   readonly XCCONFIG_FILENAME="Release-Production"
+# else
+#   readonly XCCONFIG_FILENAME=$target_xcconfig_filename
+# fi
 
-readonly PROJECT="${TOP_DIR}/${PROJECT_NAME}.xcodeproj"
+#readonly PROJECT="${TOP_DIR}/${PROJECT_NAME}.xcodeproj"
 readonly DOCC_ARCHIVE_NAME="${SCHEME}.doccarchive"
 readonly DOCC_ARCHIVE_PATH="${BUILD_DIR}/${DOCC_ARCHIVE_NAME}"
 
@@ -57,19 +57,26 @@ rm -rf ${BUILD_DIR}
 
 echo "▸ Using Xcode Version: ${XCODE}"
 
-echo "▸ Building Documentation Catalog for ${SCHEME} located in ${PROJECT}"
+echo "▸ Building Documentation Catalog for ${SCHEME}"
 
 mkdir -p $DOCUMENTATION_DIR
 
-expanded_xcconfig_path="${XCCONFIG_DIR}/${XCCONFIG_FILENAME}.xcconfig"
+#expanded_xcconfig_path="${XCCONFIG_DIR}/${XCCONFIG_FILENAME}.xcconfig"
 
                     #-xcconfig $expanded_xcconfig_path \
-xcodebuild docbuild -project $PROJECT \
-                    -scheme $SCHEME \
-                    -configuration $BUILD_CONFIGURATION \
+# xcodebuild docbuild -project $PROJECT \
+#                     -scheme $SCHEME \
+#                     -configuration $BUILD_CONFIGURATION \
+#                     -destination 'generic/platform=iOS' \
+#                     -sdk iphoneos \
+#                     -derivedDataPath "${DOCUMENTATION_DIR}" | xcbeautify \
+
+echo "▸ Building documentation archive at: ${DOCUMENTATION_DIR}"
+
+xcodebuild docbuild -scheme ${SCHEME} \
                     -destination 'generic/platform=iOS' \
-                    -sdk iphoneos \
-                    -derivedDataPath "${DOCUMENTATION_DIR}" | xcbeautify \
+                    -derivedDataPath "${DOCUMENTATION_DIR}" \
+                    | xcbeautify
 
 cd ${BUILD_DIR}
 
@@ -90,7 +97,8 @@ fi
 
 # Name of S3 devdocs bucket top-level directory where SDK documentation
 # is deployed to
-static_documentation_root_directory_name="spaces-ios"
+# TODO: This needs to be configurable from outside
+static_documentation_root_directory_name="upload-ios"
 
 # This matches the semantic version of the SDK binary
 # TODO: Set based on XCConfig
@@ -104,6 +112,7 @@ static_documentation_versioned_path="${static_documentation_root_directory_name}
 
 source_archive_path=${DOCC_ARCHIVE_PATH}
 output_path=$static_documentation_versioned_subdirectory_name
+output_path="./docc-output-processed"
 hosting_base_path=$static_documentation_versioned_path
 
 
