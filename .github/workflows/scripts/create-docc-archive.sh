@@ -73,7 +73,7 @@ static_documentation_versioned_path="${DOCS_ROOT_DIR}/${sdk_semantic_version}"
 
 source_archive_path=${DOCC_ARCHIVE_PATH}
 output_path=$sdk_semantic_version
-hosting_base_path="/$static_documentation_versioned_path"
+hosting_base_path=$static_documentation_versioned_path
 
 echo "▸ Processing documentation archive with source archive path: ${source_archive_path} hosting base path: ${hosting_base_path} output path: ${output_path}"
 
