@@ -17,23 +17,23 @@ struct UploadListScreen: View {
             WindowBackground
             VStack(spacing: 0) {
                 MuxNavBar()
-                ListContianer()
+                ListContainerView()
             }
         }
     }
 }
 
-fileprivate struct ListContianer: View {
+fileprivate struct ListContainerView: View {
     
-    @EnvironmentObject var listVM: UploadListModel
+    @EnvironmentObject var viewModel: UploadListModel
     
     var body: some View {
-        if listVM.lastKnownUploads.isEmpty {
+        if viewModel.lastKnownUploads.isEmpty {
             EmptyList()
         } else {
             ScrollView {
                 LazyVStack {
-                    ForEach(listVM.lastKnownUploads, id: \.self) { upload in
+                    ForEach(viewModel.lastKnownUploads, id: \.self) { upload in
                         ListItem(upload: upload)
                     }
                 }
@@ -188,7 +188,7 @@ struct ListContent_Previews: PreviewProvider {
     static var previews: some View {
         ZStack(alignment: .top) {
             WindowBackground
-            ListContianer()
+            ListContainerView()
         }
         .environmentObject(UploadListModel())
     }
