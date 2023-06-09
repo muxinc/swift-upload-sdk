@@ -32,8 +32,10 @@ echo "▸ Building Documentation Catalog for ${SCHEME}"
 
 mkdir -p $DOCUMENTATION_DIR
 
+
+                    #-project 'apps/Test App/Upload Test App.xcodeproj' \
 xcodebuild docbuild -scheme $SCHEME \
-                    -project 'apps/Test App/Upload Test App.xcodeproj' \
+                    -configuration Release \
                     -destination 'generic/platform=iOS' \
                     -sdk iphoneos \
                     -derivedDataPath "${DOCUMENTATION_DIR}" \
