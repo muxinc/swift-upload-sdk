@@ -36,6 +36,7 @@ mkdir -p $DOCUMENTATION_DIR
                     #-project 'apps/Test App/Upload Test App.xcodeproj' \
 xcodebuild docbuild -scheme $SCHEME \
                     -configuration Release \
+  -project 'apps/Test App/Upload Test App.xcodeproj' \
                     -destination 'generic/platform=iOS' \
                     -sdk iphoneos \
                     -derivedDataPath "${DOCUMENTATION_DIR}" \
