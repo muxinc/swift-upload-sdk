@@ -28,7 +28,7 @@ import Foundation
 ///
 public final class UploadManager {
     
-    private var uploadersByURL: [URL : ChunkedFileUploader] = [:]
+    private var uploadersByID: [String : ChunkedFileUploader] = [:]
     private var uploadsUpdateDelegatesByToken: [ObjectIdentifier : any UploadsUpdatedDelegate] = [:]
     private let uploadActor = UploadCacheActor()
     private lazy var uploaderDelegate: FileUploaderDelegate = FileUploaderDelegate(manager: self)
@@ -37,7 +37,12 @@ public final class UploadManager {
     /// to track and control its state
     /// Returns nil if there was no uplod in progress for thr given file
     public func findStartedUpload(ofFile url: URL) -> MuxUpload? {
-        if let uploader = uploadersByURL[url] {
+        if let uploader = Dictionary<URL, ChunkedFileUploader>(
+            uniqueKeysWithValues: uploadersByID.mapValues { value in
+                (value.uploadInfo.videoFile, value)
+            }
+            .values
+        )[url] {
             return MuxUpload(wrapping: uploader, uploadManager: self)
         } else {
             return nil
@@ -48,7 +53,7 @@ public final class UploadManager {
     /// Uploads are managed while in-progress or compelted.
     ///  Uploads become un-managed when canceled, or if the process dies after they complete
     public func allManagedUploads() -> [MuxUpload] {
-        return uploadersByURL.compactMap { (key, value) in MuxUpload(wrapping: value, uploadManager: self) }
+        return uploadersByID.compactMap { (key, value) in MuxUpload(wrapping: value, uploadManager: self) }
     }
     
     /// Attempts to resume an upload that was previously paused or interrupted by process death
@@ -94,23 +99,28 @@ public final class UploadManager {
         uploadsUpdateDelegatesByToken.removeValue(forKey: ObjectIdentifier(delegate))
     }
     
-    internal func acknowledgeUpload(ofFile url: URL) {
-        if let uploader = uploadersByURL[url] {
+    internal func acknowledgeUpload(id: String) {
+        if let uploader = uploadersByID[id] {
             uploader.cancel()
         }
-        uploadersByURL.removeValue(forKey: url)
+        uploadersByID.removeValue(forKey: id)
         Task.detached {
-            await self.uploadActor.remove(uploadAt:url)
+            await self.uploadActor.remove(uploadID: id)
             self.notifyDelegates()
         }
     }
     
     internal func findUploaderFor(videoFile url: URL) -> ChunkedFileUploader? {
-        return uploadersByURL[url]
+        return Dictionary<URL, ChunkedFileUploader>(
+            uniqueKeysWithValues: uploadersByID.mapValues { value in
+                (value.uploadInfo.videoFile, value)
+            }
+            .values
+        )[url]
     }
 
     internal func registerUploader(_ fileWorker: ChunkedFileUploader, withId id: String) {
-        uploadersByURL.updateValue(fileWorker, forKey: fileWorker.uploadInfo.videoFile)
+        uploadersByID.updateValue(fileWorker, forKey: fileWorker.uploadInfo.id)
         fileWorker.addDelegate(withToken: UUID().uuidString, uploaderDelegate)
         Task.detached {
             await self.uploadActor.updateUpload(
@@ -145,7 +155,7 @@ public final class UploadManager {
                 manager.notifyDelegates()
             }
             switch state {
-            case .success(_), .canceled: manager.acknowledgeUpload(ofFile: uploader.uploadInfo.videoFile)
+            case .success(_), .canceled: manager.acknowledgeUpload(id: uploader.uploadInfo.id)
             default: do { }
             }
         }
@@ -169,14 +179,29 @@ internal actor UploadCacheActor {
         }
     }
     
-    func getUpload(ofFileAt url: URL) async -> ChunkedFileUploader? {
+    func getUpload(uploadID: String) async -> ChunkedFileUploader? {
         // reminder: doesn't start the uploader, just makes it
         return await Task<ChunkedFileUploader?, Never> {
-            let optEntry = try? persistence.readEntry(forFileAt: url)
+            let optEntry = try? persistence.readEntry(uploadID: uploadID)
             guard let entry = optEntry else {
                 return nil
             }
             return ChunkedFileUploader(uploadInfo: entry.uploadInfo, startingAtByte: entry.lastSuccessfulByte)
+        }.value
+    }
+
+    func getUpload(ofFileAt: URL) async -> ChunkedFileUploader? {
+        return await Task<ChunkedFileUploader?, Never> {
+            guard let matchingEntry = try? persistence.readAll().filter({
+                $0.uploadInfo.uploadURL == ofFileAt
+            }).first else {
+                return nil
+            }
+
+            return ChunkedFileUploader(
+                uploadInfo: matchingEntry.uploadInfo,
+                startingAtByte: matchingEntry.lastSuccessfulByte
+            )
         }.value
     }
     
@@ -188,9 +213,9 @@ internal actor UploadCacheActor {
         }.value ?? []
     }
     
-    func remove(uploadAt url: URL) async {
+    func remove(uploadID: String) async {
         await Task<(), Never> {
-            try? persistence.remove(entryAtAbsUrl: url)
+            try? persistence.remove(entryAtID: uploadID)
         }.value
     }
     

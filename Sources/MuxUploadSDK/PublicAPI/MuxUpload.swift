@@ -48,7 +48,7 @@ public final class MuxUpload : Hashable, Equatable {
  
     private let uploadInfo: UploadInfo
     private let manageBySDK: Bool
-    private let id: String = UUID().uuidString
+    private var id: String = UUID().uuidString
     private let uploadManager: UploadManager
     
     private var lastSeenStatus: Status = Status(progress: Progress(totalUnitCount: 0), updatedTime: 0, startTime: 0, isPaused: false)
@@ -96,6 +96,7 @@ public final class MuxUpload : Hashable, Equatable {
         optOutOfEventTracking: Bool = false
     ) {
         let uploadInfo = UploadInfo(
+            id: UUID().uuidString,
             uploadURL: uploadURL,
             videoFile: videoFileURL,
             chunkSize: chunkSize,
@@ -209,7 +210,7 @@ public final class MuxUpload : Hashable, Equatable {
      */
     public func cancel() {
         fileWorker?.cancel()
-        uploadManager.acknowledgeUpload(ofFile: videoFile)
+        uploadManager.acknowledgeUpload(id: id)
         
         lastSeenStatus = Status(progress: nil, updatedTime: 0, startTime: 0, isPaused: true)
         progressHandler = nil
@@ -273,14 +274,23 @@ public final class MuxUpload : Hashable, Equatable {
     }
    
     
-    private init (uploadInfo: UploadInfo, manage: Bool = true, uploadManager: UploadManager) {
+    private init (
+        uploadInfo: UploadInfo,
+        manage: Bool = true,
+        uploadManager: UploadManager
+    ) {
         self.uploadInfo = uploadInfo
         self.manageBySDK = manage
         self.uploadManager = uploadManager
+        self.id = uploadInfo.id
     }
     
     internal convenience init(wrapping uploader: ChunkedFileUploader, uploadManager: UploadManager) {
-        self.init(uploadInfo: uploader.uploadInfo, manage: true, uploadManager: uploadManager)
+        self.init(
+            uploadInfo: uploader.uploadInfo,
+            manage: true,
+            uploadManager: uploadManager
+        )
         self.fileWorker = uploader
         
         handleStateUpdate(uploader.currentState)
