@@ -170,7 +170,9 @@ final class UploadPersistenceTests: XCTestCase {
         )
         
         let persistenceNextSession = UploadPersistence(innerFile: uploadsFile, atURL: makeDummyFileURL(basename: "fake-cache-file"))
-        let entriesAfterCleanup = try! persistenceNextSession.readAll()
+        let entriesAfterCleanup = try XCTUnwrap(
+            persistenceNextSession.readAll()
+        )
         XCTAssertEqual(
             1,
             entriesAfterCleanup.count,
