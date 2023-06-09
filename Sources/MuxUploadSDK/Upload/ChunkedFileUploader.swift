@@ -16,7 +16,7 @@ class ChunkedFileUploader {
     let uploadInfo: UploadInfo
     var currentState: InternalUploadState { get { _currentState } }
     
-    private var delegates: [Int : ChunkedFileUploaderDelegate] = [:]
+    private var delegates: [String : ChunkedFileUploaderDelegate] = [:]
     
     private let file: ChunkedFile
     private var currentWorkTask: Task<(), Never>? = nil
@@ -26,11 +26,11 @@ class ChunkedFileUploader {
     private var lastReadCount: UInt64 = 0
     private let reporter = Reporter()
     
-    func addDelegate(withToken token: Int, _ delegate: ChunkedFileUploaderDelegate) {
+    func addDelegate(withToken token: String, _ delegate: ChunkedFileUploaderDelegate) {
         delegates.updateValue(delegate, forKey: token)
     }
     
-    func removeDelegate(withToken: Int) {
+    func removeDelegate(withToken: String) {
         delegates.removeValue(forKey: withToken)
     }
     

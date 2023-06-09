@@ -48,7 +48,7 @@ public final class MuxUpload : Hashable, Equatable {
  
     private let uploadInfo: UploadInfo
     private let manageBySDK: Bool
-    private let id: Int
+    private let id: String = UUID().uuidString
     private let uploadManager: UploadManager
     
     private var lastSeenStatus: Status = Status(progress: Progress(totalUnitCount: 0), updatedTime: 0, startTime: 0, isPaused: false)
@@ -276,7 +276,6 @@ public final class MuxUpload : Hashable, Equatable {
     private init (uploadInfo: UploadInfo, manage: Bool = true, uploadManager: UploadManager) {
         self.uploadInfo = uploadInfo
         self.manageBySDK = manage
-        self.id = Int.random(in: Int.min...Int.max)
         self.uploadManager = uploadManager
     }
     
