@@ -11,6 +11,8 @@ import Foundation
  Internal representation of a video upload
  */
 struct UploadInfo : Codable {
+
+    var id: String
     /**
      URI of the upload's destinatoin
      */
