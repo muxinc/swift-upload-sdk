@@ -47,11 +47,12 @@ docc_built_archive_path=$(find docs -type d -name "${DOCC_ARCHIVE_NAME}")
 
 if [ -z "${docc_built_archive_path}" ]
 then
-echo -e "\033[1;31m ERROR: Failed to locate Documentation Archive \033[0m"
+    echo -e "\033[1;31m ERROR: Failed to locate Documentation Archive \033[0m"
     exit 1
 else
     echo "▸ Located documentation archive at ${docc_built_archive_path}"
-    mv ${docc_built_archive_path} ${BUILD_DIR}
+    #mv ${docc_built_archive_path} ${BUILD_DIR}
+    cp -r ${docc_built_archive_path} ${BUILD_DIR}
     zip -qry "${DOCC_ARCHIVE_NAME}.zip" "${DOCC_ARCHIVE_NAME}"
 fi
 
