@@ -48,7 +48,7 @@ public final class MuxUpload : Hashable, Equatable {
  
     private let uploadInfo: UploadInfo
     private let manageBySDK: Bool
-    private var id: String = UUID().uuidString
+    private let id: String
     private let uploadManager: UploadManager
     
     private var lastSeenStatus: Status = Status(progress: Progress(totalUnitCount: 0), updatedTime: 0, startTime: 0, isPaused: false)
