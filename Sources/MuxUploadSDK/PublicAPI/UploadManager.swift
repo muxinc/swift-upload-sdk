@@ -56,7 +56,7 @@ public final class UploadManager {
     public func resumeUpload(ofFile: URL) async -> MuxUpload? {
         let fileUploader = await uploadActor.getUpload(ofFileAt: ofFile)
         if let nonNilUploader = fileUploader {
-            nonNilUploader.addDelegate(withToken: Int.random(in: Int.min...Int.max), uploaderDelegate)
+            nonNilUploader.addDelegate(withToken: UUID().uuidString, uploaderDelegate)
             return MuxUpload(wrapping: nonNilUploader, uploadManager: self)
         } else {
             return nil
@@ -79,7 +79,7 @@ public final class UploadManager {
     public func resumeAllUploads() {
         Task.detached { [self] in
             for upload in await uploadActor.getAllUploads() {
-                upload.addDelegate(withToken: Int.random(in: Int.min...Int.max), uploaderDelegate)
+                upload.addDelegate(withToken: UUID().uuidString, uploaderDelegate)
             }
         }
     }
@@ -108,10 +108,10 @@ public final class UploadManager {
     internal func findUploaderFor(videoFile url: URL) -> ChunkedFileUploader? {
         return uploadersByURL[url]
     }
-    
-    internal func registerUploader(_ fileWorker: ChunkedFileUploader, withId id: Int) {
+
+    internal func registerUploader(_ fileWorker: ChunkedFileUploader, withId id: String) {
         uploadersByURL.updateValue(fileWorker, forKey: fileWorker.uploadInfo.videoFile)
-        fileWorker.addDelegate(withToken: id + 1, uploaderDelegate)
+        fileWorker.addDelegate(withToken: UUID().uuidString, uploaderDelegate)
         Task.detached {
             await self.uploadActor.updateUpload(
                 fileWorker.uploadInfo,
