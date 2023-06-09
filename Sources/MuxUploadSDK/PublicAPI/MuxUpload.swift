@@ -48,7 +48,9 @@ public final class MuxUpload : Hashable, Equatable {
  
     private let uploadInfo: UploadInfo
     private let manageBySDK: Bool
-    private let id: String
+    private var id: String {
+        uploadInfo.id
+    }
     private let uploadManager: UploadManager
     
     private var lastSeenStatus: Status = Status(progress: Progress(totalUnitCount: 0), updatedTime: 0, startTime: 0, isPaused: false)
@@ -282,7 +284,6 @@ public final class MuxUpload : Hashable, Equatable {
         self.uploadInfo = uploadInfo
         self.manageBySDK = manage
         self.uploadManager = uploadManager
-        self.id = uploadInfo.id
     }
     
     internal convenience init(wrapping uploader: ChunkedFileUploader, uploadManager: UploadManager) {
