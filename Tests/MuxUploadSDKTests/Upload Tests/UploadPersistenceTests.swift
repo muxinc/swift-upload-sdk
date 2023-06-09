@@ -67,9 +67,15 @@ final class UploadPersistenceTests: XCTestCase {
         try! persistence.write(entry: e2, for: e2.uploadInfo.id)
         
         // Read them in a different order to ensure idempotence
-        let readItem1 = try persistence.readEntry(uploadID: e2.uploadInfo.id)
-        let readItem2 = try persistence.readEntry(uploadID: e1.uploadInfo.id)
-        let allItems = try persistence.readAll()
+        let readItem1 = try XCTUnwrap(
+            persistence.readEntry(uploadID: e2.uploadInfo.id)
+        )
+        let readItem2 = try XCTUnwrap(
+            persistence.readEntry(uploadID: e1.uploadInfo.id)
+        )
+        let allItems = try XCTUnwrap(
+            persistence.readAll()
+        )
         
         XCTAssertEqual(
             allItems.count,
@@ -78,13 +84,13 @@ final class UploadPersistenceTests: XCTestCase {
         )
         XCTAssertEqual(
             // remember, they're swapped
-            readItem2!.uploadInfo.videoFile,
+            readItem2.uploadInfo.videoFile,
             e1.uploadInfo.videoFile,
             "read() should return the right item"
         )
         XCTAssertEqual(
             // remember, they're swapped
-            readItem1!.uploadInfo.videoFile,
+            readItem1.uploadInfo.videoFile,
             e2.uploadInfo.videoFile,
             "read() should return the right item"
         )
