@@ -13,11 +13,19 @@ class UploadManagerTests: XCTestCase {
 
         let uploadManager = UploadManager()
 
+        let uploadURL = try XCTUnwrap(
+            URL(string: "https://www.example.com/upload")
+        )
+
+        let videoInputURL = try XCTUnwrap(
+            URL(string: "file://path/to/dummy/file/")
+        )
+
         let chunkFileUploader = ChunkedFileUploader(
             uploadInfo: UploadInfo(
                 id: UUID().uuidString,
-                uploadURL: URL(string: "https://www.example.com/upload")!,
-                videoFile: URL(string: "file://path/to/dummy/file/")!,
+                uploadURL: uploadURL,
+                videoFile: videoInputURL,
                 chunkSize: 8,
                 retriesPerChunk: 2,
                 optOutOfEventTracking: true
@@ -32,8 +40,8 @@ class UploadManagerTests: XCTestCase {
         let duplicateChunkFileUploader = ChunkedFileUploader(
             uploadInfo: UploadInfo(
                 id: UUID().uuidString,
-                uploadURL: URL(string: "https://www.example.com/upload")!,
-                videoFile: URL(string: "file://path/to/dummy/file/")!,
+                uploadURL: uploadURL,
+                videoFile: videoInputURL,
                 chunkSize: 8,
                 retriesPerChunk: 2,
                 optOutOfEventTracking: true
