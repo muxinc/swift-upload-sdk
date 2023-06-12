@@ -44,7 +44,7 @@ echo
 # S3/CloudFront doesn't server up index.html for a bare directory-name URL by default, but S3 isn't a real filesystem
 # so we can use the S3 API to "copy" the index.html file to the directory name and server it up just the same
 
-echo "Copying from mux-devdocs/${1}/${2}/documentation/muxspaces/index.html with key ${1}/${2}/documentation/muxspaces/"
+echo "Copying from mux-devdocs/${1}/${2}/documentation/muxspaces/index.html with key ${1}/${2}/documentation/muxuploadsdk/"
 
 aws s3api copy-object --copy-source "mux-devdocs/${1}/${2}/documentation/muxspaces/index.html" --key "${1}/${2}/documentation/muxuploadsdk/" --bucket mux-devdocs
 
