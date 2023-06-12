@@ -144,7 +144,7 @@ public final class UploadManager {
     
     /// The shared instance of this object that should be used
     public static let shared = UploadManager()
-    private init() { }
+    internal init() { }
     
     private struct FileUploaderDelegate : ChunkedFileUploaderDelegate {
         let manager: UploadManager
