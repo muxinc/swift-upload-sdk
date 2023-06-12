@@ -276,7 +276,7 @@ public final class MuxUpload : Hashable, Equatable {
     }
    
     
-    private init (
+    internal init (
         uploadInfo: UploadInfo,
         manage: Bool = true,
         uploadManager: UploadManager
