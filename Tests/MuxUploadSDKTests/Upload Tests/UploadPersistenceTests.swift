@@ -31,11 +31,14 @@ final class UploadPersistenceTests: XCTestCase {
             uploadInfo: renameDummyUploadInfo(basename: "e2")
         )
         let persistence = UploadPersistence(innerFile: makeSimulatedUploadsFile(), atURL: makeDummyFileURL(basename: "fake-cache-file"))
-        // Shouldn't throw
-        try! persistence.write(entry: e1, forFileAt: makeDummyFileURL(basename: "e1"))
-        try! persistence.write(entry: e2, forFileAt: makeDummyFileURL(basename: "e2"))
+        XCTAssertNoThrow(
+            try persistence.write(entry: e1, for: e1.uploadInfo.id)
+        )
+        XCTAssertNoThrow(
+            try persistence.write(entry: e2, for: e2.uploadInfo.id)
+        )
         
-        let readItem = try persistence.readEntry(forFileAt: makeDummyFileURL(basename: "e1"))
+        let readItem = try persistence.readEntry(uploadID: e1.uploadInfo.id)
         XCTAssertEqual(
             try persistence.readAll().count,
             2,
@@ -62,14 +65,24 @@ final class UploadPersistenceTests: XCTestCase {
             uploadInfo: renameDummyUploadInfo(basename: "e2")
         )
         let persistence = UploadPersistence(innerFile: makeSimulatedUploadsFile(), atURL: makeDummyFileURL(basename: "fake-cache-file"))
-        // Shouldn't throw (but not specifically part of the test)
-        try! persistence.write(entry: e1, forFileAt: makeDummyFileURL(basename: "e1"))
-        try! persistence.write(entry: e2, forFileAt: makeDummyFileURL(basename: "e2"))
+        XCTAssertNoThrow(
+            try persistence.write(entry: e1, for: e1.uploadInfo.id)
+        )
+
+        XCTAssertNoThrow(
+            try persistence.write(entry: e2, for: e2.uploadInfo.id)
+        )
         
         // Read them in a different order to ensure idempotence
-        let readItem1 = try persistence.readEntry(forFileAt: makeDummyFileURL(basename: "e2"))
-        let readItem2 = try persistence.readEntry(forFileAt: makeDummyFileURL(basename: "e1"))
-        let allItems = try persistence.readAll()
+        let readItem1 = try XCTUnwrap(
+            persistence.readEntry(uploadID: e2.uploadInfo.id)
+        )
+        let readItem2 = try XCTUnwrap(
+            persistence.readEntry(uploadID: e1.uploadInfo.id)
+        )
+        let allItems = try XCTUnwrap(
+            persistence.readAll()
+        )
         
         XCTAssertEqual(
             allItems.count,
@@ -78,13 +91,13 @@ final class UploadPersistenceTests: XCTestCase {
         )
         XCTAssertEqual(
             // remember, they're swapped
-            readItem2!.uploadInfo.videoFile,
+            readItem2.uploadInfo.videoFile,
             e1.uploadInfo.videoFile,
             "read() should return the right item"
         )
         XCTAssertEqual(
             // remember, they're swapped
-            readItem1!.uploadInfo.videoFile,
+            readItem1.uploadInfo.videoFile,
             e2.uploadInfo.videoFile,
             "read() should return the right item"
         )
@@ -105,11 +118,17 @@ final class UploadPersistenceTests: XCTestCase {
         )
         let persistence = UploadPersistence(innerFile: makeSimulatedUploadsFile(), atURL: makeDummyFileURL(basename: "fake-cache-file"))
         // Shouldn't throw (but not specifically part of the test)
-        try! persistence.write(entry: e1, forFileAt: makeDummyFileURL(basename: "e1"))
-        try! persistence.write(entry: e2, forFileAt: makeDummyFileURL(basename: "e2"))
-        try! persistence.remove(entryAtAbsUrl: makeDummyFileURL(basename: "e2"))
+        XCTAssertNoThrow(
+            try persistence.write(entry: e1, for: e1.uploadInfo.id)
+        )
+        XCTAssertNoThrow(
+            try persistence.write(entry: e2, for: e2.uploadInfo.id)
+        )
+        XCTAssertNoThrow(
+            try persistence.remove(entryAtID: e2.uploadInfo.id)
+        )
         
-        let readItem = try persistence.readEntry(forFileAt: makeDummyFileURL(basename: "e1"))
+        let readItem = try persistence.readEntry(uploadID: e1.uploadInfo.id)
         XCTAssertEqual(
             try persistence.readAll().count,
             1,
@@ -139,11 +158,21 @@ final class UploadPersistenceTests: XCTestCase {
         let persistence = UploadPersistence(innerFile: uploadsFile, atURL: makeDummyFileURL(basename: "fake-cache-file"))
         
         // Should not throw (not specifically under test)
-        try! persistence.write(entry: newerEntry, forFileAt: makeDummyFileURL(basename: "newer"))
-        try! persistence.write(entry: olderEntry, forFileAt: makeDummyFileURL(basename: "older"))
+        XCTAssertNoThrow(
+            try persistence.write(
+                entry: newerEntry, for: newerEntry.uploadInfo.id
+            )
+        )
+        XCTAssertNoThrow(
+            try persistence.write(
+                entry: olderEntry, for: olderEntry.uploadInfo.id
+            )
+        )
         
         let persistenceNextSession = UploadPersistence(innerFile: uploadsFile, atURL: makeDummyFileURL(basename: "fake-cache-file"))
-        let entriesAfterCleanup = try! persistenceNextSession.readAll()
+        let entriesAfterCleanup = try XCTUnwrap(
+            persistenceNextSession.readAll()
+        )
         XCTAssertEqual(
             1,
             entriesAfterCleanup.count,
@@ -170,6 +199,7 @@ final class UploadPersistenceTests: XCTestCase {
     
     private func renameDummyUploadInfo(basename: String) -> UploadInfo {
         return UploadInfo(
+            id: UUID().uuidString,
             uploadURL: URL(string: "https://dummy.site/page/\(basename)")!,
             videoFile: URL(string: "file://path/to/dummy/file/\(basename)")!,
             chunkSize: 100,
