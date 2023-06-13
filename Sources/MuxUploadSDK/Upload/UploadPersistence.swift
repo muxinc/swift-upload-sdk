@@ -15,16 +15,16 @@ class UploadPersistence {
     private static let ENTRY_TTL: TimeInterval = 3 * 24 * 60 * 60 // 3 days
     
     private let fileURL: URL
-    private var cache: [URL : PersistenceEntry]? // populated on first write for this object (see ensureCache())
+    private var cache: [String : PersistenceEntry]? // populated on first write for this object (see ensureCache())
     private let uploadsFile: UploadsFile
     
     func update(uploadState state: ChunkedFileUploader.InternalUploadState, forUpload upload: UploadInfo) {
         do {
             // If the new state is persistable, persist it (overwriting the old) otherwise delete it
             if let entry = PersistenceEntry.fromUploadState(state, forUpload: upload) {
-                try write(entry: entry, forFileAt: upload.videoFile)
+                try write(entry: entry, for: upload.id)
             } else {
-                try remove(entryAtAbsUrl: upload.uploadURL)
+                try remove(entryAtID: upload.id)
             }
         } catch {
             // This makes a lot of noise on the emulator, but might be worth logging if you're having issues around here
@@ -46,10 +46,10 @@ class UploadPersistence {
         }
     }
     
-    func remove(entryAtAbsUrl url: URL) throws {
+    func remove(entryAtID id: String) throws {
         try maybeOpenCache()
         if var cache = cache {
-            cache.removeValue(forKey: url)
+            cache.removeValue(forKey: id)
             self.cache = cache
             // write-through
             try uploadsFile.writeContents(of: UploadsFileContents(mapOf: cache))
@@ -58,10 +58,10 @@ class UploadPersistence {
     
     /// Directly writes entry. Updates are written-through the internal cache to the backing file
     ///  This method does I/O
-    func write(entry: PersistenceEntry, forFileAt fileUrl: URL) throws {
+    func write(entry: PersistenceEntry, for uploadID: String) throws {
         try maybeOpenCache()
         if var cache = cache {
-            cache.updateValue(entry, forKey: fileUrl)
+            cache.updateValue(entry, forKey: uploadID)
             self.cache = cache
             try uploadsFile.writeContents(
                 of: UploadsFileContents(entries: cache.map { (key, value) in value })
@@ -71,10 +71,10 @@ class UploadPersistence {
     }
     
     /// Directly reads a single entry based on the file URL given
-    func readEntry(forFileAt fileUrl: URL) throws -> PersistenceEntry? {
+    func readEntry(uploadID: String) throws -> PersistenceEntry? {
         try maybeOpenCache()
         if let cache = cache {
-            return cache[fileUrl.absoluteURL]
+            return cache[uploadID]
         } else {
             return nil
         }
@@ -93,7 +93,7 @@ class UploadPersistence {
         let nowish = Date().timeIntervalSince1970
         for entry in allEntries {
             if (nowish - entry.savedAt) > UploadPersistence.ENTRY_TTL {
-                try remove(entryAtAbsUrl: entry.uploadInfo.videoFile)
+                try remove(entryAtID: entry.uploadInfo.id)
             }
         }
     }
@@ -182,9 +182,9 @@ protocol UploadsFile {
 struct UploadsFileContents : Codable {
     let entriesAbsFileUrlToUploadInfo: [PersistenceEntry]
     
-    func asDictionary() -> [URL : PersistenceEntry] {
+    func asDictionary() -> [String : PersistenceEntry] {
         return entriesAbsFileUrlToUploadInfo.reduce(into: [:]) { (map, ent) -> () in
-            map.updateValue(ent, forKey: ent.uploadInfo.videoFile)
+            map.updateValue(ent, forKey: ent.uploadInfo.id)
         }
     }
     
@@ -192,7 +192,7 @@ struct UploadsFileContents : Codable {
         self.entriesAbsFileUrlToUploadInfo = entries
     }
     
-    init(mapOf items: [URL : PersistenceEntry]) {
+    init(mapOf items: [String : PersistenceEntry]) {
         self.entriesAbsFileUrlToUploadInfo = items.compactMap({ (key, value) in value })
     }
 }
