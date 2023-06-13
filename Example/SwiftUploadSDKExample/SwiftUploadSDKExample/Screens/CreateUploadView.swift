@@ -148,7 +148,7 @@ fileprivate struct ThumbnailView: View {
             Spacer()
             StretchyDefaultButton("Upload") {
                 if let preparedMedia = preparedMedia {
-                    let upload = uploadCreationVM.startUpload(preparedMedia: preparedMedia, forceRestart: true)
+                    uploadCreationVM.startUpload(preparedMedia: preparedMedia, forceRestart: true)
                     dismiss()
                 }
             }
