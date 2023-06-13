@@ -13,7 +13,6 @@
 name: Upload DocC DevDocs (Staging)
 
 on:
-  # TODO: Not push?
   push:
   workflow_dispatch:
 
