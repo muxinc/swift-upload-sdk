@@ -57,7 +57,8 @@ fileprivate struct ErrorView: View {
                     .foregroundColor(.red)
                     Spacer()
                         .frame(maxHeight: 12)
-                    Text("Couln't prepare the video for upload. Please try another video")
+
+                    Text(message)
                         .foregroundColor(White)
                         .multilineTextAlignment(.center)
                         .font(.system(size: 12))
@@ -80,9 +81,22 @@ fileprivate struct ErrorView: View {
     }
     
     let error: Error?
+
+    let message: String
     
     init(error: Error? = nil) {
         self.error = error
+        self.message = "Couldn't prepare the video for upload. Please try another video."
+    }
+
+    init(error: UploadCreationModel.PickerError) {
+        self.error = error
+
+        if error == UploadCreationModel.PickerError.createUploadFailed {
+            self.message = "Couldn't create direct upload. Check your access token and network connectivity."
+        } else {
+            self.message = "Couldn't prepare the video for upload. Please try another video."
+        }
     }
 }
 
