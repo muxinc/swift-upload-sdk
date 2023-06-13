@@ -11,7 +11,7 @@ import MuxUploadSDK
 
 class UploadCreationModel : ObservableObject {
     
-    struct PickerError: Error {
+    struct PickerError: Error, Equatable {
         
         static var unexpectedFormat: PickerError {
             PickerError(localizedDescription: "Unexpected video file format")
@@ -23,6 +23,10 @@ class UploadCreationModel : ObservableObject {
         
         static var createUploadFailed: PickerError {
             PickerError(localizedDescription: "Upload could not be created")
+        }
+
+        static var assetExportSessionFailed: PickerError {
+            PickerError(localizedDescription: "Upload could not be exported")
         }
         
         var localizedDescription: String
@@ -71,7 +75,7 @@ class UploadCreationModel : ObservableObject {
         
         guard let assetIdentitfier = pickerResult.assetIdentifier else {
             NSLog("!! No Asset ID for chosen asset")
-            exportState = .failure(nil)
+            exportState = .failure(UploadCreationModel.PickerError.assetExportSessionFailed)
             return
         }
         let options = PHFetchOptions()
@@ -93,7 +97,7 @@ class UploadCreationModel : ObservableObject {
             DispatchQueue.main.async {
                 guard let exportSession = exportSession else {
                     self.logger.error("!! No Export session")
-                    self.exportState = .failure(nil)
+                    self.exportState = .failure(UploadCreationModel.PickerError.assetExportSessionFailed)
                     return
                 }
                 self.exportToOutFile(session: exportSession, outFile: tempFile)
@@ -207,7 +211,7 @@ struct PreparedUpload {
 }
 
 enum ExportState {
-    case not_started, preparing, failure(UploadCreationModel.PickerError?), ready(PreparedUpload)
+    case not_started, preparing, failure(UploadCreationModel.PickerError), ready(PreparedUpload)
 }
 
 enum PhotosAuthState {
