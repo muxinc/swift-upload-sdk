@@ -39,7 +39,7 @@ public final class UploadManager {
     public func findStartedUpload(ofFile url: URL) -> MuxUpload? {
         if let uploader = Dictionary<URL, ChunkedFileUploader>(
             uniqueKeysWithValues: uploadersByID.mapValues { value in
-                (value.uploadInfo.videoFile, value)
+                (value.uploadInfo.inputURL, value)
             }
             .values
         )[url] {
@@ -109,16 +109,11 @@ public final class UploadManager {
             self.notifyDelegates()
         }
     }
-    
-    internal func findUploaderFor(videoFile url: URL) -> ChunkedFileUploader? {
-        return Dictionary<URL, ChunkedFileUploader>(
-            uniqueKeysWithValues: uploadersByID.mapValues { value in
-                (value.uploadInfo.videoFile, value)
-            }
-            .values
-        )[url]
-    }
 
+    internal func findUploader(uploadID: String) -> ChunkedFileUploader? {
+        return uploadersByID[uploadID]
+    }
+    
     internal func registerUploader(_ fileWorker: ChunkedFileUploader, withId id: String) {
         uploadersByID.updateValue(fileWorker, forKey: fileWorker.uploadInfo.id)
         fileWorker.addDelegate(withToken: UUID().uuidString, uploaderDelegate)

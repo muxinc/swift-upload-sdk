@@ -45,8 +45,8 @@ final class UploadPersistenceTests: XCTestCase {
             "two items should have been written"
         )
         XCTAssertEqual(
-            readItem!.uploadInfo.videoFile,
-            e1.uploadInfo.videoFile,
+            readItem!.uploadInfo.inputURL,
+            e1.uploadInfo.inputURL,
             "Should read the same item as written"
         )
     }
@@ -91,14 +91,14 @@ final class UploadPersistenceTests: XCTestCase {
         )
         XCTAssertEqual(
             // remember, they're swapped
-            readItem2.uploadInfo.videoFile,
-            e1.uploadInfo.videoFile,
+            readItem2.uploadInfo.inputURL,
+            e1.uploadInfo.inputURL,
             "read() should return the right item"
         )
         XCTAssertEqual(
             // remember, they're swapped
-            readItem1.uploadInfo.videoFile,
-            e2.uploadInfo.videoFile,
+            readItem1.uploadInfo.inputURL,
+            e2.uploadInfo.inputURL,
             "read() should return the right item"
         )
     }
@@ -135,8 +135,8 @@ final class UploadPersistenceTests: XCTestCase {
             "one item should remain"
         )
         XCTAssertEqual(
-            readItem!.uploadInfo.videoFile,
-            e1.uploadInfo.videoFile,
+            readItem!.uploadInfo.inputURL,
+            e1.uploadInfo.inputURL,
             "Should read the same item as written"
         )
     }
@@ -179,7 +179,7 @@ final class UploadPersistenceTests: XCTestCase {
             "Only one entry should be saved after cleanup"
         )
         XCTAssertEqual(
-            entriesAfterCleanup[0].uploadInfo.videoFile,
+            entriesAfterCleanup[0].uploadInfo.inputURL,
             makeDummyFileURL(basename: "newer"),
             "The newer entry should be saved but not the older"
         )
@@ -202,9 +202,7 @@ final class UploadPersistenceTests: XCTestCase {
             id: UUID().uuidString,
             uploadURL: URL(string: "https://dummy.site/page/\(basename)")!,
             videoFile: URL(string: "file://path/to/dummy/file/\(basename)")!,
-            chunkSize: 100,
-            retriesPerChunk: 3,
-            optOutOfEventTracking: true
+            options: .default
         )
     }
 }

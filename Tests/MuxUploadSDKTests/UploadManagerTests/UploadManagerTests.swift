@@ -2,6 +2,7 @@
 //  UploadManagerTests.swift
 //
 
+import AVFoundation
 import Foundation
 import XCTest
 
@@ -22,26 +23,14 @@ class UploadManagerTests: XCTestCase {
         )
 
         let upload = MuxUpload(
-            uploadInfo: UploadInfo(
-                id: UUID().uuidString,
-                uploadURL: uploadURL,
-                videoFile: videoInputURL,
-                chunkSize: 8,
-                retriesPerChunk: 2,
-                optOutOfEventTracking: true
-            ),
+            input: UploadInput(status: .ready(AVAsset(url: videoInputURL))),
+            options: .default,
             uploadManager: uploadManager
         )
 
         let duplicateUpload = MuxUpload(
-            uploadInfo: UploadInfo(
-                id: UUID().uuidString,
-                uploadURL: uploadURL,
-                videoFile: videoInputURL,
-                chunkSize: 8,
-                retriesPerChunk: 2,
-                optOutOfEventTracking: true
-            ),
+            input: UploadInput(status: .ready(AVAsset(url: videoInputURL))),
+            options: .default,
             uploadManager: uploadManager
         )
 

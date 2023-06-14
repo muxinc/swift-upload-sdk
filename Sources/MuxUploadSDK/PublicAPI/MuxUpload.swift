@@ -150,7 +150,7 @@ public final class MuxUpload : Hashable, Equatable {
 
     private let manageBySDK: Bool
     private var id: String {
-        uploadInfo!.id
+        uploadInfo.id
     }
     private let uploadManager: UploadManager
     private let inputInspector: UploadInputInspector = UploadInputInspector()
@@ -262,15 +262,6 @@ public final class MuxUpload : Hashable, Equatable {
         self.manageBySDK = manage
         self.options = options
         self.uploadManager = uploadManager
-
-        let uploadInfo = UploadInfo(
-            id: UUID().uuidString,
-            uploadURL: uploadURL,
-            videoFile: URL(string: "file://")!,
-            chunkSize: options.transport.chunkSize,
-            retriesPerChunk: options.transport.retriesPerChunk,
-            optOutOfEventTracking: options.eventTracking.optedOut
-        )
     }
 
     internal convenience init(
@@ -337,13 +328,13 @@ public final class MuxUpload : Hashable, Equatable {
     /**
     URL to the file that will be uploaded
      */
-    public var videoFile: URL { get { return uploadInfo!.videoFile } }
+    public var videoFile: URL? { return uploadInfo?.inputURL }
     
     /**
      The remote endpoint that this object uploads to
      */
 
-    public var uploadURL: URL { get { return uploadInfo!.uploadURL } }
+    public var uploadURL: URL? { return uploadInfo?.uploadURL }
     // TODO: Computed Properties for some other UploadInfo properties
     
     /**
@@ -353,7 +344,34 @@ public final class MuxUpload : Hashable, Equatable {
         // Use an existing globally-managed upload if desired & one exists
         if self.manageBySDK && fileWorker == nil {
             // See if there's anything in progress already
-            fileWorker = uploadManager.findUploaderFor(videoFile: videoFile)
+            fileWorker = uploadManager.findUploader(
+                uploadID: id
+            )
+        }
+        if fileWorker != nil && !forceRestart {
+            MuxUploadSDK.logger?.warning("start() called but upload is already in progress")
+            fileWorker?.addDelegate(
+                withToken: id,
+                InternalUploaderDelegate { [self] state in handleStateUpdate(state) }
+            )
+            fileWorker?.start()
+            return
+        }
+
+        // Start a new upload
+        if forceRestart {
+            cancel()
+        }
+    }
+
+    private func startUpload(
+        forceRestart: Bool
+    ) {
+        if self.manageBySDK {
+            // See if there's anything in progress already
+            fileWorker = uploadManager.findUploader(
+                uploadID: id
+            )
         }
         if fileWorker != nil && !forceRestart {
             MuxUploadSDK.logger?.warning("start() called but upload is already in progress")

@@ -173,3 +173,23 @@ public struct UploadOptions {
     }
 
 }
+
+extension UploadOptions: Codable { }
+
+extension UploadOptions.EventTracking: Codable { }
+
+extension UploadOptions.InputStandardization: Codable { }
+
+extension UploadOptions.InputStandardization.MaximumResolution: Codable { }
+
+extension UploadOptions.Transport: Codable { }
+
+extension UploadOptions: Equatable { }
+
+extension UploadOptions.EventTracking: Equatable { }
+
+extension UploadOptions.InputStandardization: Equatable { }
+
+extension UploadOptions.InputStandardization.MaximumResolution: Equatable { }
+
+extension UploadOptions.Transport: Equatable { }
