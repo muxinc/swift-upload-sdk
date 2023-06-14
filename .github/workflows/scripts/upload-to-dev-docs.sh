@@ -37,6 +37,8 @@ echo
 # Currently set to --dryrun for testing, which doesn't do anything except list files that get uploaded or deleted. 
 # Add --delete flag to remove files in the S3 directory that are not in the local directory
 # For more: https://awscli.amazonaws.com/v2/documentation/api/latest/reference/s3/sync.html#description
+aws s3 rm --recursive "s3://mux-devdocs/${1}/${2}/"
+aws s3 rm --recursive "s3://mux-devdocs/upload-swift/latest/"
 aws s3 sync $1 "s3://mux-devdocs/${1}"
 
 echo "Propagating index.html"
