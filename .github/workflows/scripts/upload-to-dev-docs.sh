@@ -38,7 +38,7 @@ echo
 # Add --delete flag to remove files in the S3 directory that are not in the local directory
 # For more: https://awscli.amazonaws.com/v2/documentation/api/latest/reference/s3/sync.html#description
 aws s3 rm --recursive "s3://mux-devdocs/${1}/${2}/"
-aws s3 rm --recursive "s3://mux-devdocs/upload-swift/latest/"
+aws s3 rm --recursive "s3://mux-devdocs/${1}/latest/"
 aws s3 sync $1 "s3://mux-devdocs/${1}"
 
 echo "Propagating index.html"
