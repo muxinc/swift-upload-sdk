@@ -56,7 +56,7 @@ jobs:
           aws s3 rm --recursive "s3://mux-devdocs/upload-swift/staging/"
           aws s3 sync .build/upload-swift/staging s3://mux-devdocs/upload-swift/staging/
           aws s3api copy-object --copy-source "mux-devdocs/upload-swift/staging/documentation/muxuploadsdk/index.html" --key "upload-swift/staging/documentation/muxuploadsdk/" --bucket mux-devdocs
-          aws s3api copy-object --copy-source "mux-devdocs/upload-swift/latest/documentation/muxspaces/index.html" --key "upload-swift/latest/documentation/muxuploadsdk/" --bucket mux-devdocs
+          aws s3api copy-object --copy-source "mux-devdocs/upload-swift/latest/documentation/muxspaces/index.html" --key "upload-swift/staging/documentation/muxuploadsdk/" --bucket mux-devdocs
       - name: Update the devdocs site
         run: |
           echo "${{ secrets.DOCS_REPO_PAT }}" | gh auth login --with-token
