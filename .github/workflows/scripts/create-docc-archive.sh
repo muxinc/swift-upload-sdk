@@ -96,12 +96,14 @@ mkdir -p $DOCS_ROOT_DIR
 
 mkdir -p $DOCS_ROOT_DIR/$latest_subdirectory_name
 
-cp -r ./$output_path/. ./$DOCS_ROOT_DIR/$latest_subdirectory_name
-
 # Replace index.html with a redirect to documentation/your-lib-name/ for 'latest'
 sed -e "s/__VERSION__/${latest_subdirectory_name}/" \
     -e "s/__SLUG__/${DOCS_ROOT_DIR}/g" \
     "../${WORKFLOWS_DIR}/scripts/index.html.template" > $DOCS_ROOT_DIR/${latest_subdirectory_name}/index.html
+
+# For the record this overwrites our faked index.html but that helps it work
+cp -r ./$output_path/. ./$DOCS_ROOT_DIR/$latest_subdirectory_name
+
 
 mv $output_path $DOCS_ROOT_DIR
 

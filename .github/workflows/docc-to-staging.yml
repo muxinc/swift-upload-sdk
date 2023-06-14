@@ -53,7 +53,7 @@ jobs:
         #   target_scheme: MuxUploadSDK
         #   devdocs_bucket: upload-swift
         # TODO: Staging upload shouldn't do 'latest'
-        run : |
+        run: |
           .github/workflows/scripts/upload-to-dev-docs.sh upload-swift staging
         # run: |
         #   aws s3 rm --recursive "s3://mux-devdocs/upload-swift/staging/"
