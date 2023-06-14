@@ -53,13 +53,15 @@ jobs:
         #   target_scheme: MuxUploadSDK
         #   devdocs_bucket: upload-swift
         # TODO: Staging upload shouldn't do 'latest'
-        run: |
-          aws s3 rm --recursive "s3://mux-devdocs/upload-swift/staging/"
-          aws s3 rm --recursive "s3://mux-devdocs/upload-swift/latest/"
-          aws s3 sync .build/upload-swift/staging s3://mux-devdocs/upload-swift/staging/
-          aws s3 sync .build/upload-swift/latest s3://mux-devdocs/upload-swift/latest/
-          aws s3api copy-object --copy-source "mux-devdocs/upload-swift/staging/documentation/muxuploadsdk/index.html" --key "upload-swift/staging/documentation/muxuploadsdk/" --bucket mux-devdocs
-          aws s3api copy-object --copy-source "mux-devdocs/upload-swift/latest/documentation/muxuploadsdk/index.html" --key "upload-swift/staging/documentation/muxuploadsdk/" --bucket mux-devdocs
+        run : |
+          .github/workflows/scripts/upload-to-dev-docs.sh upload-swift staging
+        # run: |
+        #   aws s3 rm --recursive "s3://mux-devdocs/upload-swift/staging/"
+        #   aws s3 rm --recursive "s3://mux-devdocs/upload-swift/latest/"
+        #   aws s3 sync .build/upload-swift/staging s3://mux-devdocs/upload-swift/staging/
+        #   aws s3 sync .build/upload-swift/latest s3://mux-devdocs/upload-swift/latest/
+        #   aws s3api copy-object --copy-source "mux-devdocs/upload-swift/staging/documentation/muxuploadsdk/index.html" --key "upload-swift/staging/documentation/muxuploadsdk/" --bucket mux-devdocs
+        #   aws s3api copy-object --copy-source "mux-devdocs/upload-swift/latest/documentation/muxuploadsdk/index.html" --key "upload-swift/staging/documentation/muxuploadsdk/" --bucket mux-devdocs
       - name: Update the devdocs site
         run: |
           echo "${{ secrets.DOCS_REPO_PAT }}" | gh auth login --with-token
