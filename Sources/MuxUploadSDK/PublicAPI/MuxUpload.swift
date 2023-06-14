@@ -302,6 +302,17 @@ public final class MuxUpload : Hashable, Equatable {
     }
 }
 
+extension MuxUpload.UploadError {
+    internal init(
+        lastStatus: MuxUpload.Status
+    ) {
+        self.lastStatus = lastStatus
+        self.code = MuxErrorCase.unknown
+        self.message = ""
+        self.reason = nil
+    }
+}
+
 fileprivate struct InternalUploaderDelegate : ChunkedFileUploaderDelegate {
     let outerDelegate: (ChunkedFileUploader.InternalUploadState) -> Void
     
@@ -363,10 +374,7 @@ extension Error {
             }
         } else {
             return MuxUpload.UploadError(
-                lastStatus: lastSeenUploadStatus,
-                code: MuxErrorCase.unknown,
-                message: "unknown",
-                reason: nil
+                lastStatus: lastSeenUploadStatus
             )
         }
     }
