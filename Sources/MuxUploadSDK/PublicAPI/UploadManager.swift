@@ -37,16 +37,16 @@ public final class UploadManager {
     /// to track and control its state
     /// Returns nil if there was no uplod in progress for thr given file
     public func findStartedUpload(ofFile url: URL) -> MuxUpload? {
-        if let uploader = Dictionary<URL, ChunkedFileUploader>(
-            uniqueKeysWithValues: uploadersByID.mapValues { value in
-                (value.uploadInfo.videoFile, value)
-            }
-            .values
-        )[url] {
-            return MuxUpload(wrapping: uploader, uploadManager: self)
-        } else {
+        guard let uploader = findUploader(
+            inputFileURL: url
+        ) else {
             return nil
         }
+
+        return MuxUpload(
+            wrapping: uploader,
+            uploadManager: self
+        )
     }
     
     /// Returns all uploads currently-managed uploads.
@@ -109,22 +109,30 @@ public final class UploadManager {
             self.notifyDelegates()
         }
     }
-    
-    internal func findUploaderFor(videoFile url: URL) -> ChunkedFileUploader? {
-        return Dictionary<URL, ChunkedFileUploader>(
-            uniqueKeysWithValues: uploadersByID.mapValues { value in
-                (value.uploadInfo.videoFile, value)
-            }
-            .values
-        )[url]
+
+    internal func findUploader(
+        inputFileURL: URL
+    ) -> ChunkedFileUploader? {
+        guard let uploader = uploadersByID.values.first(where: { uploader in
+            uploader.inputFileURL == inputFileURL
+        }) else {
+            return nil
+        }
+
+        return uploader
     }
 
+    internal func findUploader(uploadID: String) -> ChunkedFileUploader? {
+        return uploadersByID[uploadID]
+    }
+    
     internal func registerUploader(_ fileWorker: ChunkedFileUploader, withId id: String) {
         uploadersByID.updateValue(fileWorker, forKey: fileWorker.uploadInfo.id)
         fileWorker.addDelegate(withToken: UUID().uuidString, uploaderDelegate)
         Task.detached {
             await self.uploadActor.updateUpload(
                 fileWorker.uploadInfo,
+                fileInputURL: fileWorker.inputFileURL,
                 withUpdate: fileWorker.currentState
             )
             self.notifyDelegates()
@@ -151,7 +159,11 @@ public final class UploadManager {
         
         func chunkedFileUploader(_ uploader: ChunkedFileUploader, stateUpdated state: ChunkedFileUploader.InternalUploadState) {
             Task.detached {
-                await manager.uploadActor.updateUpload(uploader.uploadInfo, withUpdate: state)
+                await manager.uploadActor.updateUpload(
+                    uploader.uploadInfo,
+                    fileInputURL: uploader.inputFileURL,
+                    withUpdate: state
+                )
                 manager.notifyDelegates()
             }
             switch state {
@@ -173,34 +185,43 @@ public protocol UploadsUpdatedDelegate: AnyObject {
 internal actor UploadCacheActor {
     private let persistence: UploadPersistence
     
-    func updateUpload(_ info: UploadInfo, withUpdate update: ChunkedFileUploader.InternalUploadState) async {
+    func updateUpload(
+        _ uploadInfo: UploadInfo,
+        fileInputURL: URL,
+        withUpdate update: ChunkedFileUploader.InternalUploadState
+    ) async {
         Task {
-            persistence.update(uploadState: update, forUpload: info)
+            persistence.update(
+                uploadState: update,
+                for: uploadInfo,
+                fileInputURL: fileInputURL
+            )
         }
     }
     
     func getUpload(uploadID: String) async -> ChunkedFileUploader? {
         // reminder: doesn't start the uploader, just makes it
         return await Task<ChunkedFileUploader?, Never> {
-            let optEntry = try? persistence.readEntry(uploadID: uploadID)
-            guard let entry = optEntry else {
-                return nil
-            }
-            return ChunkedFileUploader(uploadInfo: entry.uploadInfo, startingAtByte: entry.lastSuccessfulByte)
+            try? persistence
+                .readEntry(uploadID: uploadID)
+                .map({ entry in
+                    return ChunkedFileUploader(
+                        persistenceEntry: entry
+                    )
+                })
         }.value
     }
 
     func getUpload(ofFileAt: URL) async -> ChunkedFileUploader? {
         return await Task<ChunkedFileUploader?, Never> {
-            guard let matchingEntry = try? persistence.readAll().filter({
-                $0.uploadInfo.uploadURL == ofFileAt
-            }).first else {
+            guard let matchingEntry = try? persistence.readAll().first(
+                where: { $0.uploadInfo.uploadURL == ofFileAt }
+            ) else {
                 return nil
             }
 
             return ChunkedFileUploader(
-                uploadInfo: matchingEntry.uploadInfo,
-                startingAtByte: matchingEntry.lastSuccessfulByte
+                persistenceEntry: matchingEntry
             )
         }.value
     }
@@ -208,7 +229,9 @@ internal actor UploadCacheActor {
     func getAllUploads() async -> [ChunkedFileUploader] {
         return await Task<[ChunkedFileUploader]?, Never> {
             return try? persistence.readAll().compactMap { it in
-                ChunkedFileUploader(uploadInfo: it.uploadInfo, startingAtByte: it.lastSuccessfulByte)
+                ChunkedFileUploader(
+                    persistenceEntry: it
+                )
             }
         }.value ?? []
     }
