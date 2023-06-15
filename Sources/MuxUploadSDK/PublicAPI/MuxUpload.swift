@@ -333,9 +333,11 @@ public final class MuxUpload : Hashable, Equatable {
     public var complete: Bool { get { lastSeenStatus.progress?.completedUnitCount ?? 0 > 0 && lastSeenStatus.progress?.fractionCompleted ?? 0 >= 1.0 } }
     
     /**
-    URL to the file that will be uploaded
+    URL to the file that will be uploaded, will return nil until
+     the upload has been prepared
      */
     public var videoFile: URL? {
+        #warning("This isn't the actual implementation, should return either the exported asset file URL or the standardized file URL depending on the inspection result")
         return (input.sourceAsset as? AVURLAsset)?.url
     }
     
