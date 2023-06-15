@@ -402,7 +402,7 @@ public final class MuxUpload : Hashable, Equatable {
         let completedUnitCount = UInt64({ self.lastSeenStatus.progress?.completedUnitCount ?? 0 }())
         let fileWorker = ChunkedFileUploader(
             uploadInfo: input.uploadInfo,
-            fileInputURL: videoFile!,
+            inputFileURL: videoFile!,
             file: ChunkedFile(chunkSize: input.uploadInfo.options.transport.chunkSize),
             startingByte: completedUnitCount
         )

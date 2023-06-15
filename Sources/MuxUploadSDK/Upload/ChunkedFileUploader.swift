@@ -189,7 +189,7 @@ class ChunkedFileUploader {
     ) {
         self.init(
             uploadInfo: persistenceEntry.uploadInfo,
-            fileInputURL: persistenceEntry.inputFileURL,
+            inputFileURL: persistenceEntry.inputFileURL,
             file: ChunkedFile(chunkSize: persistenceEntry.uploadInfo.options.transport.chunkSize),
             startingByte: persistenceEntry.lastSuccessfulByte
         )
@@ -197,14 +197,14 @@ class ChunkedFileUploader {
     
     init(
         uploadInfo: UploadInfo,
-        fileInputURL: URL,
+        inputFileURL: URL,
         file: ChunkedFile,
         startingByte: UInt64 = 0
     ) {
         self.uploadInfo = uploadInfo
         self.file = file
         self.lastReadCount = startingByte
-        self.inputFileURL = fileInputURL
+        self.inputFileURL = inputFileURL
     }
     
     enum InternalUploadState {
