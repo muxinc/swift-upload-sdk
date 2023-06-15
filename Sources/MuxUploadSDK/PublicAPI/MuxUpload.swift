@@ -399,7 +399,8 @@ public final class MuxUpload : Hashable, Equatable {
         let fileWorker = ChunkedFileUploader(
             uploadInfo: input.uploadInfo!,
             fileInputURL: videoFile!,
-            file: ChunkedFile(chunkSize: input.uploadInfo!.options.transport.chunkSize)
+            file: ChunkedFile(chunkSize: input.uploadInfo.options.transport.chunkSize),
+            startingByte: completedUnitCount
         )
         fileWorker.addDelegate(
             withToken: id,
