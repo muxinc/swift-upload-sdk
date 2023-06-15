@@ -18,6 +18,15 @@ public struct UploadOptions {
         /// associated request fails
         public var retriesPerChunk: Int
 
+        /// Initializes options that govern network transport
+        /// by the SDK
+        ///
+        /// - Parameters:
+        ///     - chunkSize: the size of each file chunk in
+        ///     bytes the SDK sends when uploading, default
+        ///     value is 8MB
+        ///     - retriesPerChunk: number of retry attempts
+        ///     if the chunk request fails, default value is 3
         public init(
             chunkSize: Int = 8 * 1024 * 1024,
             retriesPerChunk: Int = 3
@@ -32,13 +41,6 @@ public struct UploadOptions {
 
     /// Settings controlling direct upload input standardization
     public struct InputStandardization {
-
-        public static var `default`: InputStandardization {
-            InputStandardization(
-                isEnabled: true,
-                maximumResolution: .default
-            )
-        }
 
         /// If enabled the SDK will attempt to detect
         /// non-standard input formats and if so detected
@@ -55,24 +57,23 @@ public struct UploadOptions {
             /// Preset standardized upload input to the SDK
             /// default standard resolution of 1920x1080 (1080p).
             case `default`
-            /// Preset standardized upload input to 1280x720
-            /// (720p).
+            /// Limit standardized upload input resolution to
+            /// 1280x720 (720p).
             case preset1280x720  // 720p
-            /// Preset standardized upload input to 1920x1080
-            /// (1080p).
+            /// Limit standardized upload input resolution to
+            /// 1920x1080 (1080p).
             case preset1920x1080 // 1080p
         }
 
-        /// The preset resolution of the standardized upload
-        /// input. If your input resolution is below 1920 by
-        /// 1080 for the width and height, respectively, then
-        /// the resolution will remain unchanged after input
-        /// standardization.
+        /// The maximum resolution of the standardized upload
+        /// input. If the input video provided to the upload
+        /// has a resolution below this value, the resolution
+        /// will remain unchanged after input standardization.
         ///
         /// Example 1: a direct upload input with 1440 x 1080
         /// resolution encoded using Apple ProRes and with
         /// no other non-standard input parameters with
-        /// ``ResolutionPreset.default`` selected.
+        /// ``MaximumResolution.default`` selected.
         ///
         /// If input standardization is enabled, the SDK
         /// will attempt standardize the input into an H.264
@@ -82,18 +83,30 @@ public struct UploadOptions {
         /// Example 2: a direct upload input with 1440 x 1080
         /// resolution encoded using H.264 and with no other
         /// non-standard input format parameters with
-        /// ``ResolutionPreset.preset1280x720`` selected.
+        /// ``MaximumResolution.preset1280x720`` selected.
         ///
-        /// If input standardization is enabled, the SDK will
-        /// not make changes to the resolution of the input.
-        /// The input will be uploaded to Mux as-is.
+        /// If input standardization is enabled, the SDK
+        /// will attempt standardize the input into an H.264
+        /// encoded output with a reduced 1280 x 720 resolution.
         ///
         public var maximumResolution: MaximumResolution = .default
 
-        /// Disable all local input standardization by the SDK,
-        /// any inputs provided to the `MuxUpload` instance
-        /// along with this setting will be uploaded to Mux
-        /// as they are with no local changes.
+        /// Default options where input standardization is
+        /// enabled and the maximum resolution is set to 1080p.
+        public static let `default`: InputStandardization = InputStandardization(
+            isEnabled: true,
+            maximumResolution: .default
+        )
+
+        /// Disable all local input standardization by the SDK.
+        ///
+        /// Initializing an upload with input standardization
+        /// disabled will prevent the SDK from making any
+        /// changes before commencing the upload. All input
+        /// will be uploaded to Mux as-is.
+        ///
+        /// Note: non-standard input will still be converted
+        /// to a standardized format upon ingestion.
         public static let disabled: InputStandardization = InputStandardization(
             isEnabled: false,
             maximumResolution: .default
@@ -110,12 +123,12 @@ public struct UploadOptions {
         }
 
         /// Used to initialize ``UploadOptions.InputStandardization``
-        /// with a target resolution
+        /// with that enables input standardization with
+        /// a maximum resolution
         ///
         /// - Parameters:
-        ///     - maximumResolution: if the input resolution
-        ///     exceeds 1080p, it will be set to the preset
-        ///     after undergoing standardization
+        ///     - maximumResolution: the maximum resolution
+        ///     of the standardized upload input
         public init(
             maximumResolution: MaximumResolution
         ) {
