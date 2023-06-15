@@ -10,7 +10,7 @@ import XCTest
 
 /// Tests the write-through logic of the Upload Peristence. Actual interaction with the filesystem can't be tested
 final class UploadPersistenceTests: XCTestCase {
-    static let OLD_ENTRY_AGE_SEC: TimeInterval = 30 * 24 * 60 * 60
+    static let oldEntryAgeInSeconds: TimeInterval = 30 * 24 * 60 * 60
     
     // TESTS
     // writesInProgressShouldSave
@@ -149,7 +149,7 @@ final class UploadPersistenceTests: XCTestCase {
             uploadInfo: renameDummyUploadInfo(basename: "newer")
         )
         let olderEntry = PersistenceEntry(
-            savedAt: UploadPersistenceTests.OLD_ENTRY_AGE_SEC,
+            savedAt: UploadPersistenceTests.oldEntryAgeInSeconds,
             stateCode: .wasPaused,
             lastSuccessfulByte: 0,
             uploadInfo: renameDummyUploadInfo(basename: "older")
