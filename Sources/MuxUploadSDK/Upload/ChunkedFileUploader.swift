@@ -12,9 +12,10 @@ import Foundation
 /// This object is not externally thread-safe. Access its methods only from the main thread
 /// If you need to start this over again from the beginning, make a new object (and cancel your old one)
 class ChunkedFileUploader {
-    
-    let uploadInfo: UploadInfo
+
     private(set) var currentState: InternalUploadState = .ready
+    let uploadInfo: UploadInfo
+    let inputFileURL: URL
     
     private var delegates: [String : ChunkedFileUploaderDelegate] = [:]
     
@@ -88,7 +89,7 @@ class ChunkedFileUploader {
             do {
                 // It's fine if it's already open, that's handled by ignoring the call
                 let fileSize = try FileManager.default.fileSizeOfItem(
-                    atPath: uploadInfo.videoFile.path
+                    atPath: inputFileURL.path
                 )
                 let result = try await makeWorker().performUpload()
                 file.close()
@@ -99,7 +100,7 @@ class ChunkedFileUploader {
                     finishTime: result.updateTime
                 )
 
-                let asset = AVAsset(url: uploadInfo.videoFile)
+                let asset = AVAsset(url: inputFileURL)
 
                 var duration: CMTime
                 if #available(iOS 15, *) {
@@ -109,7 +110,7 @@ class ChunkedFileUploader {
                     duration = asset.duration
                 }
 
-                if !uploadInfo.optOutOfEventTracking {
+                if !uploadInfo.options.eventTracking.optedOut {
                     reporter.report(
                         startTime: success.startTime,
                         endTime: success.finishTime,
@@ -140,6 +141,7 @@ class ChunkedFileUploader {
     private func makeWorker() -> Worker {
         return Worker(
             uploadInfo: uploadInfo,
+            inputFileURL: inputFileURL,
             chunkedFile: file,
             progress: overallProgress,
             startByte: lastReadCount
@@ -183,19 +185,28 @@ class ChunkedFileUploader {
             self.notifyStateFromMain(state)
         }
     }
-    
-    convenience init(uploadInfo: UploadInfo, startingAtByte: UInt64 = 0) {
+
+    convenience init(
+        persistenceEntry: PersistenceEntry
+    ) {
         self.init(
-            uploadInfo: uploadInfo,
-            file: ChunkedFile(chunkSize: uploadInfo.chunkSize),
-            startingByte: startingAtByte
+            uploadInfo: persistenceEntry.uploadInfo,
+            inputFileURL: persistenceEntry.inputFileURL,
+            file: ChunkedFile(chunkSize: persistenceEntry.uploadInfo.options.transport.chunkSizeInBytes),
+            startingByte: persistenceEntry.lastSuccessfulByte
         )
     }
     
-    init(uploadInfo: UploadInfo, file: ChunkedFile, startingByte: UInt64 = 0) {
+    init(
+        uploadInfo: UploadInfo,
+        inputFileURL: URL,
+        file: ChunkedFile,
+        startingByte: UInt64 = 0
+    ) {
         self.uploadInfo = uploadInfo
         self.file = file
         self.lastReadCount = startingByte
+        self.inputFileURL = inputFileURL
     }
     
     enum InternalUploadState {
@@ -231,18 +242,19 @@ struct InternalUploaderError : Error {
 /// This object is not resuable. If you want to resume where you left off, the ``ChunkedFile`` must be seeked to that position
 fileprivate actor Worker {
     private let uploadInfo: UploadInfo
+    private let inputFileURL: URL
     private let chunkedFile: ChunkedFile
     private let overallProgress: Progress
     private let progressHandler: ProgressHandler
     private let startingReadCount: UInt64
     
     func performUpload() async throws -> ChunkedFileUploader.Update {
-        try chunkedFile.openFile(fileURL: uploadInfo.videoFile)
+        try chunkedFile.openFile(fileURL: inputFileURL)
         try chunkedFile.seekTo(byte: startingReadCount)
         
         let startTime = Date().timeIntervalSince1970
         let fileSize = try FileManager.default.fileSizeOfItem(
-            atPath: uploadInfo.videoFile.path
+            atPath: inputFileURL.path
         )
 
         let wideFileSize: Int64
@@ -273,7 +285,7 @@ fileprivate actor Worker {
                 uploadURL: uploadInfo.uploadURL,
                 fileChunk: chunk,
                 chunkProgress: chunkProgress,
-                maxRetries: uploadInfo.retriesPerChunk
+                maxRetries: uploadInfo.options.transport.retriesPerChunk
             )
             chunkWorker.addDelegate {[self] update in
                 // Called on the main thread
@@ -287,9 +299,9 @@ fileprivate actor Worker {
             
             let chunkResult = try await chunkWorker.getTask().value
             MuxUploadSDK.logger?.info("Completed Chunk:\n \(String(describing: chunkResult))")
-        } while (readBytes == uploadInfo.chunkSize)
+        } while (readBytes == uploadInfo.options.transport.chunkSizeInBytes)
         
-        MuxUploadSDK.logger?.info("Finished uploading file: \(self.uploadInfo.videoFile.relativeString)")
+        MuxUploadSDK.logger?.info("Finished uploading file: \(self.inputFileURL.relativeString)")
         
         let finalState = ChunkedFileUploader.Update(
             progress: overallProgress,
@@ -303,12 +315,14 @@ fileprivate actor Worker {
     
     init(
         uploadInfo: UploadInfo,
+        inputFileURL: URL,
         chunkedFile: ChunkedFile,
         progress: Progress,
         startByte: UInt64,
         _ progressHandler: @escaping ProgressHandler
     ) {
         self.uploadInfo = uploadInfo
+        self.inputFileURL = inputFileURL
         self.chunkedFile = chunkedFile
         self.progressHandler = progressHandler
         self.overallProgress = progress
