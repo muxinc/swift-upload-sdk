@@ -10,16 +10,15 @@ extension PHAsset {
     /// Convenience method that requests an ``AVAsset``
     /// containing audiovisual media associated with the callee
     /// ``PHAsset``. If the request succeeds ``MuxUpload``
-    /// is initialized with the received ``AVAsset``
+    /// is initialized with the received ``AVAsset``. This method
+    /// enables network access when performing its request.
     ///
     /// A ``MuxUpload`` can only be initialized from a ``PHAsset``
-    /// whose ``PHAsset.mediaType`` is ``PHAssetMediaType.video``
+    /// whose ``PHAsset.mediaType`` is ``PHAssetMediaType.video``.
     ///
     /// - Parameters:
     ///    - imageManager: an object that facilitates retrieval
     ///    of asset data associated with the callee
-    ///    - requestOptions: options used when requesting
-    ///    an ``AVAsset`` from a ``PHImageManager`
     ///    - options: options used to control the direct
     ///    upload of the input to Mux
     ///    - uploadURL: the URL of your direct upload, see
@@ -29,7 +28,6 @@ extension PHAsset {
     ///    failed or if the ``PHAsset`` callee is not a video
     func prepareForDirectUpload(
         from imageManager: PHImageManager = .default(),
-        requestOptions: PHVideoRequestOptions,
         options: UploadOptions = .default,
         uploadURL: URL,
         completion: @escaping (MuxUpload?) -> ()
@@ -38,6 +36,10 @@ extension PHAsset {
             completion(nil)
             return
         }
+
+        let requestOptions = PHVideoRequestOptions()
+        requestOptions.isNetworkAccessAllowed = true
+        requestOptions.deliveryMode = .highQualityFormat
 
         imageManager
             .requestAVAsset(
