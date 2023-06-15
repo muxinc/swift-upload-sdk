@@ -219,7 +219,7 @@ public final class MuxUpload : Hashable, Equatable {
                     options: UploadOptions(
                         inputStandardization: inputStandardization,
                         transport: UploadOptions.Transport(
-                            chunkSize: chunkSize,
+                            chunkSizeInBytes: chunkSize,
                             retriesPerChunk: retriesPerChunk
                         ),
                         eventTracking: eventTracking
@@ -392,7 +392,7 @@ public final class MuxUpload : Hashable, Equatable {
         let fileWorker = ChunkedFileUploader(
             uploadInfo: input.uploadInfo,
             inputFileURL: videoFile,
-            file: ChunkedFile(chunkSize: input.uploadInfo.options.transport.chunkSize),
+            file: ChunkedFile(chunkSize: input.uploadInfo.options.transport.chunkSizeInBytes),
             startingByte: completedUnitCount
         )
         fileWorker.addDelegate(

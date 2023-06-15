@@ -190,7 +190,7 @@ class ChunkedFileUploader {
         self.init(
             uploadInfo: persistenceEntry.uploadInfo,
             inputFileURL: persistenceEntry.inputFileURL,
-            file: ChunkedFile(chunkSize: persistenceEntry.uploadInfo.options.transport.chunkSize),
+            file: ChunkedFile(chunkSize: persistenceEntry.uploadInfo.options.transport.chunkSizeInBytes),
             startingByte: persistenceEntry.lastSuccessfulByte
         )
     }
@@ -287,7 +287,7 @@ fileprivate actor Worker {
             
             let chunkResult = try await chunkWorker.getTask().value
             MuxUploadSDK.logger?.info("Completed Chunk:\n \(String(describing: chunkResult))")
-        } while (readBytes == uploadInfo.options.transport.chunkSize)
+        } while (readBytes == uploadInfo.options.transport.chunkSizeInBytes)
         
         MuxUploadSDK.logger?.info("Finished uploading file: \(self.inputFileURL.relativeString)")
         
