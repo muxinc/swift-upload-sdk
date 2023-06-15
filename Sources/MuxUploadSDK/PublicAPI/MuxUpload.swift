@@ -379,6 +379,21 @@ public final class MuxUpload : Hashable, Equatable {
     private func startUpload(
         forceRestart: Bool
     ) {
+        guard let videoFile else {
+            /// FIXME: Placeholder
+            resultHandler?(
+                .failure(
+                    UploadError(
+                        lastStatus: uploadStatus,
+                        code: .unknown,
+                        message: "",
+                        reason: nil
+                    )
+                )
+            )
+            return
+        }
+
         if self.manageBySDK {
             // See if there's anything in progress already
             fileWorker = uploadManager.findUploader(
@@ -402,7 +417,7 @@ public final class MuxUpload : Hashable, Equatable {
         let completedUnitCount = UInt64({ self.lastSeenStatus.progress?.completedUnitCount ?? 0 }())
         let fileWorker = ChunkedFileUploader(
             uploadInfo: input.uploadInfo,
-            inputFileURL: videoFile!,
+            inputFileURL: videoFile,
             file: ChunkedFile(chunkSize: input.uploadInfo.options.transport.chunkSize),
             startingByte: completedUnitCount
         )
