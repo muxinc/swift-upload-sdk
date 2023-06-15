@@ -20,13 +20,13 @@ final class UploadPersistenceTests: XCTestCase {
     func testWrite() throws {
         let e1 = PersistenceEntry(
             savedAt: Date().timeIntervalSince1970,
-            stateCode: .was_paused,
+            stateCode: .wasPaused,
             lastSuccessfulByte: 0,
             uploadInfo: renameDummyUploadInfo(basename: "e1")
         )
         let e2 = PersistenceEntry(
             savedAt: Date().timeIntervalSince1970,
-            stateCode: .was_paused,
+            stateCode: .wasPaused,
             lastSuccessfulByte: 0,
             uploadInfo: renameDummyUploadInfo(basename: "e2")
         )
@@ -54,13 +54,13 @@ final class UploadPersistenceTests: XCTestCase {
     func testReadAndReadAll() throws {
         let e1 = PersistenceEntry(
             savedAt: Date().timeIntervalSince1970,
-            stateCode: .was_paused,
+            stateCode: .wasPaused,
             lastSuccessfulByte: 0,
             uploadInfo: renameDummyUploadInfo(basename: "e1")
         )
         let e2 = PersistenceEntry(
             savedAt: Date().timeIntervalSince1970,
-            stateCode: .was_paused,
+            stateCode: .wasPaused,
             lastSuccessfulByte: 0,
             uploadInfo: renameDummyUploadInfo(basename: "e2")
         )
@@ -106,13 +106,13 @@ final class UploadPersistenceTests: XCTestCase {
     func testRemove() throws {
         let e1 = PersistenceEntry(
             savedAt: Date().timeIntervalSince1970,
-            stateCode: .was_paused,
+            stateCode: .wasPaused,
             lastSuccessfulByte: 0,
             uploadInfo: renameDummyUploadInfo(basename: "e1")
         )
         let e2 = PersistenceEntry(
             savedAt: Date().timeIntervalSince1970,
-            stateCode: .was_paused,
+            stateCode: .wasPaused,
             lastSuccessfulByte: 0,
             uploadInfo: renameDummyUploadInfo(basename: "e2")
         )
@@ -144,13 +144,13 @@ final class UploadPersistenceTests: XCTestCase {
     func testCleanUpOldEntriesRemovesThreeDayOldEntries() throws {
         let newerEntry = PersistenceEntry(
             savedAt: Date().timeIntervalSince1970,
-            stateCode: .was_paused,
+            stateCode: .wasPaused,
             lastSuccessfulByte: 0,
             uploadInfo: renameDummyUploadInfo(basename: "newer")
         )
         let olderEntry = PersistenceEntry(
             savedAt: UploadPersistenceTests.OLD_ENTRY_AGE_SEC,
-            stateCode: .was_paused,
+            stateCode: .wasPaused,
             lastSuccessfulByte: 0,
             uploadInfo: renameDummyUploadInfo(basename: "older")
         )
