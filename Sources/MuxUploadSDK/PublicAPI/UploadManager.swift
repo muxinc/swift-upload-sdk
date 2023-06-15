@@ -37,9 +37,9 @@ public final class UploadManager {
     /// to track and control its state
     /// Returns nil if there was no uplod in progress for thr given file
     public func findStartedUpload(ofFile url: URL) -> MuxUpload? {
-        guard let uploader = uploadersByID.values.first(where: { uploader in
-            uploader.inputFileURL == url
-        }) else {
+        guard let uploader = findUploader(
+            inputFileURL: url
+        ) else {
             return nil
         }
 
@@ -108,6 +108,18 @@ public final class UploadManager {
             await self.uploadActor.remove(uploadID: id)
             self.notifyDelegates()
         }
+    }
+
+    internal func findUploader(
+        inputFileURL: URL
+    ) -> ChunkedFileUploader? {
+        guard let uploader = uploadersByID.values.first(where: { uploader in
+            uploader.inputFileURL == inputFileURL
+        }) else {
+            return nil
+        }
+
+        return uploader
     }
 
     internal func findUploader(uploadID: String) -> ChunkedFileUploader? {

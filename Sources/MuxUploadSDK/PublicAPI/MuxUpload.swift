@@ -353,32 +353,6 @@ public final class MuxUpload : Hashable, Equatable {
      Begins the upload. You can control what happens when the upload is already started. If `forceRestart` is true, the upload will be restarted. Otherwise, nothing will happen. The default is not to restart
      */
     public func start(forceRestart: Bool = false) {
-        // Use an existing globally-managed upload if desired & one exists
-        if self.manageBySDK && fileWorker == nil {
-            // See if there's anything in progress already
-            fileWorker = uploadManager.findUploader(
-                uploadID: id
-            )
-        }
-        if fileWorker != nil && !forceRestart {
-            MuxUploadSDK.logger?.warning("start() called but upload is already in progress")
-            fileWorker?.addDelegate(
-                withToken: id,
-                InternalUploaderDelegate { [self] state in handleStateUpdate(state) }
-            )
-            fileWorker?.start()
-            return
-        }
-
-        // Start a new upload
-        if forceRestart {
-            cancel()
-        }
-    }
-
-    private func startUpload(
-        forceRestart: Bool
-    ) {
         guard let videoFile else {
             /// FIXME: Placeholder
             resultHandler?(
@@ -397,7 +371,7 @@ public final class MuxUpload : Hashable, Equatable {
         if self.manageBySDK {
             // See if there's anything in progress already
             fileWorker = uploadManager.findUploader(
-                uploadID: id
+                inputFileURL: videoFile
             )
         }
         if fileWorker != nil && !forceRestart {
@@ -409,7 +383,7 @@ public final class MuxUpload : Hashable, Equatable {
             fileWorker?.start()
             return
         }
-        
+
         // Start a new upload
         if forceRestart {
             cancel()
