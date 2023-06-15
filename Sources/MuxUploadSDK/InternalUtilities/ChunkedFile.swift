@@ -46,7 +46,9 @@ class ChunkedFile {
     public func openFile(fileURL: URL) throws {
         if fileHandle == nil {
             do {
-                let fileSize = try readFileSize(url: fileURL)
+                guard let fileSize = try FileManager.default.attributesOfItem(atPath: fileURL.path)[FileAttributeKey.size] as? UInt64 else {
+                    throw ChunkedFileError.invalidState("Cannot retrieve file size")
+                }
                 self._fileSize = fileSize
                 
                 let handle = try FileHandle(forReadingFrom: fileURL)
@@ -101,11 +103,6 @@ class ChunkedFile {
         self.filePos = newFilePos
         
         return chunk
-    }
-    
-    private func readFileSize(url: URL) throws -> UInt64 {
-        let fileAttr = try FileManager.default.attributesOfItem(atPath: url.path)
-        return fileAttr[FileAttributeKey.size] as! UInt64
     }
     
     /// Creates a ``ChunkedFile`` that wraps the file given by the URL. The file will be opened after  calling ``openFile()``
