@@ -52,7 +52,7 @@ struct UploadInput {
         }
     }
 
-    var uploadInfo: UploadInfo? {
+    var uploadInfo: UploadInfo {
         switch status {
         case .ready(_, let uploadInfo):
             return uploadInfo
