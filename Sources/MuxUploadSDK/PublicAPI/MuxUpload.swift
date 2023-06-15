@@ -342,7 +342,9 @@ public final class MuxUpload : Hashable, Equatable {
     /**
      The remote endpoint that this object uploads to
      */
-    public var uploadURL: URL? { return uploadInfo.uploadURL }
+    public var uploadURL: URL {
+        return uploadInfo.uploadURL
+    }
     // TODO: Computed Properties for some other UploadInfo properties
     
     /**
