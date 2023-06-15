@@ -120,15 +120,17 @@ class UploadPersistence {
 /// Flattened version of an upload in progress
 struct PersistenceEntry : Codable {
     let savedAt: TimeInterval
-    let stateCode: StoredState
+    let stateCode: PreviousStateCode
     let lastSuccessfulByte: UInt64
     let uploadInfo: UploadInfo
     
-    enum StoredState : Int, Codable { case was_in_progress = 0, was_paused = 1 }
+    enum PreviousStateCode : Int, Codable {
+        case wasInProgress = 0, wasPaused = 1
+    }
     
     func with(
         savedAt: TimeInterval? = nil,
-        stateCode: StoredState? = nil,
+        stateCode: PreviousStateCode? = nil,
         lastSuccessfulByte: UInt64? = nil,
         uploadInfo: UploadInfo? = nil
     ) -> PersistenceEntry {
@@ -147,19 +149,19 @@ struct PersistenceEntry : Codable {
             // Can start again but from the beginning
         case .starting, .ready: return PersistenceEntry(
             savedAt: Date().timeIntervalSince1970,
-            stateCode: .was_in_progress,
+            stateCode: .wasInProgress,
             lastSuccessfulByte: 0,
             uploadInfo: upload
         )
         case .paused(let update): return PersistenceEntry(
             savedAt: Date().timeIntervalSince1970,
-            stateCode: .was_paused,
+            stateCode: .wasPaused,
             lastSuccessfulByte: UInt64(update.progress.completedUnitCount),
             uploadInfo: upload
         )
         case .uploading(let update): return PersistenceEntry(
             savedAt: Date().timeIntervalSince1970,
-            stateCode: .was_in_progress,
+            stateCode: .wasInProgress,
             lastSuccessfulByte: UInt64(update.progress.completedUnitCount),
             uploadInfo: upload
         )
