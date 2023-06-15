@@ -12,16 +12,16 @@ import Foundation
  Internal representation of a video upload
  */
 struct UploadInfo : Codable {
-
-    var id: String
+    /**
+     Unique internal ID for the upload
+     */
+    var id: String = UUID().uuidString
+    
     /**
      URI of the upload destination
      */
     var uploadURL: URL
-    /**
-     file::// URL to the video file to be uploaded
-     */
-    var inputURL: URL
+
     /**
      Options selected for the upload
      */

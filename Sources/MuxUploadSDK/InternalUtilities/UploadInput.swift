@@ -10,12 +10,12 @@ import Foundation
 struct UploadInput {
 
     internal enum Status {
-        case ready(AVAsset)
-        case started(AVAsset)
-        case underInspection(AVAsset)
-        case standardizing(AVAsset)
-        case standardizationSucceeded(AVAsset)
-        case standardizationFailed(AVAsset)
+        case ready(AVAsset, UploadInfo)
+        case started(AVAsset, UploadInfo)
+        case underInspection(AVAsset, UploadInfo)
+        case standardizing(AVAsset, UploadInfo)
+        case standardizationSucceeded(AVAsset, UploadInfo)
+        case standardizationFailed(AVAsset, UploadInfo)
         case awaitingUploadConfirmation(UploadInfo)
         case uploadInProgress(UploadInfo)
         case uploadPaused(UploadInfo)
@@ -27,17 +27,17 @@ struct UploadInput {
 
     var sourceAsset: AVAsset {
         switch status {
-        case .ready(let sourceAsset):
+        case .ready(let sourceAsset, _):
             return sourceAsset
-        case .started(let sourceAsset):
+        case .started(let sourceAsset, _):
             return sourceAsset
-        case .underInspection(let sourceAsset):
+        case .underInspection(let sourceAsset, _):
             return sourceAsset
-        case .standardizing(let sourceAsset):
+        case .standardizing(let sourceAsset, _):
             return sourceAsset
-        case .standardizationSucceeded(let sourceAsset):
+        case .standardizationSucceeded(let sourceAsset, _):
             return sourceAsset
-        case .standardizationFailed(let sourceAsset):
+        case .standardizationFailed(let sourceAsset, _):
             return sourceAsset
         case .awaitingUploadConfirmation(let uploadInfo):
             return uploadInfo.sourceAsset()
@@ -54,18 +54,18 @@ struct UploadInput {
 
     var uploadInfo: UploadInfo? {
         switch status {
-        case .ready:
-            return nil
-        case .started:
-            return nil
-        case .underInspection:
-            return nil
-        case .standardizing:
-            return nil
-        case .standardizationSucceeded:
-            return nil
-        case .standardizationFailed:
-            return nil
+        case .ready(_, let uploadInfo):
+            return uploadInfo
+        case .started(_, let uploadInfo):
+            return uploadInfo
+        case .underInspection(_, let uploadInfo):
+            return uploadInfo
+        case .standardizing(_, let uploadInfo):
+            return uploadInfo
+        case .standardizationSucceeded(_, let uploadInfo):
+            return uploadInfo
+        case .standardizationFailed(_, let uploadInfo):
+            return uploadInfo
         case .awaitingUploadConfirmation(let uploadInfo):
             return uploadInfo
         case .uploadInProgress(let uploadInfo):
@@ -85,7 +85,10 @@ extension UploadInput.Status: Equatable {
 }
 
 extension UploadInput {
-    init(asset: AVAsset) {
-        self.status = .ready(asset)
+    init(
+        asset: AVAsset,
+        info: UploadInfo
+    ) {
+        self.status = .ready(asset, info)
     }
 }

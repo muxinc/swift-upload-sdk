@@ -37,16 +37,16 @@ public final class UploadManager {
     /// to track and control its state
     /// Returns nil if there was no uplod in progress for thr given file
     public func findStartedUpload(ofFile url: URL) -> MuxUpload? {
-        if let uploader = Dictionary<URL, ChunkedFileUploader>(
-            uniqueKeysWithValues: uploadersByID.mapValues { value in
-                (value.uploadInfo.inputURL, value)
-            }
-            .values
-        )[url] {
-            return MuxUpload(wrapping: uploader, uploadManager: self)
-        } else {
+        guard let uploader = uploadersByID.values.first(where: { uploader in
+            uploader.inputFileURL == url
+        }) else {
             return nil
         }
+
+        return MuxUpload(
+            wrapping: uploader,
+            uploadManager: self
+        )
     }
     
     /// Returns all uploads currently-managed uploads.
@@ -120,6 +120,7 @@ public final class UploadManager {
         Task.detached {
             await self.uploadActor.updateUpload(
                 fileWorker.uploadInfo,
+                fileInputURL: fileWorker.inputFileURL,
                 withUpdate: fileWorker.currentState
             )
             self.notifyDelegates()
@@ -146,7 +147,11 @@ public final class UploadManager {
         
         func chunkedFileUploader(_ uploader: ChunkedFileUploader, stateUpdated state: ChunkedFileUploader.InternalUploadState) {
             Task.detached {
-                await manager.uploadActor.updateUpload(uploader.uploadInfo, withUpdate: state)
+                await manager.uploadActor.updateUpload(
+                    uploader.uploadInfo,
+                    fileInputURL: uploader.inputFileURL,
+                    withUpdate: state
+                )
                 manager.notifyDelegates()
             }
             switch state {
@@ -168,9 +173,17 @@ public protocol UploadsUpdatedDelegate: AnyObject {
 internal actor UploadCacheActor {
     private let persistence: UploadPersistence
     
-    func updateUpload(_ info: UploadInfo, withUpdate update: ChunkedFileUploader.InternalUploadState) async {
+    func updateUpload(
+        _ uploadInfo: UploadInfo,
+        fileInputURL: URL,
+        withUpdate update: ChunkedFileUploader.InternalUploadState
+    ) async {
         Task {
-            persistence.update(uploadState: update, forUpload: info)
+            persistence.update(
+                uploadState: update,
+                for: uploadInfo,
+                fileInputURL: fileInputURL
+            )
         }
     }
     
@@ -181,8 +194,7 @@ internal actor UploadCacheActor {
                 .readEntry(uploadID: uploadID)
                 .map({ entry in
                     return ChunkedFileUploader(
-                        uploadInfo: entry.uploadInfo,
-                        startingAtByte: entry.lastSuccessfulByte
+                        persistenceEntry: entry
                     )
                 })
         }.value
@@ -190,15 +202,14 @@ internal actor UploadCacheActor {
 
     func getUpload(ofFileAt: URL) async -> ChunkedFileUploader? {
         return await Task<ChunkedFileUploader?, Never> {
-            guard let matchingEntry = try? persistence.readAll().filter({
-                $0.uploadInfo.uploadURL == ofFileAt
-            }).first else {
+            guard let matchingEntry = try? persistence.readAll().first(
+                where: { $0.uploadInfo.uploadURL == ofFileAt }
+            ) else {
                 return nil
             }
 
             return ChunkedFileUploader(
-                uploadInfo: matchingEntry.uploadInfo,
-                startingAtByte: matchingEntry.lastSuccessfulByte
+                persistenceEntry: matchingEntry
             )
         }.value
     }
@@ -207,8 +218,7 @@ internal actor UploadCacheActor {
         return await Task<[ChunkedFileUploader]?, Never> {
             return try? persistence.readAll().compactMap { it in
                 ChunkedFileUploader(
-                    uploadInfo: it.uploadInfo,
-                    startingAtByte: it.lastSuccessfulByte
+                    persistenceEntry: it
                 )
             }
         }.value ?? []

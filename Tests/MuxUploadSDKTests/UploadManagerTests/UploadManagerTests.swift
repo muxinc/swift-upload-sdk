@@ -23,14 +23,24 @@ class UploadManagerTests: XCTestCase {
         )
 
         let upload = MuxUpload(
-            input: UploadInput(status: .ready(AVAsset(url: videoInputURL))),
-            options: .default,
+            input: UploadInput(
+                asset: AVAsset(url: videoInputURL),
+                info: UploadInfo(
+                    uploadURL: uploadURL,
+                    options: .default
+                )
+            ),
             uploadManager: uploadManager
         )
 
         let duplicateUpload = MuxUpload(
-            input: UploadInput(status: .ready(AVAsset(url: videoInputURL))),
-            options: .default,
+            input: UploadInput(
+                asset: AVAsset(url: videoInputURL),
+                info: UploadInfo(
+                    uploadURL: uploadURL,
+                    options: .default
+                )
+            ),
             uploadManager: uploadManager
         )
 

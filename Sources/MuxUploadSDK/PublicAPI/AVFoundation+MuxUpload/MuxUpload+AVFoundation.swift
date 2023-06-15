@@ -23,8 +23,13 @@ extension MuxUpload {
         options: UploadOptions
     ) {
         self.init(
-            input: UploadInput(asset: inputAsset),
-            options: options,
+            input: UploadInput(
+                asset: inputAsset,
+                info: UploadInfo(
+                    uploadURL: uploadURL,
+                    options: options
+                )
+            ),
             uploadManager: .shared
         )
     }

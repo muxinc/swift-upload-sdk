@@ -22,13 +22,15 @@ final class UploadPersistenceTests: XCTestCase {
             savedAt: Date().timeIntervalSince1970,
             stateCode: .wasPaused,
             lastSuccessfulByte: 0,
-            uploadInfo: renameDummyUploadInfo(basename: "e1")
+            uploadInfo: renameDummyUploadInfo(basename: "e1"),
+            inputFileURL: URL(string: "file://path/to/dummy/file/e1")!
         )
         let e2 = PersistenceEntry(
             savedAt: Date().timeIntervalSince1970,
             stateCode: .wasPaused,
             lastSuccessfulByte: 0,
-            uploadInfo: renameDummyUploadInfo(basename: "e2")
+            uploadInfo: renameDummyUploadInfo(basename: "e2"),
+            inputFileURL: URL(string: "file://path/to/dummy/file/e2")!
         )
         let persistence = UploadPersistence(innerFile: makeSimulatedUploadsFile(), atURL: makeDummyFileURL(basename: "fake-cache-file"))
         XCTAssertNoThrow(
@@ -45,24 +47,18 @@ final class UploadPersistenceTests: XCTestCase {
             "two items should have been written"
         )
         XCTAssertEqual(
-            readItem!.uploadInfo.inputURL,
-            e1.uploadInfo.inputURL,
+            readItem!.inputFileURL,
+            e1.inputFileURL,
             "Should read the same item as written"
         )
     }
     
     func testReadAndReadAll() throws {
         let e1 = PersistenceEntry(
-            savedAt: Date().timeIntervalSince1970,
-            stateCode: .wasPaused,
-            lastSuccessfulByte: 0,
-            uploadInfo: renameDummyUploadInfo(basename: "e1")
+            basename: "e1"
         )
         let e2 = PersistenceEntry(
-            savedAt: Date().timeIntervalSince1970,
-            stateCode: .wasPaused,
-            lastSuccessfulByte: 0,
-            uploadInfo: renameDummyUploadInfo(basename: "e2")
+            basename: "e2"
         )
         let persistence = UploadPersistence(innerFile: makeSimulatedUploadsFile(), atURL: makeDummyFileURL(basename: "fake-cache-file"))
         XCTAssertNoThrow(
@@ -91,30 +87,24 @@ final class UploadPersistenceTests: XCTestCase {
         )
         XCTAssertEqual(
             // remember, they're swapped
-            readItem2.uploadInfo.inputURL,
-            e1.uploadInfo.inputURL,
+            readItem2.inputFileURL,
+            e1.inputFileURL,
             "read() should return the right item"
         )
         XCTAssertEqual(
             // remember, they're swapped
-            readItem1.uploadInfo.inputURL,
-            e2.uploadInfo.inputURL,
+            readItem1.inputFileURL,
+            e2.inputFileURL,
             "read() should return the right item"
         )
     }
     
     func testRemove() throws {
         let e1 = PersistenceEntry(
-            savedAt: Date().timeIntervalSince1970,
-            stateCode: .wasPaused,
-            lastSuccessfulByte: 0,
-            uploadInfo: renameDummyUploadInfo(basename: "e1")
+            basename: "e1"
         )
         let e2 = PersistenceEntry(
-            savedAt: Date().timeIntervalSince1970,
-            stateCode: .wasPaused,
-            lastSuccessfulByte: 0,
-            uploadInfo: renameDummyUploadInfo(basename: "e2")
+            basename: "e2"
         )
         let persistence = UploadPersistence(innerFile: makeSimulatedUploadsFile(), atURL: makeDummyFileURL(basename: "fake-cache-file"))
         // Shouldn't throw (but not specifically part of the test)
@@ -135,24 +125,19 @@ final class UploadPersistenceTests: XCTestCase {
             "one item should remain"
         )
         XCTAssertEqual(
-            readItem!.uploadInfo.inputURL,
-            e1.uploadInfo.inputURL,
+            readItem!.inputFileURL,
+            e1.inputFileURL,
             "Should read the same item as written"
         )
     }
     
     func testCleanUpOldEntriesRemovesThreeDayOldEntries() throws {
         let newerEntry = PersistenceEntry(
-            savedAt: Date().timeIntervalSince1970,
-            stateCode: .wasPaused,
-            lastSuccessfulByte: 0,
-            uploadInfo: renameDummyUploadInfo(basename: "newer")
+            basename: "newer"
         )
         let olderEntry = PersistenceEntry(
-            savedAt: UploadPersistenceTests.oldEntryAgeInSeconds,
-            stateCode: .wasPaused,
-            lastSuccessfulByte: 0,
-            uploadInfo: renameDummyUploadInfo(basename: "older")
+            basename: "older",
+            savedAt: UploadPersistenceTests.oldEntryAgeInSeconds
         )
         let uploadsFile = makeSimulatedUploadsFile()
         let persistence = UploadPersistence(innerFile: uploadsFile, atURL: makeDummyFileURL(basename: "fake-cache-file"))
@@ -179,7 +164,7 @@ final class UploadPersistenceTests: XCTestCase {
             "Only one entry should be saved after cleanup"
         )
         XCTAssertEqual(
-            entriesAfterCleanup[0].uploadInfo.inputURL,
+            entriesAfterCleanup[0].inputFileURL,
             makeDummyFileURL(basename: "newer"),
             "The newer entry should be saved but not the older"
         )
@@ -201,7 +186,6 @@ final class UploadPersistenceTests: XCTestCase {
         return UploadInfo(
             id: UUID().uuidString,
             uploadURL: URL(string: "https://dummy.site/page/\(basename)")!,
-            videoFile: URL(string: "file://path/to/dummy/file/\(basename)")!,
             options: .default
         )
     }
