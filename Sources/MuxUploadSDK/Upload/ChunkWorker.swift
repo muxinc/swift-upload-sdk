@@ -212,13 +212,13 @@ fileprivate class ProgressReportingURLSessionTaskDelegate : NSObject, URLSession
 }
 
 class ChunkResponseValidator {
-    public static let ACCEPTABLE_HTTP_STATUS_CODES = [200, 201, 202, 204, 308]
-    public static let RETRYABLE_HTTP_STATUS_CODES = [408, 502, 503, 504]
+    public static let acceptableHTTPStatusCodes = [200, 201, 202, 204, 308]
+    public static let retryableHTTPStatusCodes = [408, 502, 503, 504]
     
     func validate(statusCode: Int) -> Disposition {
-        if ChunkResponseValidator.ACCEPTABLE_HTTP_STATUS_CODES.contains(statusCode) {
+        if ChunkResponseValidator.acceptableHTTPStatusCodes.contains(statusCode) {
             return .proceed
-        } else if ChunkResponseValidator.RETRYABLE_HTTP_STATUS_CODES.contains(statusCode) {
+        } else if ChunkResponseValidator.retryableHTTPStatusCodes.contains(statusCode) {
             return .retry
         } else {
             return .error
