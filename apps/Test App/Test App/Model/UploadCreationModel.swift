@@ -56,6 +56,10 @@ class UploadCreationModel : ObservableObject {
     
     /// Prepares a Photos Asset for upload by exporting it to a local temp file
     func tryToPrepare(from pickerResult: PHPickerResult) {
+        if case ExportState.preparing = exportState {
+            return
+        }
+
         // Cancel anything that was already happening
         if let assetRequestId = assetRequestId {
             PHImageManager.default().cancelImageRequest(assetRequestId)
@@ -92,8 +96,10 @@ class UploadCreationModel : ObservableObject {
         }
         
         let exportOptions = PHVideoRequestOptions()
-        //exportOptions.deliveryMode = .highQualityFormat
+        exportOptions.isNetworkAccessAllowed = true
+        exportOptions.deliveryMode = .highQualityFormat
         assetRequestId = PHImageManager.default().requestExportSession(forVideo: phAsset, options: exportOptions, exportPreset: AVAssetExportPresetHighestQuality, resultHandler: {(exportSession, info) -> Void in
+            print(info)
             DispatchQueue.main.async {
                 guard let exportSession = exportSession else {
                     self.logger.error("!! No Export session")
