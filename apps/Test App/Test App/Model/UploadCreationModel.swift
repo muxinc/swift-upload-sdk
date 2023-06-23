@@ -79,7 +79,7 @@ class UploadCreationModel : ObservableObject {
             return
         }
         let options = PHFetchOptions()
-        options.includeAssetSourceTypes = .typeUserLibrary
+        options.includeAssetSourceTypes = [.typeUserLibrary, .typeCloudShared]
         let phAssetResult = PHAsset.fetchAssets(withLocalIdentifiers: [assetIdentitfier], options: options)
         guard let phAsset = phAssetResult.firstObject else {
             self.logger.error("!! No Asset fetched")
