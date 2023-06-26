@@ -22,7 +22,7 @@ class UploadInputInspectionWorker {
             sourceInput.loadTracks(
                 withMediaType: .video
             ) { tracks, error in
-                if let error {
+                if error != nil {
                     completionHandler(.inspectionFailure)
                     return
                 }
