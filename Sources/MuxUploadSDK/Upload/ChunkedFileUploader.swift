@@ -209,6 +209,21 @@ class ChunkedFileUploader {
     
     enum InternalUploadState {
         case ready, starting, uploading(Update), canceled, paused(Update), success(UploadResult), failure(Error)
+
+        var progress: Progress? {
+            switch self {
+            case .ready, .starting, .canceled:
+                return nil
+            case .uploading(let update):
+                return update.progress
+            case .paused(let update):
+                return update.progress
+            case .success(let result):
+                return result.finalProgress
+            case .failure:
+                return nil
+            }
+        }
     }
     
     struct UploadResult {
