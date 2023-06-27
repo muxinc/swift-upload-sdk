@@ -12,7 +12,14 @@ class Reporter: NSObject {
     var session: URLSession?
     var pendingUploadEvent: UploadEvent?
 
+    var jsonEncoder: JSONEncoder
+
     override init() {
+        let jsonEncoder = JSONEncoder()
+        jsonEncoder.keyEncodingStrategy = JSONEncoder.KeyEncodingStrategy.convertToSnakeCase
+        jsonEncoder.outputFormatting = .sortedKeys
+        self.jsonEncoder = jsonEncoder
+
         super.init()
 
         let sessionConfig: URLSessionConfiguration = URLSessionConfiguration.default
@@ -61,10 +68,7 @@ class Reporter: NSObject {
     }
 
     func serializePendingEvent() throws -> Data {
-        let encoder = JSONEncoder()
-        encoder.keyEncodingStrategy = JSONEncoder.KeyEncodingStrategy.convertToSnakeCase
-        encoder.outputFormatting = .sortedKeys
-        return try encoder.encode(self.pendingUploadEvent)
+        return try jsonEncoder.encode(pendingUploadEvent)
     }
 
     private func generateRequest(url: URL) -> URLRequest {
