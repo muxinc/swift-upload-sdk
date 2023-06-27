@@ -33,8 +33,6 @@ class UploadInputInspectionWorker {
                         completionHandler: completionHandler
                     )
                 }
-
-
             }
         } else {
             sourceInput.loadValuesAsynchronously(
@@ -65,7 +63,10 @@ class UploadInputInspectionWorker {
         case 1:
             if let track = tracks.first {
                 track.loadValuesAsynchronously(
-                    forKeys: ["formatDescriptions"]
+                    forKeys: [
+                        "formatDescriptions",
+                        "nominalFrameRate"
+                    ]
                 ) {
                     guard let formatDescriptions = track.formatDescriptions as? [CMFormatDescription] else {
                         completionHandler(.inspectionFailure)
@@ -93,6 +94,11 @@ class UploadInputInspectionWorker {
 
                     if videoCodecType != standard {
                         nonStandardReasons.append(.videoCodec)
+                    }
+
+                    let frameRate = track.nominalFrameRate
+                    if frameRate > 120.0 {
+                        nonStandardReasons.append(.videoFrameRate)
                     }
 
                     if nonStandardReasons.isEmpty {
