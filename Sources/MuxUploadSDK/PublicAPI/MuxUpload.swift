@@ -164,9 +164,23 @@ public final class MuxUpload : Hashable, Equatable {
      Represents the state of an upload in progress.
      */
     public struct TransportStatus : Sendable, Hashable {
+        /**
+         The percentage of file bytes received by the server
+         accepting the upload
+         */
         public let progress: Progress?
+        /**
+         A timestamp indicating when this status was generated
+         */
         public let updatedTime: TimeInterval
+        /**
+         The start time of the upload, nil if the upload
+         has never been started
+         */
         public let startTime: TimeInterval?
+        /**
+         Indicates if the upload has been paused
+         */
         public let isPaused: Bool
     }
 
