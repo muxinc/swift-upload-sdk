@@ -30,7 +30,8 @@ extension MuxUpload {
                     options: options
                 )
             ),
-            uploadManager: .shared
+            uploadManager: .shared,
+            inputInspector: .shared
         )
     }
 
