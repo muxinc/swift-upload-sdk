@@ -131,7 +131,6 @@ public final class MuxUpload : Hashable, Equatable {
                 .success(.init(finalState: transportStatus))
             )
         case .uploadFailed(let uploadInfo, let transportStatus):
-            #warning("Separate error property")
             return InputStatus.uploadFailed(
                 uploadInfo.sourceAsset(),
                 transportStatus,
