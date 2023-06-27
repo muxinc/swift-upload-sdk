@@ -80,6 +80,8 @@ class Reporter: NSObject {
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
+        // FIXME: If this fails, an event without a payload
+        // is sent which probably isn't what we want
         do {
             let jsonData = try serializePendingEvent()
             request.httpBody = jsonData
@@ -89,6 +91,8 @@ class Reporter: NSObject {
     }
 }
 
+// TODO: Implement as a separate object so the URLSession
+// can become non-optional, which removes a bunch of edge cases
 extension Reporter: URLSessionDelegate, URLSessionTaskDelegate {
     public func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest, completionHandler: @escaping (URLRequest?) -> Swift.Void) {
         if(self.pendingUploadEvent != nil) {
