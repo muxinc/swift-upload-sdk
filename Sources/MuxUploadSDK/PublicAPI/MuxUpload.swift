@@ -114,28 +114,28 @@ public final class MuxUpload : Hashable, Equatable {
             return InputStatus.awaitingUploadConfirmation(
                 uploadInfo.sourceAsset()
             )
-        case .uploadInProgress(let uploadInfo):
+        case .uploadInProgress(let uploadInfo, let transportStatus):
             return InputStatus.uploadInProgress(
                 uploadInfo.sourceAsset(),
-                uploadStatus
+                transportStatus
             )
-        case .uploadPaused(let uploadInfo):
+        case .uploadPaused(let uploadInfo, let transportStatus):
             return InputStatus.uploadPaused(
                 uploadInfo.sourceAsset(),
-                uploadStatus
+                transportStatus
             )
-        case .uploadSucceeded(let uploadInfo):
+        case .uploadSucceeded(let uploadInfo, let transportStatus):
             return InputStatus.uploadSucceeded(
                 uploadInfo.sourceAsset(),
-                uploadStatus,
-                .success(.init(finalState: uploadStatus))
+                transportStatus,
+                .success(.init(finalState: transportStatus))
             )
-        case .uploadFailed(let uploadInfo):
+        case .uploadFailed(let uploadInfo, let transportStatus):
             #warning("Separate error property")
             return InputStatus.uploadFailed(
                 uploadInfo.sourceAsset(),
-                uploadStatus,
-                .failure(.init(lastStatus: uploadStatus))
+                transportStatus,
+                .failure(.init(lastStatus: transportStatus))
             )
         }
     }
@@ -158,8 +158,6 @@ public final class MuxUpload : Hashable, Equatable {
     private let inputInspector: UploadInputInspector = UploadInputInspector()
     private let inputStandardizer: UploadInputStandardizer = UploadInputStandardizer()
     
-    private var lastSeenStatus: TransportStatus = TransportStatus(progress: Progress(totalUnitCount: 0), updatedTime: 0, startTime: 0, isPaused: false)
-    
     internal var fileWorker: ChunkedFileUploader?
 
     /**
@@ -176,7 +174,7 @@ public final class MuxUpload : Hashable, Equatable {
      An fatal error that ocurred during the upload process. The last-known state of the upload is available, as well as the Error that stopped the upload
      */
     public struct UploadError : Error {
-        public let lastStatus: TransportStatus
+        public let lastStatus: TransportStatus?
         public let code: MuxErrorCase
         public let message: String
         public let reason: Error?
@@ -280,7 +278,13 @@ public final class MuxUpload : Hashable, Equatable {
         self.init(
             input: UploadInput(
                 status: .uploadInProgress(
-                    uploader.uploadInfo
+                    uploader.uploadInfo,
+                    TransportStatus(
+                        progress: uploader.currentState.progress ?? Progress(),
+                        updatedTime: 0,
+                        startTime: 0,
+                        isPaused: false
+                    )
                 )
             ),
             uploadManager: .shared
@@ -312,7 +316,9 @@ public final class MuxUpload : Hashable, Equatable {
     /**
      The current status of the upload. This object is updated periodically. To listen for changes, use ``progressHandler``
      */
-    public var uploadStatus: TransportStatus { get { return lastSeenStatus } }
+    public var uploadStatus: TransportStatus? {
+        input.transportStatus
+    }
 
     /**
      Handles the final result of this upload in your app
@@ -371,61 +377,25 @@ public final class MuxUpload : Hashable, Equatable {
      */
     public func start(forceRestart: Bool = false) {
         guard let videoFile else {
-            /// FIXME: Placeholder
+            let startFailureTransportStatus = TransportStatus(
+                progress: nil,
+                updatedTime: Date().timeIntervalSince1970,
+                startTime: Date().timeIntervalSince1970,
+                isPaused: true
+            )
             resultHandler?(
                 .failure(
                     UploadError(
-                        lastStatus: uploadStatus,
-                        code: .unknown,
+                        lastStatus: startFailureTransportStatus,
+                        code: .file,
                         message: "",
                         reason: nil
                     )
                 )
             )
-            return
-        }
-
-        if self.manageBySDK {
-            // See if there's anything in progress already
-            fileWorker = uploadManager.findUploader(
-                inputFileURL: videoFile
-            )
-        }
-        if fileWorker != nil && !forceRestart {
-            MuxUploadSDK.logger?.warning("start() called but upload is already in progress")
-            fileWorker?.addDelegate(
-                withToken: id,
-                InternalUploaderDelegate { [self] state in handleStateUpdate(state) }
-            )
-            fileWorker?.start()
-            return
-        }
-
-        // Start a new upload
-        if forceRestart {
-            cancel()
-        }
-
-        input.status = .started(input.sourceAsset, uploadInfo)
-
-        startInspection(videoFile: videoFile)
-    }
-
-    private func startUpload(
-        forceRestart: Bool
-    ) {
-
-        guard let videoFile else {
-            /// FIXME: Placeholder
-            resultHandler?(
-                .failure(
-                    UploadError(
-                        lastStatus: uploadStatus,
-                        code: .unknown,
-                        message: "",
-                        reason: nil
-                    )
-                )
+            input.status = .uploadFailed(
+                input.uploadInfo,
+                startFailureTransportStatus
             )
             return
         }
@@ -481,7 +451,23 @@ public final class MuxUpload : Hashable, Equatable {
                             )
                         )
                     )
-                    self.input.status = .uploadFailed(self.uploadInfo)
+                    if let uploadStatus = self.uploadStatus {
+                        self.input.status = .uploadFailed(
+                            self.uploadInfo,
+                            uploadStatus
+                        )
+                    } else {
+                        // Edge case, we shouldn't be here if upload wasn't started
+                        self.input.status = .uploadFailed(
+                            self.uploadInfo,
+                            TransportStatus(
+                                progress: nil,
+                                updatedTime: Date().timeIntervalSince1970,
+                                startTime: Date().timeIntervalSince1970,
+                                isPaused: false
+                            )
+                        )
+                    }
                 case .standard:
                     self.startNetworkTransport(videoFile: videoFile)
                 case .nonstandard(
@@ -505,7 +491,8 @@ public final class MuxUpload : Hashable, Equatable {
     func startNetworkTransport(
         videoFile: URL
     ) {
-        let completedUnitCount = UInt64({ self.lastSeenStatus.progress?.completedUnitCount ?? 0 }())
+        let completedUnitCount = UInt64(uploadStatus?.progress?.completedUnitCount ?? 0)
+
         let fileWorker = ChunkedFileUploader(
             uploadInfo: input.uploadInfo,
             inputFileURL: videoFile,
@@ -537,8 +524,7 @@ public final class MuxUpload : Hashable, Equatable {
     public func cancel() {
         fileWorker?.cancel()
         uploadManager.acknowledgeUpload(id: id)
-        
-        lastSeenStatus = TransportStatus(progress: nil, updatedTime: 0, startTime: 0, isPaused: true)
+        input.processUploadCancellation()
         progressHandler = nil
         resultHandler = nil
     }
@@ -554,14 +540,23 @@ public final class MuxUpload : Hashable, Equatable {
             fileWorker = nil
         }
         case .failure(let error): do {
+            let parsedError = error.parseAsUploadError(
+                lastSeenUploadStatus: input.transportStatus ?? TransportStatus(
+                    progress: nil,
+                    updatedTime: Date().timeIntervalSince1970,
+                    startTime: 0,
+                    isPaused: false
+                )
+            )
             if let notifyFailure = resultHandler {
-                let parsedError = error.parseAsUploadError(lastSeenUploadStatus: lastSeenStatus)
                 if case .cancelled = parsedError.code {
+                    // This differs from what MuxUpload does
+                    // when cancelled with an external API call
                     MuxUploadSDK.logger?.info("task canceled")
                     let canceledStatus = MuxUpload.TransportStatus(
-                        progress: lastSeenStatus.progress,
-                        updatedTime: lastSeenStatus.updatedTime,
-                        startTime: lastSeenStatus.startTime,
+                        progress: input.transportStatus?.progress,
+                        updatedTime: input.transportStatus?.updatedTime ?? Date().timeIntervalSince1970,
+                        startTime: input.transportStatus?.startTime ?? Date().timeIntervalSince1970,
                         isPaused: true
                     )
                     if let notifyProgress = progressHandler { notifyProgress(canceledStatus) }
@@ -579,7 +574,7 @@ public final class MuxUpload : Hashable, Equatable {
                     updatedTime: update.updateTime,
                     startTime: update.startTime, isPaused: false
                 )
-                lastSeenStatus = status
+                input.status = .uploadInProgress(input.uploadInfo, status)
                 notifyProgress(status)
             }
         }

@@ -21,10 +21,10 @@ struct UploadInput {
         )
         case standardizationFailed(AVAsset, UploadInfo)
         case awaitingUploadConfirmation(UploadInfo)
-        case uploadInProgress(UploadInfo)
-        case uploadPaused(UploadInfo)
-        case uploadSucceeded(UploadInfo)
-        case uploadFailed(UploadInfo)
+        case uploadInProgress(UploadInfo, MuxUpload.TransportStatus)
+        case uploadPaused(UploadInfo, MuxUpload.TransportStatus)
+        case uploadSucceeded(UploadInfo, MuxUpload.TransportStatus)
+        case uploadFailed(UploadInfo, MuxUpload.TransportStatus)
     }
 
     var status: Status
@@ -45,13 +45,13 @@ struct UploadInput {
             return sourceAsset
         case .awaitingUploadConfirmation(let uploadInfo):
             return uploadInfo.sourceAsset()
-        case .uploadInProgress(let uploadInfo):
+        case .uploadInProgress(let uploadInfo, _):
             return uploadInfo.sourceAsset()
-        case .uploadSucceeded(let uploadInfo):
+        case .uploadSucceeded(let uploadInfo, _):
             return uploadInfo.sourceAsset()
-        case .uploadFailed(let uploadInfo):
+        case .uploadFailed(let uploadInfo, _):
             return uploadInfo.sourceAsset()
-        case .uploadPaused(let uploadInfo):
+        case .uploadPaused(let uploadInfo, _):
             return uploadInfo.sourceAsset()
         }
     }
@@ -72,16 +72,55 @@ struct UploadInput {
             return uploadInfo
         case .awaitingUploadConfirmation(let uploadInfo):
             return uploadInfo
-        case .uploadInProgress(let uploadInfo):
+        case .uploadInProgress(let uploadInfo, _):
             return uploadInfo
-        case .uploadPaused(let uploadInfo):
+        case .uploadPaused(let uploadInfo, _):
             return uploadInfo
-        case .uploadSucceeded(let uploadInfo):
+        case .uploadSucceeded(let uploadInfo, _):
             return uploadInfo
-        case .uploadFailed(let uploadInfo):
+        case .uploadFailed(let uploadInfo, _):
             return uploadInfo
         }
     }
+
+    var transportStatus: MuxUpload.TransportStatus? {
+        switch status {
+        case .ready:
+            return nil
+        case .started:
+            return nil
+        case .underInspection:
+            return nil
+        case .standardizing:
+            return nil
+        case .standardizationSucceeded:
+            return nil
+        case .standardizationFailed:
+            return nil
+        case .awaitingUploadConfirmation:
+            return nil
+        case .uploadInProgress(_, let transportStatus):
+            return transportStatus
+        case .uploadPaused(_, let transportStatus):
+            return transportStatus
+        case .uploadSucceeded(_, let transportStatus):
+            return transportStatus
+        case .uploadFailed(_, let transportStatus):
+            return transportStatus
+        }
+    }
+}
+
+extension UploadInput {
+
+    mutating func processUploadCancellation() {
+        if case UploadInput.Status.ready = status {
+            return
+        }
+
+        status = .ready(sourceAsset, uploadInfo)
+    }
+
 }
 
 extension UploadInput.Status: Equatable {
