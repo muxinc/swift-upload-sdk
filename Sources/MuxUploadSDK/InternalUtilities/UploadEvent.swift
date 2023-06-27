@@ -27,7 +27,9 @@ struct UploadEvent: Codable {
     var appVersion: String?
 
     var regionCode: String?
+}
 
+extension UploadEvent {
     init(
         startTime: TimeInterval,
         endTime: TimeInterval,

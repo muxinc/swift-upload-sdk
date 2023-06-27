@@ -44,6 +44,7 @@ class Reporter: NSObject {
     func serializePendingEvent() throws -> Data {
         let encoder = JSONEncoder()
         encoder.keyEncodingStrategy = JSONEncoder.KeyEncodingStrategy.convertToSnakeCase
+        encoder.outputFormatting = .sortedKeys
         return try encoder.encode(self.pendingUploadEvent)
     }
 
