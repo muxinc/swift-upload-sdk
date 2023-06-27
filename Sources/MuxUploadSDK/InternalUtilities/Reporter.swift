@@ -18,8 +18,20 @@ class Reporter: NSObject {
         session = URLSession(configuration: sessionConfig, delegate: self, delegateQueue: nil)
     }
 
-    func report(startTime: TimeInterval, endTime: TimeInterval, fileSize: UInt64, videoDuration: Double) -> Void {
-        self.pendingUploadEvent = UploadEvent(startTime: startTime, endTime: endTime, fileSize: fileSize, videoDuration: videoDuration)
+    func report(
+        startTime: TimeInterval,
+        endTime: TimeInterval,
+        fileSize: UInt64,
+        videoDuration: Double,
+        uploadURL: URL
+    ) -> Void {
+        self.pendingUploadEvent = UploadEvent(
+            startTime: startTime,
+            endTime: endTime,
+            fileSize: fileSize,
+            videoDuration: videoDuration,
+            uploadURL: uploadURL
+        )
 
         let request = self.generateRequest(url: URL(string: "https://mobile.muxanalytics.com")!)
 
@@ -27,6 +39,12 @@ class Reporter: NSObject {
             self.pendingUploadEvent = nil
         })
         dataTask?.resume()
+    }
+
+    func serializePendingEvent() throws -> Data {
+        let encoder = JSONEncoder()
+        encoder.keyEncodingStrategy = JSONEncoder.KeyEncodingStrategy.convertToSnakeCase
+        return try encoder.encode(self.pendingUploadEvent)
     }
 
     private func generateRequest(url: URL) -> URLRequest {
@@ -38,9 +56,7 @@ class Reporter: NSObject {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
         do {
-            let encoder = JSONEncoder()
-            encoder.keyEncodingStrategy = JSONEncoder.KeyEncodingStrategy.convertToSnakeCase
-            let jsonData = try encoder.encode(self.pendingUploadEvent)
+            let jsonData = try serializePendingEvent()
             request.httpBody = jsonData
         } catch _ as NSError {}
 

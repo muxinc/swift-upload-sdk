@@ -14,6 +14,7 @@ struct UploadEvent: Codable {
     var endTime: TimeInterval
     var fileSize: UInt64
     var videoDuration: Double
+    var uploadURL: URL
 
     var sdkVersion: String
 
@@ -27,7 +28,13 @@ struct UploadEvent: Codable {
 
     var regionCode: String?
 
-    init(startTime: TimeInterval, endTime: TimeInterval, fileSize: UInt64, videoDuration: Double) {
+    init(
+        startTime: TimeInterval,
+        endTime: TimeInterval,
+        fileSize: UInt64,
+        videoDuration: Double,
+        uploadURL: URL
+    ) {
         let locale = Locale.current
         let device = UIDevice.current
 
@@ -35,6 +42,7 @@ struct UploadEvent: Codable {
         self.endTime = endTime
         self.fileSize = fileSize
         self.videoDuration = videoDuration
+        self.uploadURL = uploadURL
 
         self.sdkVersion = Version.versionString
 
