@@ -155,7 +155,7 @@ public final class MuxUpload : Hashable, Equatable {
         uploadInfo.id
     }
     private let uploadManager: UploadManager
-    private let inputInspector: UploadInputInspector = UploadInputInspector()
+    private let inputInspector: UploadInputInspector
     private let inputStandardizer: UploadInputStandardizer = UploadInputStandardizer()
     
     internal var fileWorker: ChunkedFileUploader?
@@ -278,11 +278,14 @@ public final class MuxUpload : Hashable, Equatable {
     init(
         input: UploadInput,
         manage: Bool = true,
-        uploadManager: UploadManager
+        uploadManager: UploadManager,
+        inputInspector: UploadInputInspector = UploadInputInspector()
     ) {
         self.input = input
         self.manageBySDK = manage
         self.uploadManager = uploadManager
+        self.inputInspector = inputInspector
+        // TODO: Same for UploadInputStandardizer when it gets wired in
     }
 
     internal convenience init(
