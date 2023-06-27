@@ -6,7 +6,6 @@
 //
 
 import Foundation
-import UIKit
 
 struct UploadEvent: Codable {
     var type = "upload"
@@ -27,41 +26,6 @@ struct UploadEvent: Codable {
     var appVersion: String?
 
     var regionCode: String?
-}
-
-extension UploadEvent {
-    init(
-        startTime: TimeInterval,
-        endTime: TimeInterval,
-        fileSize: UInt64,
-        videoDuration: Double,
-        uploadURL: URL
-    ) {
-        let locale = Locale.current
-        let device = UIDevice.current
-
-        self.startTime = startTime
-        self.endTime = endTime
-        self.fileSize = fileSize
-        self.videoDuration = videoDuration
-        self.uploadURL = uploadURL
-
-        self.sdkVersion = Version.versionString
-
-        self.osName = device.systemName
-        self.osVersion = device.systemVersion
-
-        self.deviceModel = device.model
-
-        self.appName = Bundle.main.bundleIdentifier
-        self.appVersion = Bundle.main.appVersion
-
-        if #available(iOS 16, *) {
-            self.regionCode = locale.language.region?.identifier
-        } else {
-            self.regionCode = locale.regionCode
-        }
-    }
 }
 
 extension Bundle {

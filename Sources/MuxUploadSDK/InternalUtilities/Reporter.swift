@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import UIKit
 
 class Reporter: NSObject {
     var session: URLSession?
@@ -25,12 +26,30 @@ class Reporter: NSObject {
         videoDuration: Double,
         uploadURL: URL
     ) -> Void {
+
+        let locale = Locale.current
+        let device = UIDevice.current
+
+        let regionCode: String?
+        if #available(iOS 16, *) {
+            regionCode = locale.language.region?.identifier
+        } else {
+            regionCode = locale.regionCode
+        }
+
         self.pendingUploadEvent = UploadEvent(
             startTime: startTime,
             endTime: endTime,
             fileSize: fileSize,
             videoDuration: videoDuration,
-            uploadURL: uploadURL
+            uploadURL: uploadURL,
+            sdkVersion: Version.versionString,
+            osName: device.systemName,
+            osVersion: device.systemVersion,
+            deviceModel: device.model,
+            appName: Bundle.main.bundleIdentifier,
+            appVersion: Bundle.main.appVersion,
+            regionCode: regionCode
         )
 
         let request = self.generateRequest(url: URL(string: "https://mobile.muxanalytics.com")!)
