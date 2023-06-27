@@ -34,6 +34,7 @@ class Reporter: NSObject {
         uploadURL: URL
     ) -> Void {
 
+        // TODO: Set these using dependency Injection
         let locale = Locale.current
         let device = UIDevice.current
 
