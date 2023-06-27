@@ -124,7 +124,7 @@ fileprivate struct ListItem: View {
         }
     }
     
-    private func statusLine(status: MuxUpload.Status?) -> String {
+    private func statusLine(status: MuxUpload.TransportStatus?) -> String {
         guard let status = status, let progress = status.progress, status.startTime > 0 else {
             return "missing status"
         }
@@ -146,7 +146,7 @@ fileprivate struct ListItem: View {
         return "\(formattedMBytes) MB in \(formattedTime)s (\(formattedDataRate) KB/s)"
     }
     
-    private func elapsedBytesOfTotal(status: MuxUpload.Status) -> String {
+    private func elapsedBytesOfTotal(status: MuxUpload.TransportStatus) -> String {
         guard let progress = status.progress else {
             return "unknown"
         }
@@ -157,7 +157,7 @@ fileprivate struct ListItem: View {
         self.upload = upload
         _thumbnailModel = StateObject(
             wrappedValue: {
-                ThumbnailModel(asset: AVAsset(url: upload.videoFile), upload: upload)
+                ThumbnailModel(asset: AVAsset(url: upload.videoFile!), upload: upload)
             }()
         )
     }

@@ -210,6 +210,21 @@ class ChunkedFileUploader {
     
     enum InternalUploadState {
         case ready, starting, uploading(Update), canceled, paused(Update), success(UploadResult), failure(Error)
+
+        var progress: Progress? {
+            switch self {
+            case .ready, .starting, .canceled:
+                return nil
+            case .uploading(let update):
+                return update.progress
+            case .paused(let update):
+                return update.progress
+            case .success(let result):
+                return result.finalProgress
+            case .failure:
+                return nil
+            }
+        }
     }
     
     struct UploadResult {
@@ -289,9 +304,9 @@ fileprivate actor Worker {
             let chunkResult = try await chunkWorker.getTask().value
             MuxUploadSDK.logger?.info("Completed Chunk:\n \(String(describing: chunkResult))")
         } while (readBytes == uploadInfo.options.transport.chunkSizeInBytes)
-        
+
         MuxUploadSDK.logger?.info("Finished uploading file: \(self.inputFileURL.relativeString)")
-        
+
         let finalState = ChunkedFileUploader.Update(
             progress: overallProgress,
             startTime: startTime,
