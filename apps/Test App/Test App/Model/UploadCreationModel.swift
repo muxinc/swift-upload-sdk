@@ -99,7 +99,6 @@ class UploadCreationModel : ObservableObject {
         exportOptions.isNetworkAccessAllowed = true
         exportOptions.deliveryMode = .highQualityFormat
         assetRequestId = PHImageManager.default().requestExportSession(forVideo: phAsset, options: exportOptions, exportPreset: AVAssetExportPresetHighestQuality, resultHandler: {(exportSession, info) -> Void in
-            print(info)
             DispatchQueue.main.async {
                 guard let exportSession = exportSession else {
                     self.logger.error("!! No Export session")
