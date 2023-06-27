@@ -224,9 +224,10 @@ public final class MuxUpload : Hashable, Equatable {
         inputStandardization: UploadOptions.InputStandardization = .default,
         eventTracking: UploadOptions.EventTracking = .default
     ) {
+        let asset = AVAsset(url: videoFileURL)
         self.init(
             input: UploadInput(
-                asset: AVAsset(url: videoFileURL),
+                asset: asset,
                 info: UploadInfo(
                     id: UUID().uuidString,
                     uploadURL: uploadURL,
@@ -240,7 +241,8 @@ public final class MuxUpload : Hashable, Equatable {
                     )
                 )
             ),
-            uploadManager: .shared
+            uploadManager: .shared,
+            inputInspector: .shared
         )
     }
 
@@ -259,18 +261,20 @@ public final class MuxUpload : Hashable, Equatable {
         inputFileURL: URL,
         options: UploadOptions = .default
     ) {
+        let asset = AVAsset(
+            url: inputFileURL
+        )
         self.init(
             input: UploadInput(
-                asset: AVAsset(
-                    url: inputFileURL
-                ),
+                asset: asset,
                 info: UploadInfo(
                     uploadURL: uploadURL,
                     options: options
                 )
             ),
             manage: true,
-            uploadManager: .shared
+            uploadManager: .shared,
+            inputInspector: .shared
         )
     }
 
@@ -278,7 +282,20 @@ public final class MuxUpload : Hashable, Equatable {
         input: UploadInput,
         manage: Bool = true,
         uploadManager: UploadManager,
-        inputInspector: UploadInputInspector = UploadInputInspector()
+        inputInspector: AVFoundationUploadInputInspector = .shared
+    ) {
+        self.input = input
+        self.manageBySDK = manage
+        self.uploadManager = uploadManager
+        self.inputInspector = inputInspector
+        // TODO: Same for UploadInputStandardizer when it gets wired in
+    }
+
+    init(
+        input: UploadInput,
+        manage: Bool = true,
+        uploadManager: UploadManager,
+        inputInspector: UploadInputInspector
     ) {
         self.input = input
         self.manageBySDK = manage
@@ -303,7 +320,8 @@ public final class MuxUpload : Hashable, Equatable {
                     )
                 )
             ),
-            uploadManager: .shared
+            uploadManager: .shared,
+            inputInspector: .shared
         )
         self.fileWorker = uploader
 
@@ -449,10 +467,9 @@ public final class MuxUpload : Hashable, Equatable {
             startNetworkTransport(videoFile: videoFile)
         } else {
             input.status = .underInspection(input.sourceAsset, uploadInfo)
-            let inspectionWorker = UploadInputInspectionWorker(
+            inputInspector.performInspection(
                 sourceInput: input.sourceAsset
-            )
-            inspectionWorker.performInspection { inspectionResult in
+            ) { inspectionResult in
                 self.inspectionResult = inspectionResult
 
                 switch inspectionResult {
@@ -522,6 +539,16 @@ public final class MuxUpload : Hashable, Equatable {
         fileWorker.start()
         uploadManager.registerUploader(fileWorker, withId: id)
         self.fileWorker = fileWorker
+        let transportStatus = TransportStatus(
+            progress: fileWorker.currentState.progress ?? Progress(),
+            updatedTime: Date().timeIntervalSince1970,
+            startTime: Date().timeIntervalSince1970,
+            isPaused: false
+        )
+        self.input.processStartNetworkTransport(
+            startingTransportStatus: transportStatus
+        )
+        inputStatusHandler?(inputStatus)
     }
     
     /**

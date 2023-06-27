@@ -1,20 +1,24 @@
 //
-//  UploadInputInspectionWorker.swift
+//  UploadInputInspector.swift
 //  
 
 import AVFoundation
 import CoreMedia
 import Foundation
 
-class UploadInputInspectionWorker {
+protocol UploadInputInspector {
+    func performInspection(
+        sourceInput: AVAsset,
+        completionHandler: @escaping (UploadInputFormatInspectionResult) -> ()
+    )
+}
 
-    var sourceInput: AVAsset
+class AVFoundationUploadInputInspector: UploadInputInspector {
 
-    init(sourceInput: AVAsset) {
-        self.sourceInput = sourceInput
-    }
+    static let shared = AVFoundationUploadInputInspector()
 
     func performInspection(
+        sourceInput: AVAsset,
         completionHandler: @escaping (UploadInputFormatInspectionResult) -> ()
     ) {
         // TODO: Eventually load audio tracks too
@@ -39,7 +43,7 @@ class UploadInputInspectionWorker {
                 forKeys: ["tracks"]
             ) {
                 // Non-blocking if "tracks" is already loaded
-                let tracks = self.sourceInput.tracks(
+                let tracks = sourceInput.tracks(
                     withMediaType: .video
                 )
                 self.inspect(

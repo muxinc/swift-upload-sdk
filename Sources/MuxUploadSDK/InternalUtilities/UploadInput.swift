@@ -121,6 +121,16 @@ extension UploadInput {
         status = .ready(sourceAsset, uploadInfo)
     }
 
+    mutating func processStartNetworkTransport(
+        startingTransportStatus: MuxUpload.TransportStatus
+    ) {
+        if case UploadInput.Status.underInspection = status {
+            status = .uploadInProgress(uploadInfo, startingTransportStatus)
+        } else {
+            return
+        }
+    }
+
 }
 
 extension UploadInput.Status: Equatable {
