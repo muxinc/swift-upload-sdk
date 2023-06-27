@@ -166,7 +166,7 @@ public final class MuxUpload : Hashable, Equatable {
     public struct TransportStatus : Sendable, Hashable {
         public let progress: Progress?
         public let updatedTime: TimeInterval
-        public let startTime: TimeInterval
+        public let startTime: TimeInterval?
         public let isPaused: Bool
     }
 
