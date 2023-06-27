@@ -20,6 +20,30 @@ class MuxUploadTest: XCTestCase {
         }
     }
 
+    func testStartStatusUpdate() throws {
+        let upload = MuxUpload(
+            uploadURL: URL(string: "https://www.example.com/upload")!,
+            inputFileURL: URL(string: "file://var/mobile/Containers/Data/Application/Documents/myvideo.mp4")!
+        )
+
+        let ex = XCTestExpectation(
+            description: "Expected input status handler to fire when the upload starts"
+        )
+
+        upload.inputStatusHandler = { inputStatus in
+            if case MuxUpload.InputStatus.started = inputStatus {
+                ex.fulfill()
+            }
+        }
+
+        upload.start()
+
+        wait(
+            for: [ex],
+            timeout: 2.0
+        )
+    }
+
     
 
 }
