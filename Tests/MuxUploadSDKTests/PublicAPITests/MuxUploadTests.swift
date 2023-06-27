@@ -46,33 +46,48 @@ class MuxUploadTest: XCTestCase {
     }
 
     func testInputInspectionSuccess() throws {
-
-        let uploadURL = try XCTUnwrap(
-            URL(string: "https://www.example.com/upload")
-        )
-
-        let videoInputURL = try XCTUnwrap(
-            URL(string: "file://path/to/dummy/file/")
-        )
-
-        let uploadInputAsset = AVAsset(
-            url: videoInputURL
-        )
-
-        let input = UploadInput(
-            status: .started(
-                uploadInputAsset,
-                UploadInfo(
-                    uploadURL: uploadURL,
-                    options: .default
-                )
-            )
-        )
+        let input = try UploadInput.mockStartedInput()
 
         let upload = MuxUpload(
             input: input,
             uploadManager: UploadManager(),
             inputInspector: MockUploadInputInspector.alwaysStandard
+        )
+
+        let preparingStatusExpectation = XCTestExpectation(
+            description: "Expected input status handler to fire when the upload is preparing"
+        )
+
+        let uploadInProgressExpecation = XCTestExpectation(
+            description: "Expected input status handler to fire when the upload is in progress"
+        )
+
+        upload.inputStatusHandler = { inputStatus in
+            if case MuxUpload.InputStatus.preparing = inputStatus {
+                preparingStatusExpectation.fulfill()
+            }
+
+            if case MuxUpload.InputStatus.uploadInProgress = inputStatus {
+                uploadInProgressExpecation.fulfill()
+            }
+        }
+
+        upload.start()
+
+        wait(
+            for: [preparingStatusExpectation, uploadInProgressExpecation],
+            timeout: 2.0,
+            enforceOrder: true
+        )
+    }
+
+    func testInputInspectionFailure() throws {
+        let input = try UploadInput.mockStartedInput()
+
+        let upload = MuxUpload(
+            input: input,
+            uploadManager: UploadManager(),
+            inputInspector: MockUploadInputInspector.alwaysFailing
         )
 
         let preparingStatusExpectation = XCTestExpectation(

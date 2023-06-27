@@ -474,33 +474,7 @@ public final class MuxUpload : Hashable, Equatable {
 
                 switch inspectionResult {
                 case .inspectionFailure:
-                    self.resultHandler?(
-                        .failure(
-                            UploadError(
-                                lastStatus: self.uploadStatus,
-                                code: .file,
-                                message: "",
-                                reason: nil
-                            )
-                        )
-                    )
-                    if let uploadStatus = self.uploadStatus {
-                        self.input.status = .uploadFailed(
-                            self.uploadInfo,
-                            uploadStatus
-                        )
-                    } else {
-                        // Edge case, we shouldn't be here if upload wasn't started
-                        self.input.status = .uploadFailed(
-                            self.uploadInfo,
-                            TransportStatus(
-                                progress: nil,
-                                updatedTime: Date().timeIntervalSince1970,
-                                startTime: Date().timeIntervalSince1970,
-                                isPaused: false
-                            )
-                        )
-                    }
+                    self.startNetworkTransport(videoFile: videoFile)
                 case .standard:
                     self.startNetworkTransport(videoFile: videoFile)
                 case .nonstandard(
