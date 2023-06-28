@@ -6,20 +6,59 @@
 //
 
 import Foundation
+import UIKit
 
 class Reporter: NSObject {
     var session: URLSession?
     var pendingUploadEvent: UploadEvent?
 
+    var jsonEncoder: JSONEncoder
+
     override init() {
+        let jsonEncoder = JSONEncoder()
+        jsonEncoder.keyEncodingStrategy = JSONEncoder.KeyEncodingStrategy.convertToSnakeCase
+        jsonEncoder.outputFormatting = .sortedKeys
+        self.jsonEncoder = jsonEncoder
+
         super.init()
 
         let sessionConfig: URLSessionConfiguration = URLSessionConfiguration.default
         session = URLSession(configuration: sessionConfig, delegate: self, delegateQueue: nil)
     }
 
-    func report(startTime: TimeInterval, endTime: TimeInterval, fileSize: UInt64, videoDuration: Double) -> Void {
-        self.pendingUploadEvent = UploadEvent(startTime: startTime, endTime: endTime, fileSize: fileSize, videoDuration: videoDuration)
+    func report(
+        startTime: TimeInterval,
+        endTime: TimeInterval,
+        fileSize: UInt64,
+        videoDuration: Double,
+        uploadURL: URL
+    ) -> Void {
+
+        // TODO: Set these using dependency Injection
+        let locale = Locale.current
+        let device = UIDevice.current
+
+        let regionCode: String?
+        if #available(iOS 16, *) {
+            regionCode = locale.language.region?.identifier
+        } else {
+            regionCode = locale.regionCode
+        }
+
+        self.pendingUploadEvent = UploadEvent(
+            startTime: startTime,
+            endTime: endTime,
+            fileSize: fileSize,
+            videoDuration: videoDuration,
+            uploadURL: uploadURL,
+            sdkVersion: Version.versionString,
+            osName: device.systemName,
+            osVersion: device.systemVersion,
+            deviceModel: device.model,
+            appName: Bundle.main.bundleIdentifier,
+            appVersion: Bundle.main.appVersion,
+            regionCode: regionCode
+        )
 
         let request = self.generateRequest(url: URL(string: "https://mobile.muxanalytics.com")!)
 
@@ -27,6 +66,10 @@ class Reporter: NSObject {
             self.pendingUploadEvent = nil
         })
         dataTask?.resume()
+    }
+
+    func serializePendingEvent() throws -> Data {
+        return try jsonEncoder.encode(pendingUploadEvent)
     }
 
     private func generateRequest(url: URL) -> URLRequest {
@@ -37,10 +80,10 @@ class Reporter: NSObject {
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
+        // FIXME: If this fails, an event without a payload
+        // is sent which probably isn't what we want
         do {
-            let encoder = JSONEncoder()
-            encoder.keyEncodingStrategy = JSONEncoder.KeyEncodingStrategy.convertToSnakeCase
-            let jsonData = try encoder.encode(self.pendingUploadEvent)
+            let jsonData = try serializePendingEvent()
             request.httpBody = jsonData
         } catch _ as NSError {}
 
@@ -48,6 +91,8 @@ class Reporter: NSObject {
     }
 }
 
+// TODO: Implement as a separate object so the URLSession
+// can become non-optional, which removes a bunch of edge cases
 extension Reporter: URLSessionDelegate, URLSessionTaskDelegate {
     public func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest, completionHandler: @escaping (URLRequest?) -> Swift.Void) {
         if(self.pendingUploadEvent != nil) {
