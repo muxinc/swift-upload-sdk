@@ -2,6 +2,6 @@
 <Workspace
    version = "1.0">
    <FileRef
-      location = "self:/Users/abarinov/Environment/swift-upload-sdk/Example/SwiftUploadSDKExample/SwiftUploadSDKExample.xcodeproj">
+      location = "self:">
    </FileRef>
 </Workspace>
