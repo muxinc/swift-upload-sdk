@@ -118,7 +118,7 @@ fileprivate struct ListItem: View {
                 trailing: 20
             )
         )
-        .frame(height: Test_AppApp.THUMBNAIL_HEIGHT)
+        .frame(height: SwiftUploadSDKExample.THUMBNAIL_HEIGHT)
         .onAppear {
             thumbnailModel.startExtractingThumbnail()
         }

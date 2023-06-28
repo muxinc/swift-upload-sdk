@@ -26,10 +26,10 @@ class ThumbnailModel: ObservableObject {
             in
             switch result {
             case .cancelled: do {
-                Test_AppApp.logger.debug("Thumbnail request canceled")
+                SwiftUploadSDKExample.logger.debug("Thumbnail request canceled")
             }
             case .failed: do {
-                Test_AppApp.logger.error("Failed to extract thumnail: \(error?.localizedDescription ?? "unknown")")
+                SwiftUploadSDKExample.logger.error("Failed to extract thumnail: \(error?.localizedDescription ?? "unknown")")
             }
             case .succeeded: do {
                 Task.detached {
@@ -59,7 +59,7 @@ class ThumbnailModel: ObservableObject {
         self.upload = upload
         
         upload.progressHandler = { state in
-            Test_AppApp.logger.info("Upload progressing from ViewModel: \(state.progress)")
+            SwiftUploadSDKExample.logger.info("Upload progressing from ViewModel: \(state.progress)")
             self.uploadProgress = state
         }
     }

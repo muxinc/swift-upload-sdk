@@ -1,5 +1,5 @@
 //
-//  Test_AppUITestsLaunchTests.swift
+//  SwiftUploadSDKExampleLaunchTests.swift
 //  Test AppUITests
 //
 //  Created by Emily Dixon on 2/14/23.
@@ -7,7 +7,7 @@
 
 import XCTest
 
-final class Test_AppUITestsLaunchTests: XCTestCase {
+final class SwiftUploadSDKExampleLaunchTests: XCTestCase {
 
     override class var runsForEachTargetApplicationUIConfiguration: Bool {
         true
