@@ -113,7 +113,8 @@ class ChunkedFileUploader {
                         startTime: success.startTime,
                         endTime: success.finishTime,
                         fileSize: fileSize,
-                        videoDuration: duration.seconds
+                        videoDuration: duration.seconds,
+                        uploadURL: uploadInfo.uploadURL
                     )
                 }
 
