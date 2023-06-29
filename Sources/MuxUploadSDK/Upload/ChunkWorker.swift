@@ -170,7 +170,15 @@ fileprivate actor ChunkActor {
     let urlSession: URLSession
     
     func upload() async throws -> URLResponse {
-        let contentRangeValue = "bytes \(chunk.startByte)-\(chunk.endByte - 1)/\(chunk.totalFileSize)"
+        let startByte = "\(chunk.startByte)"
+        let endByte: String
+        if chunk.endByte == 0 {
+            endByte = "0"
+        } else {
+            endByte = "\(chunk.endByte - 1)"
+        }
+
+        let contentRangeValue = "bytes \(startByte)-\(endByte)/\(chunk.totalFileSize)"
         var request = URLRequest(url: uploadURL)
         request.httpMethod = "PUT"
         request.setValue("video/*", forHTTPHeaderField: "Content-Type")
