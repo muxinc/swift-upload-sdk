@@ -34,11 +34,15 @@ class ChunkWorker {
     }
     
     func getTask() -> Task<Success, Error> {
-        if uploadTask == nil {
+
+        guard let uploadTask else {
             chunkStartTime = Date().timeIntervalSince1970
-            uploadTask = makeUploadTask()
+            let uploadTask = makeUploadTask()
+            self.uploadTask = uploadTask
+            return uploadTask
         }
-        return uploadTask!
+
+        return uploadTask
     }
     
     func cancel() {
