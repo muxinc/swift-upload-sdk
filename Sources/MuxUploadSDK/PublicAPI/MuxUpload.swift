@@ -474,6 +474,8 @@ public final class MuxUpload : Hashable, Equatable {
 
                 switch inspectionResult {
                 case .inspectionFailure:
+                    // TODO: Request upload confirmation
+                    // before proceeding
                     self.startNetworkTransport(videoFile: videoFile)
                 case .standard:
                     self.startNetworkTransport(videoFile: videoFile)
@@ -488,8 +490,21 @@ public final class MuxUpload : Hashable, Equatable {
                     """
                     )
 
-                    // Skip format standardization
-                    self.startNetworkTransport(videoFile: videoFile)
+                    self.inputStandardizer.standardize(
+                        id: self.id,
+                        sourceAsset: AVAsset(url: videoFile)
+                    ) { sourceAsset, standardizedAsset, outputURL, success in
+
+                        if let outputURL, success {
+                            self.startNetworkTransport(
+                                videoFile: outputURL
+                            )
+                        } else {
+                            self.startNetworkTransport(
+                                videoFile: videoFile
+                            )
+                        }
+                    }
                 }
             }
         }
