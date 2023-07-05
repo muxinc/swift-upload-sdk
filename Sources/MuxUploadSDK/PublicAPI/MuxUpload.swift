@@ -149,6 +149,18 @@ public final class MuxUpload : Hashable, Equatable {
      */
     public var inputStatusHandler: InputStatusHandler?
 
+    /**
+     Confirms upload if input standardization did not succeed
+     */
+    public typealias NonStandardInputHandler = () -> Bool
+
+    /**
+     If set will be executed by the SDK when input standardization
+     hadn't succeeded, return <doc:true> to continue the upload
+     or return <doc:false> to cancel the upload
+     */
+    public var nonStandardInputHandler: NonStandardInputHandler?
+
     private let manageBySDK: Bool
     var id: String {
         uploadInfo.id
@@ -472,6 +484,28 @@ public final class MuxUpload : Hashable, Equatable {
 
                 switch inspectionResult {
                 case .inspectionFailure:
+                    // TODO: Request upload confirmation
+                    // before proceeding
+
+                    guard let nonStandardInputHandler = self.nonStandardInputHandler else {
+                        self.startNetworkTransport(
+                            videoFile: videoFile
+                        )
+                        return
+                    }
+
+                    let shouldCancelUpload = nonStandardInputHandler()
+
+                    if !shouldCancelUpload {
+                        self.startNetworkTransport(
+                            videoFile: videoFile
+                        )
+                    } else {
+                        self.fileWorker?.cancel()
+                        self.uploadManager.acknowledgeUpload(id: self.id)
+                        self.input.processUploadCancellation()
+                    }
+
                     self.startNetworkTransport(videoFile: videoFile)
                 case .standard:
                     self.startNetworkTransport(videoFile: videoFile)
@@ -486,8 +520,54 @@ public final class MuxUpload : Hashable, Equatable {
                     """
                     )
 
-                    // Skip format standardization
-                    self.startNetworkTransport(videoFile: videoFile)
+                    // TODO: inject Date() for testing purposes
+                    let outputFileName = "upload-\(Date().timeIntervalSince1970)"
+
+                    let outputDirectory = FileManager.default.temporaryDirectory
+                    let outputURL = URL(
+                        fileURLWithPath: outputFileName,
+                        relativeTo: outputDirectory
+                    )
+                    let maximumResolution = self.input
+                        .uploadInfo
+                        .options
+                        .inputStandardization
+                        .maximumResolution
+
+                    self.inputStandardizer.standardize(
+                        id: self.id,
+                        sourceAsset: AVAsset(url: videoFile),
+                        maximumResolution: maximumResolution,
+                        outputURL: outputURL
+                    ) { sourceAsset, standardizedAsset, outputURL, success in
+
+                        if let outputURL, success {
+                            self.startNetworkTransport(
+                                videoFile: outputURL
+                            )
+                        } else {
+                            guard let nonStandardInputHandler = self.nonStandardInputHandler else {
+                                self.startNetworkTransport(
+                                    videoFile: videoFile
+                                )
+                                return
+                            }
+
+                            let shouldCancelUpload = nonStandardInputHandler()
+
+                            if !shouldCancelUpload {
+                                self.startNetworkTransport(
+                                    videoFile: videoFile
+                                )
+                            } else {
+                                self.fileWorker?.cancel()
+                                self.uploadManager.acknowledgeUpload(id: self.id)
+                                self.input.processUploadCancellation()
+                            }
+                        }
+
+                        self.inputStandardizer.acknowledgeCompletion(id: self.id)
+                    }
                 }
             }
         }

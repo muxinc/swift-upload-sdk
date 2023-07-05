@@ -125,11 +125,11 @@ fileprivate struct ListItem: View {
     }
     
     private func statusLine(status: MuxUpload.TransportStatus?) -> String {
-        guard let status = status, let progress = status.progress, status.startTime > 0 else {
+        guard let status = status, let progress = status.progress, let startTime = status.startTime, startTime > 0 else {
             return "missing status"
         }
         
-        let totalTimeSecs = status.updatedTime - status.startTime
+        let totalTimeSecs = status.updatedTime - (status.startTime ?? 0)
         let totalTimeMs = Int64((totalTimeSecs) * 1000)
         let kbytesPerSec = (progress.completedUnitCount) / totalTimeMs // bytes/milli = kb/sec
         let fourSigs = NumberFormatter()
