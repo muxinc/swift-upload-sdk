@@ -149,6 +149,18 @@ public final class MuxUpload : Hashable, Equatable {
      */
     public var inputStatusHandler: InputStatusHandler?
 
+    /**
+     Confirms upload if input standardization did not succeed
+     */
+    public typealias NonStandardInputHandler = () -> Bool
+
+    /**
+     If set will be executed by the SDK when input standardization
+     hadn't succeeded, return <doc:true> to continue the upload
+     or return <doc:false> to cancel the upload
+     */
+    public var nonStandardInputHandler: NonStandardInputHandler?
+
     private let manageBySDK: Bool
     var id: String {
         uploadInfo.id
@@ -510,10 +522,27 @@ public final class MuxUpload : Hashable, Equatable {
                                 videoFile: outputURL
                             )
                         } else {
-                            self.startNetworkTransport(
-                                videoFile: videoFile
-                            )
+                            guard let nonStandardInputHandler = self.nonStandardInputHandler else {
+                                self.startNetworkTransport(
+                                    videoFile: videoFile
+                                )
+                                return
+                            }
+
+                            let shouldCancelUpload = nonStandardInputHandler()
+
+                            if !shouldCancelUpload {
+                                self.startNetworkTransport(
+                                    videoFile: videoFile
+                                )
+                            } else {
+                                self.fileWorker?.cancel()
+                                self.uploadManager.acknowledgeUpload(id: self.id)
+                                self.input.processUploadCancellation()
+                            }
                         }
+
+                        self.inputStandardizer.acknowledgeCompletion(id: self.id)
                     }
                 }
             }
