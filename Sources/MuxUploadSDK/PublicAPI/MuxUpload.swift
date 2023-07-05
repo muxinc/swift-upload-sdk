@@ -530,10 +530,16 @@ public final class MuxUpload : Hashable, Equatable {
                         fileURLWithPath: outputFileName,
                         relativeTo: outputDirectory
                     )
+                    let maximumResolution = self.input
+                        .uploadInfo
+                        .options
+                        .inputStandardization
+                        .maximumResolution
 
                     self.inputStandardizer.standardize(
                         id: self.id,
                         sourceAsset: AVAsset(url: videoFile),
+                        maximumResolution: maximumResolution,
                         outputURL: outputURL
                     ) { sourceAsset, standardizedAsset, outputURL, success in
 

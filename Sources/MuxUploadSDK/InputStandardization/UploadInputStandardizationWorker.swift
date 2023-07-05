@@ -27,14 +27,22 @@ class UploadInputStandardizationWorker {
 
     func standardize(
         sourceAsset: AVAsset,
+        maximumResolution: UploadOptions.InputStandardization.MaximumResolution,
         outputURL: URL,
         completion: @escaping (AVAsset, AVAsset?, URL?, Bool) -> ()
     ) {
 
         let availableExportPresets = AVAssetExportSession.allExportPresets()
 
+        let exportPreset: String
+        if maximumResolution == .preset1280x720 {
+            exportPreset = AVAssetExportPreset1280x720
+        } else {
+            exportPreset = AVAssetExportPreset1920x1080
+        }
+
         guard availableExportPresets.contains(where: {
-            $0 == AVAssetExportPreset1280x720
+            $0 == exportPreset
         }) else {
             // TODO: Use VideoToolbox if export preset unavailable
             completion(sourceAsset, nil, nil, false)
@@ -43,7 +51,7 @@ class UploadInputStandardizationWorker {
 
         guard let exportSession = AVAssetExportSession(
             asset: sourceAsset,
-            presetName: AVAssetExportPreset1280x720
+            presetName: exportPreset
         ) else {
             // TODO: Use VideoToolbox if export session fails to initialize
             completion(sourceAsset, nil, nil, false)
