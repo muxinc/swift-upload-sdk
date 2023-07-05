@@ -14,6 +14,21 @@ class Reporter: NSObject {
 
     var jsonEncoder: JSONEncoder
 
+    // TODO: Set these using dependency Injection
+    var locale: Locale {
+        Locale.current
+    }
+    var device: UIDevice {
+        UIDevice.current
+    }
+    var regionCode: String? {
+        if #available(iOS 16, *) {
+            return locale.language.region?.identifier
+        } else {
+            return locale.regionCode
+        }
+    }
+
     override init() {
         let jsonEncoder = JSONEncoder()
         jsonEncoder.keyEncodingStrategy = JSONEncoder.KeyEncodingStrategy.convertToSnakeCase
@@ -33,18 +48,6 @@ class Reporter: NSObject {
         videoDuration: Double,
         uploadURL: URL
     ) -> Void {
-
-        // TODO: Set these using dependency Injection
-        let locale = Locale.current
-        let device = UIDevice.current
-
-        let regionCode: String?
-        if #available(iOS 16, *) {
-            regionCode = locale.language.region?.identifier
-        } else {
-            regionCode = locale.regionCode
-        }
-
         self.pendingUploadEvent = UploadEvent(
             startTime: startTime,
             endTime: endTime,
