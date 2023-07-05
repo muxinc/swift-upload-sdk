@@ -488,6 +488,26 @@ public final class MuxUpload : Hashable, Equatable {
                 case .inspectionFailure:
                     // TODO: Request upload confirmation
                     // before proceeding
+
+                    guard let nonStandardInputHandler = self.nonStandardInputHandler else {
+                        self.startNetworkTransport(
+                            videoFile: videoFile
+                        )
+                        return
+                    }
+
+                    let shouldCancelUpload = nonStandardInputHandler()
+
+                    if !shouldCancelUpload {
+                        self.startNetworkTransport(
+                            videoFile: videoFile
+                        )
+                    } else {
+                        self.fileWorker?.cancel()
+                        self.uploadManager.acknowledgeUpload(id: self.id)
+                        self.input.processUploadCancellation()
+                    }
+
                     self.startNetworkTransport(videoFile: videoFile)
                 case .standard:
                     self.startNetworkTransport(videoFile: videoFile)
