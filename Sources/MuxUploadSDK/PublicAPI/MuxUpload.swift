@@ -490,9 +490,19 @@ public final class MuxUpload : Hashable, Equatable {
                     """
                     )
 
+                    // TODO: inject Date() for testing purposes
+                    let outputFileName = "upload-\(Date().timeIntervalSince1970)"
+
+                    let outputDirectory = FileManager.default.temporaryDirectory
+                    let outputURL = URL(
+                        fileURLWithPath: outputFileName,
+                        relativeTo: outputDirectory
+                    )
+
                     self.inputStandardizer.standardize(
                         id: self.id,
-                        sourceAsset: AVAsset(url: videoFile)
+                        sourceAsset: AVAsset(url: videoFile),
+                        outputURL: outputURL
                     ) { sourceAsset, standardizedAsset, outputURL, success in
 
                         if let outputURL, success {
