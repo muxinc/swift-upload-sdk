@@ -16,14 +16,13 @@ class ChunkedFileUploader {
     private(set) var currentState: InternalUploadState = .ready
     let uploadInfo: UploadInfo
     let inputFileURL: URL
-    
     private var delegates: [String : ChunkedFileUploaderDelegate] = [:]
     
     private let file: ChunkedFile
-    private var currentWorkTask: Task<(), Never>? = nil
+    private var currentWorkTask: Task<(), Error>? = nil
     private var overallProgress: Progress = Progress()
     private var lastReadCount: UInt64 = 0
-    private let reporter = Reporter()
+    private let reporter: Reporter
     
     func addDelegate(withToken token: String, _ delegate: ChunkedFileUploaderDelegate) {
         delegates.updateValue(delegate, forKey: token)
@@ -86,6 +85,17 @@ class ChunkedFileUploader {
     
     private func beginUpload() {
         let task = Task.detached { [self] in
+
+            let asset = AVAsset(url: inputFileURL)
+
+            var duration: CMTime
+            if #available(iOS 15, *) {
+                duration = try await asset.load(.duration)
+            } else {
+                await asset.loadValues(forKeys: ["duration"])
+                duration = asset.duration
+            }
+
             do {
                 // It's fine if it's already open, that's handled by ignoring the call
                 let fileSize = try FileManager.default.fileSizeOfItem(
@@ -100,26 +110,18 @@ class ChunkedFileUploader {
                     finishTime: result.updateTime
                 )
 
-                let asset = AVAsset(url: inputFileURL)
-
-                var duration: CMTime
-                if #available(iOS 15, *) {
-                    duration = try await asset.load(.duration)
-                } else {
-                    await asset.loadValues(forKeys: ["duration"])
-                    duration = asset.duration
-                }
-
-                if !uploadInfo.options.eventTracking.optedOut {
-                    reporter.report(
-                        startTime: success.startTime,
-                        endTime: success.finishTime,
-                        fileSize: fileSize,
-                        videoDuration: duration.seconds,
-                        uploadURL: uploadInfo.uploadURL
-                    )
-                }
-
+                reporter.reportUploadSuccess(
+                    inputDuration: duration.seconds,
+                    inputSize: fileSize,
+                    options: uploadInfo.options,
+                    uploadEndTime: Date(
+                        timeIntervalSince1970: success.finishTime
+                    ),
+                    uploadStartTime: Date(
+                        timeIntervalSince1970: success.startTime
+                    ),
+                    uploadURL: uploadInfo.uploadURL
+                )
                 notifyStateFromWorker(.success(success))
             } catch {
                 file.close()
@@ -131,7 +133,43 @@ class ChunkedFileUploader {
                 } else {
                     MuxUploadSDK.logger?.debug("Task finished due to error in state \(String(describing: self.currentState))")
                     let uploadError = InternalUploaderError(reason: error, lastByte: lastReadCount)
+
+                    let lastUpdate: Update?
+                    if case InternalUploadState.uploading(let update) = currentState {
+                        lastUpdate = update
+                    } else {
+                        lastUpdate = nil
+                    }
+
+                    // This modifies currentState, so capture
+                    // the last update first
                     notifyStateFromWorker(.failure(uploadError))
+
+                    // FIXME: Will only work if currentState
+                    // was uploading before the upload failed
+                    // may miss some edge cases
+                    if let lastUpdate {
+                        let fileSize = try FileManager.default.fileSizeOfItem(
+                            atPath: inputFileURL.path
+                        )
+
+                        let startTime = Date(
+                            timeIntervalSince1970: lastUpdate.startTime
+                        )
+                        // When failing assume transport ends
+                        // when error is received
+                        let endTime = Date()
+
+                        reporter.reportUploadFailure(
+                            errorDescription: uploadError.localizedDescription,
+                            inputDuration: duration.seconds,
+                            inputSize: fileSize,
+                            options: uploadInfo.options,
+                            uploadEndTime: endTime,
+                            uploadStartTime: startTime,
+                            uploadURL: uploadInfo.uploadURL
+                        )
+                    }
                 }
             }
         }
@@ -207,6 +245,7 @@ class ChunkedFileUploader {
         self.file = file
         self.lastReadCount = startingByte
         self.inputFileURL = inputFileURL
+        self.reporter = Reporter.shared
     }
     
     enum InternalUploadState {
@@ -271,7 +310,6 @@ fileprivate actor Worker {
         let fileSize = try FileManager.default.fileSizeOfItem(
             atPath: inputFileURL.path
         )
-
         let wideFileSize: Int64
 
         // Prevent overflow if UInt64 exceeds Int64.max

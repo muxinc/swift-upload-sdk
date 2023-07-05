@@ -475,6 +475,19 @@ public final class MuxUpload : Hashable, Equatable {
         if !uploadInfo.options.inputStandardization.isEnabled {
             startNetworkTransport(videoFile: videoFile)
         } else {
+            let inputStandardizationStartTime = Date()
+            let reporter = Reporter.shared
+
+            // For consistency report non-std
+            // input size. Should the std size
+            // be reported too?
+            // FIXME: if file size is zero, should
+            // instead throw an error since upload
+            // will likely fail
+            let inputSize = (try? FileManager.default.fileSizeOfItem(
+                atPath: videoFile.path
+            )) ?? 0
+
             input.status = .underInspection(input.sourceAsset, uploadInfo)
             inputInspector.performInspection(
                 sourceInput: input.sourceAsset
@@ -488,6 +501,18 @@ public final class MuxUpload : Hashable, Equatable {
                     // by default do not cancel upload if
                     // input standardization fails
                     let shouldCancelUpload = self.nonStandardInputHandler?() ?? false
+
+                    reporter.reportUploadInputStandardizationFailure(
+                        errorDescription: "Input inspection failure",
+                        inputDuration: 0.0,
+                        inputSize: inputSize,
+                        nonStandardInputReasons: [],
+                        options: self.uploadInfo.options,
+                        standardizationEndTime: Date(),
+                        standardizationStartTime: inputStandardizationStartTime,
+                        uploadCanceled: shouldCancelUpload,
+                        uploadURL: self.uploadURL
+                    )
 
                     if !shouldCancelUpload {
                         self.startNetworkTransport(
@@ -535,6 +560,17 @@ public final class MuxUpload : Hashable, Equatable {
                     ) { sourceAsset, standardizedAsset, outputURL, success in
 
                         if let outputURL, success {
+
+                            reporter.reportUploadInputStandardizationSuccess(
+                                inputDuration: 0.0,
+                                inputSize: inputSize,
+                                options: self.uploadInfo.options,
+                                nonStandardInputReasons: [],
+                                standardizationEndTime: Date(),
+                                standardizationStartTime: inputStandardizationStartTime,
+                                uploadURL: self.uploadURL
+                            )
+
                             self.startNetworkTransport(
                                 videoFile: outputURL
                             )
@@ -544,6 +580,18 @@ public final class MuxUpload : Hashable, Equatable {
                             // by default do not cancel upload if
                             // input standardization fails
                             let shouldCancelUpload = self.nonStandardInputHandler?() ?? false
+
+                            reporter.reportUploadInputStandardizationFailure(
+                                errorDescription: "",
+                                inputDuration: 0.0,
+                                inputSize: inputSize,
+                                nonStandardInputReasons: [],
+                                options: self.uploadInfo.options,
+                                standardizationEndTime: Date(),
+                                standardizationStartTime: inputStandardizationStartTime,
+                                uploadCanceled: shouldCancelUpload,
+                                uploadURL: self.uploadURL
+                            )
 
                             if !shouldCancelUpload {
                                 self.startNetworkTransport(

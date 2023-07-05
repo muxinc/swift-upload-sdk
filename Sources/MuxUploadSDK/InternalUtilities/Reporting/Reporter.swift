@@ -9,10 +9,17 @@ import Foundation
 import UIKit
 
 class Reporter: NSObject {
+
+    static let shared: Reporter = Reporter()
+
     var session: URLSession?
-    var pendingUploadEvent: UploadEvent?
+
+    var pendingEvents: [ObjectIdentifier: Codable] = [:]
 
     var jsonEncoder: JSONEncoder
+
+    var sessionID: String = UUID().uuidString
+    var url: URL
 
     // TODO: Set these using dependency Injection
     var locale: Locale {
@@ -33,7 +40,14 @@ class Reporter: NSObject {
         let jsonEncoder = JSONEncoder()
         jsonEncoder.keyEncodingStrategy = JSONEncoder.KeyEncodingStrategy.convertToSnakeCase
         jsonEncoder.outputFormatting = .sortedKeys
+        jsonEncoder.dateEncodingStrategy = .iso8601
         self.jsonEncoder = jsonEncoder
+
+        // TODO: throwable initializer after NSObject super
+        // is removed
+        self.url = URL(
+            string: "https://mobile.muxanalytics.com"
+        )!
 
         super.init()
 
@@ -41,60 +55,201 @@ class Reporter: NSObject {
         session = URLSession(configuration: sessionConfig, delegate: self, delegateQueue: nil)
     }
 
-    func report(
-        startTime: TimeInterval,
-        endTime: TimeInterval,
-        fileSize: UInt64,
-        videoDuration: Double,
-        uploadURL: URL
-    ) -> Void {
-        self.pendingUploadEvent = UploadEvent(
-            startTime: startTime,
-            endTime: endTime,
-            fileSize: fileSize,
-            videoDuration: videoDuration,
-            uploadURL: uploadURL,
-            sdkVersion: Version.versionString,
-            osName: device.systemName,
-            osVersion: device.systemVersion,
-            deviceModel: device.model,
-            appName: Bundle.main.bundleIdentifier,
-            appVersion: Bundle.main.appVersion,
-            regionCode: regionCode
+    func send<Event: Codable>(
+        event: Event,
+        url: URL
+    ) {
+        guard let httpBody = try? jsonEncoder.encode(event) else {
+            return
+        }
+
+        let request = NSMutableURLRequest.makeJSONPost(
+            url: url,
+            httpBody: httpBody
         )
 
-        // FIXME: If this fails, an event without a payload
-        // is sent which probably isn't what we want
-        do {
-            let httpBody = try serializePendingEvent()
-            let request = self.generateRequest(
-                url: URL(string: "https://mobile.muxanalytics.com")!,
-                httpBody: httpBody
-            )
-            let dataTask = session?.dataTask(with: request as URLRequest, completionHandler: { (data, response, error) -> Void in
-                self.pendingUploadEvent = nil
-            })
-            dataTask?.resume()
-        } catch _ as NSError {}
+        guard let dataTask = session?.dataTask(
+            with: request as URLRequest
+        ) else {
+            return
+        }
+
+        let taskID = ObjectIdentifier(dataTask)
+
+        pendingEvents[
+            taskID
+        ] = event
+
+        dataTask.resume()
+    }
+}
+
+extension Reporter {
+    func reportUploadSuccess(
+        inputDuration: Double,
+        inputSize: UInt64,
+        options: UploadOptions,
+        uploadEndTime: Date,
+        uploadStartTime: Date,
+        uploadURL: URL
+    ) -> Void {
+
+        guard !options.eventTracking.optedOut else {
+            return
+        }
+
+        let data = UploadSucceededEvent.Data(
+            appName: Bundle.main.appName,
+            appVersion: Bundle.main.appVersion,
+            deviceModel: device.model,
+            inputDuration: inputDuration,
+            inputSize: inputSize,
+            inputStandardizationEnabled: options.inputStandardization.isEnabled,
+            platformName: device.systemName,
+            platformVersion: device.systemVersion,
+            regionCode: regionCode,
+            sdkVersion: Version.versionString,
+            uploadStartTime: uploadStartTime,
+            uploadEndTime: uploadEndTime,
+            uploadURL: uploadURL
+        )
+
+        let event = UploadSucceededEvent(
+            sessionID: sessionID,
+            data: data
+        )
+
+        send(
+            event: event,
+            url: url
+        )
     }
 
-    func serializePendingEvent() throws -> Data {
-        return try jsonEncoder.encode(pendingUploadEvent)
+    func reportUploadFailure(
+        errorDescription: String,
+        inputDuration: Double,
+        inputSize: UInt64,
+        options: UploadOptions,
+        uploadEndTime: Date,
+        uploadStartTime: Date,
+        uploadURL: URL
+    ) {
+        guard !options.eventTracking.optedOut else {
+            return
+        }
+
+        let data = UploadFailedEvent.Data(
+            appName: Bundle.main.appName,
+            appVersion: Bundle.main.appVersion,
+            deviceModel: device.model,
+            errorDescription: errorDescription,
+            inputDuration: inputDuration,
+            inputSize: inputSize,
+            inputStandardizationEnabled: options.inputStandardization.isEnabled,
+            platformName: device.systemName,
+            platformVersion: device.systemVersion,
+            regionCode: regionCode,
+            sdkVersion: Version.versionString,
+            uploadStartTime: uploadStartTime,
+            uploadEndTime: uploadEndTime,
+            uploadURL: url
+        )
+
+        let event = UploadFailedEvent(
+            sessionID: sessionID,
+            data: data
+        )
+
+        send(
+            event: event,
+            url: url
+        )
     }
 
-    private func generateRequest(
-        url: URL,
-        httpBody: Data
-    ) -> URLRequest {
-        let request = NSMutableURLRequest(url: url,
-                                          cachePolicy: .useProtocolCachePolicy,
-                                          timeoutInterval: 10.0)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = httpBody
+    func reportUploadInputStandardizationSuccess(
+        inputDuration: Double,
+        inputSize: UInt64,
+        options: UploadOptions,
+        nonStandardInputReasons: [String],
+        standardizationEndTime: Date,
+        standardizationStartTime: Date,
+        uploadURL: URL
+    ) {
+        guard !options.eventTracking.optedOut else {
+            return
+        }
 
-        return request as URLRequest
+        let data = InputStandardizationSucceededEvent.Data(
+            appName: Bundle.main.appName,
+            appVersion: Bundle.main.appVersion,
+            deviceModel: device.model,
+            inputDuration: inputDuration,
+            inputSize: inputSize,
+            maximumResolution: options.inputStandardization.maximumResolution.description,
+            nonStandardInputReasons: nonStandardInputReasons,
+            platformName: device.systemName,
+            platformVersion: device.systemVersion,
+            regionCode: regionCode,
+            sdkVersion: Version.versionString,
+            standardizationStartTime: standardizationStartTime,
+            standardizationEndTime: standardizationEndTime,
+            uploadURL: uploadURL
+        )
+
+        let event = InputStandardizationSucceededEvent(
+            sessionID: sessionID,
+            data: data
+        )
+
+        send(
+            event: event,
+            url: url
+        )
+    }
+
+    func reportUploadInputStandardizationFailure(
+        errorDescription: String,
+        inputDuration: Double,
+        inputSize: UInt64,
+        nonStandardInputReasons: [String],
+        options: UploadOptions,
+        standardizationEndTime: Date,
+        standardizationStartTime: Date,
+        uploadCanceled: Bool,
+        uploadURL: URL
+    ) {
+        guard !options.eventTracking.optedOut else {
+            return
+        }
+
+        let data = InputStandardizationFailedEvent.Data(
+            appName: Bundle.main.appName,
+            appVersion: Bundle.main.appVersion,
+            deviceModel: device.model,
+            errorDescription: errorDescription,
+            inputDuration: inputDuration,
+            inputSize: inputSize,
+            maximumResolution: options.inputStandardization.maximumResolution.description,
+            nonStandardInputReasons: nonStandardInputReasons,
+            platformName: device.systemName,
+            platformVersion: device.systemVersion,
+            regionCode: regionCode,
+            sdkVersion: Version.versionString,
+            standardizationStartTime: standardizationStartTime,
+            standardizationEndTime: standardizationEndTime,
+            uploadCanceled: uploadCanceled,
+            uploadURL: uploadURL
+        )
+
+        let event = InputStandardizationFailedEvent(
+            sessionID: sessionID,
+            data: data
+        )
+
+        send(
+            event: event,
+            url: url
+        )
     }
 }
 
@@ -102,14 +257,27 @@ class Reporter: NSObject {
 // can become non-optional, which removes a bunch of edge cases
 extension Reporter: URLSessionDelegate, URLSessionTaskDelegate {
     func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest, completionHandler: @escaping (URLRequest?) -> Swift.Void) {
-        if(self.pendingUploadEvent != nil) {
-            if let redirectUrl = request.url, let httpBody = try? serializePendingEvent() {
-                let request = self.generateRequest(
-                    url: redirectUrl,
-                    httpBody: httpBody
-                )
-                completionHandler(request)
+        if let pendingEvent = pendingEvents[ObjectIdentifier(task)], let redirectURL = request.url {
+            guard let httpBody = try? jsonEncoder.encode(pendingEvent) else {
+                completionHandler(nil)
+                return
             }
+
+            // TODO: This can be URLRequest instead of NSMutableURLRequest
+            // test URLRequest-based construction in case
+            // for any weirdness
+            let request = NSMutableURLRequest.makeJSONPost(
+                url: redirectURL,
+                httpBody: httpBody
+            )
+
+            completionHandler(request as URLRequest)
         }
+    }
+
+    func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+        pendingEvents[
+            ObjectIdentifier(task)
+        ] = nil
     }
 }
