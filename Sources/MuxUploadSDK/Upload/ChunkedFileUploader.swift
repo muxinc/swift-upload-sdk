@@ -79,6 +79,7 @@ class ChunkedFileUploader {
         case .starting, .uploading:
             notifyStateFromMain(.canceled)
         case .ready, .canceled, .success, .failure, .paused:
+            // Should paused be handled differently?
             break
         }
     }
