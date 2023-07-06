@@ -72,7 +72,7 @@ class ChunkedFile {
     
     /// Closes the the file opened by ``openFile``. Should be called on the same thread that opened the file
     ///  Calling this multiple times has no effect
-    public func close() {
+    func close() {
         do {
             try fileHandle?.close()
         } catch {
@@ -83,7 +83,7 @@ class ChunkedFile {
         _fileSize = ChunkedFile.SIZE_UNKNOWN
     }
     
-    public func seekTo(byte: UInt64) throws {
+    func seekTo(byte: UInt64) throws {
         // Worst case: we start from the begining and there's a few very quick chunk successes
         try fileHandle?.seek(toOffset: byte)
         filePos = byte
