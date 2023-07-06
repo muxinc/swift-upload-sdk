@@ -17,14 +17,18 @@ class ChunkedFile {
     static let SIZE_UNKNOWN: UInt64 = 0
     /// The size of the file. Call ``open`` to populate this with a real value, otherwise it will be ``SIZE_UNKNOWN``
     var fileSize: UInt64 {
-        return _fileSize
+        if let openFileURL = openFileURL {
+            return (try? fetchFileSize(fileURL: openFileURL)) ?? ChunkedFile.SIZE_UNKNOWN
+        } else {
+            return ChunkedFile.SIZE_UNKNOWN
+        }
     }
     
     private let chunkSize: Int
     
+    private var openFileURL: URL? = nil
     private var fileHandle: FileHandle?
     private var filePos: UInt64 = 0
-    private var _fileSize: UInt64 = SIZE_UNKNOWN
     
     /// Reads the next chunk from the file, advancing the file for the next read
     ///  This method does synchronous I/O, so call it in the background
@@ -56,14 +60,10 @@ class ChunkedFile {
     func openFile(fileURL: URL) throws {
         if fileHandle == nil {
             do {
-                guard let fileSize = try FileManager.default.attributesOfItem(atPath: fileURL.path)[FileAttributeKey.size] as? UInt64 else {
-                    throw ChunkedFileError.invalidState("Cannot retrieve file size")
-                }
-                self._fileSize = fileSize
-                
                 let handle = try FileHandle(forReadingFrom: fileURL)
                 fileHandle = handle
-                MuxUploadSDK.logger?.info("Opened file with len \(String(describing: fileSize)) at path \(fileURL.path)")
+                self.openFileURL = fileURL
+                MuxUploadSDK.logger?.info("Opened file with len \(String(describing: self.fileSize)) at path \(fileURL.path)")
             } catch {
                 throw ChunkedFileError.fileHandle(error)
             }
@@ -80,7 +80,6 @@ class ChunkedFile {
         }
         fileHandle = nil
         filePos = 0
-        _fileSize = ChunkedFile.SIZE_UNKNOWN
     }
     
     func seekTo(byte: UInt64) throws {
