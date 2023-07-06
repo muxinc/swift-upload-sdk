@@ -88,7 +88,9 @@ class ChunkedFileUploader {
         let task = Task.detached { [self] in
             do {
                 // It's fine if it's already open, that's handled by ignoring the call
-                let fileSize = file.fileSize
+                let fileSize = try FileManager.default.fileSizeOfItem(
+                    atPath: uploadInfo.videoFile.path
+                )
                 let result = try await makeWorker().performUpload()
                 file.close()
 
@@ -240,9 +242,19 @@ fileprivate actor Worker {
         try chunkedFile.seekTo(byte: startingReadCount)
         
         let startTime = Date().timeIntervalSince1970
-        
-        let fileSize = chunkedFile.fileSize
-        let wideFileSize = Int64(fileSize)
+        let fileSize = try FileManager.default.fileSizeOfItem(
+            atPath: uploadInfo.videoFile.path
+        )
+
+        let wideFileSize: Int64
+
+        // Prevent overflow if UInt64 exceeds Int64.max
+        if fileSize >= Int64.max {
+            wideFileSize = Int64.max
+        } else {
+            wideFileSize = Int64(fileSize)
+        }
+
         overallProgress.totalUnitCount = wideFileSize
         overallProgress.isCancellable = false
         overallProgress.completedUnitCount = Int64(startingReadCount)

@@ -13,18 +13,28 @@ import Foundation
 /// Buffers are allocated for each new chunk so they can safely escape to other threads
 /// Call  ``close`` when you're done with this object
 class ChunkedFile {
-    
-    static let SIZE_UNKNOWN: UInt64 = 0
-    /// The size of the file. Call ``open`` to populate this with a real value, otherwise it will be ``SIZE_UNKNOWN``
-    var fileSize: UInt64 {
-        return _fileSize
+
+    private struct State {
+        var fileHandle: FileHandle
+        var fileURL: URL
+        var filePosition: UInt64 = 0
     }
-    
+
     private let chunkSize: Int
-    
-    private var fileHandle: FileHandle?
-    private var filePos: UInt64 = 0
-    private var _fileSize: UInt64 = SIZE_UNKNOWN
+
+    var fileManager = FileManager.default
+
+    private var state: State?
+
+    private var fileHandle: FileHandle? {
+        state?.fileHandle
+    }
+    private var fileURL: URL? {
+        state?.fileURL
+    }
+    private var filePos: UInt64 {
+        state?.filePosition ?? 0
+    }
     
     /// Reads the next chunk from the file, advancing the file for the next read
     ///  This method does synchronous I/O, so call it in the background
@@ -39,20 +49,19 @@ class ChunkedFile {
             return Result.failure(ChunkedFileError.fileHandle(error))
         }
     }
-    
+
     /// Opens the internal file ahead of time. Calling this is optional, but it's available
     /// Calling this multiple times (on the same thread) will have no effect unless you also ``close`` it
     /// Throws if the file couldn't be opened
     func openFile(fileURL: URL) throws {
-        if fileHandle == nil {
+        if state == nil {
             do {
-                guard let fileSize = try FileManager.default.attributesOfItem(atPath: fileURL.path)[FileAttributeKey.size] as? UInt64 else {
-                    throw ChunkedFileError.invalidState("Cannot retrieve file size")
-                }
-                self._fileSize = fileSize
-                
-                let handle = try FileHandle(forReadingFrom: fileURL)
-                fileHandle = handle
+                let fileSize = try fileManager.fileSizeOfItem(atPath: fileURL.path)
+                let fileHandle = try FileHandle(forReadingFrom: fileURL)
+                state = State(
+                    fileHandle: fileHandle,
+                    fileURL: fileURL
+                )
                 MuxUploadSDK.logger?.info("Opened file with len \(String(describing: fileSize)) at path \(fileURL.path)")
             } catch {
                 throw ChunkedFileError.fileHandle(error)
@@ -68,23 +77,26 @@ class ChunkedFile {
         } catch {
             MuxUploadSDK.logger?.warning("Swallowed error closing file: \(error.localizedDescription)")
         }
-        fileHandle = nil
-        filePos = 0
-        _fileSize = ChunkedFile.SIZE_UNKNOWN
+        state = nil
     }
     
     func seekTo(byte: UInt64) throws {
         // Worst case: we start from the begining and there's a few very quick chunk successes
         try fileHandle?.seek(toOffset: byte)
-        filePos = byte
+        state?.filePosition = byte
     }
     
     private func doReadNextChunk() throws -> FileChunk {
         MuxUploadSDK.logger?.info("--doReadNextChunk")
-        guard let fileHandle = fileHandle else {
+        guard let fileHandle = fileHandle, let fileURL = fileURL else {
             throw ChunkedFileError.invalidState("doReadNextChunk called without file handle. Did you call open()?")
         }
         let data = try fileHandle.read(upToCount: chunkSize)
+
+        let fileSize = try fileManager.fileSizeOfItem(
+            atPath: fileURL.path
+        )
+
         guard let data = data else {
             // Called while already at the end of the file. We read zero bytes, "ending" at the end of the file
             return FileChunk(startByte: fileSize, endByte: fileSize, totalFileSize: fileSize, chunkData: Data(capacity: 0))
@@ -100,7 +112,7 @@ class ChunkedFile {
             chunkData: data
         )
         
-        self.filePos = newFilePos
+        state?.filePosition = newFilePos
         
         return chunk
     }
