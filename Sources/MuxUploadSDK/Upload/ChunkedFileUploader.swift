@@ -19,7 +19,7 @@ class ChunkedFileUploader {
     private var delegates: [String : ChunkedFileUploaderDelegate] = [:]
     
     private let file: ChunkedFile
-    private var currentWorkTask: Task<(), Error>? = nil
+    private var currentWorkTask: Task<(), Never>? = nil
     private var _currentState: InternalUploadState = .ready
     private var overallProgress: Progress = Progress()
     private var lastReadCount: UInt64 = 0
@@ -88,7 +88,7 @@ class ChunkedFileUploader {
         let task = Task.detached { [self] in
             do {
                 // It's fine if it's already open, that's handled by ignoring the call
-                let fileSize = try file.fetchFileSize(fileURL: inputFileURL)
+                let fileSize = try file.fetchFileSize(fileURL: uploadInfo.videoFile)
                 let result = try await makeWorker().performUpload()
                 file.close()
 
