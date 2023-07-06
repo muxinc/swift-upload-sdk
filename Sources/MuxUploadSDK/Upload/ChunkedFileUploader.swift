@@ -78,7 +78,7 @@ class ChunkedFileUploader {
         switch _currentState {
         case .starting, .uploading:
             notifyStateFromMain(.canceled)
-        default:
+        case .ready, .canceled, .success, .failure, .paused:
             break
         }
     }
