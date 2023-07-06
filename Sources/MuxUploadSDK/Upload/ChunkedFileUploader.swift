@@ -61,10 +61,9 @@ class ChunkedFileUploader {
     /// Starts the upload if it wasn't already starting
     func start() {
         switch _currentState {
-        case .ready: fallthrough
-        case .paused(_):
+        case .ready, .paused:
             beginUpload()
-        default:
+        case .starting, .uploading, .canceled, .success, .failure:
             MuxUploadSDK.logger?.info("start() ignored in state \(String(describing: self._currentState))")
         }
     }
