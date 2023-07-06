@@ -43,7 +43,7 @@ class ChunkedFile {
     /// Opens the internal file ahead of time. Calling this is optional, but it's available
     /// Calling this multiple times (on the same thread) will have no effect unless you also ``close`` it
     /// Throws if the file couldn't be opened
-    public func openFile(fileURL: URL) throws {
+    func openFile(fileURL: URL) throws {
         if fileHandle == nil {
             do {
                 guard let fileSize = try FileManager.default.attributesOfItem(atPath: fileURL.path)[FileAttributeKey.size] as? UInt64 else {
@@ -62,7 +62,7 @@ class ChunkedFile {
     
     /// Closes the the file opened by ``openFile``. Should be called on the same thread that opened the file
     ///  Calling this multiple times has no effect
-    public func close() {
+    func close() {
         do {
             try fileHandle?.close()
         } catch {
@@ -73,7 +73,7 @@ class ChunkedFile {
         _fileSize = ChunkedFile.SIZE_UNKNOWN
     }
     
-    public func seekTo(byte: UInt64) throws {
+    func seekTo(byte: UInt64) throws {
         // Worst case: we start from the begining and there's a few very quick chunk successes
         try fileHandle?.seek(toOffset: byte)
         filePos = byte
