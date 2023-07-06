@@ -77,14 +77,7 @@ final class ChunkedFileTests: XCTestCase {
     
     func testMisuseBeforeOpen() throws {
         let file = ChunkedFile(chunkSize: 10 * 1000 * 1000)
-        
-        let fileSizeBeforeOpen = file.fileSize
-        XCTAssertEqual(
-            fileSizeBeforeOpen,
-            ChunkedFile.SIZE_UNKNOWN,
-            "File size should not be known before open"
-        )
-        
+
         let readResult = file.readNextChunk()
         switch readResult {
         case .success(_): return XCTFail("readNextChunk should fail before open")
@@ -103,13 +96,6 @@ final class ChunkedFileTests: XCTestCase {
         
         try file.openFile(fileURL: testFileURL)
         file.close()
-        
-        let fileSizeAfterClose = file.fileSize
-        XCTAssertEqual(
-            fileSizeAfterClose,
-            ChunkedFile.SIZE_UNKNOWN,
-            "File size should not be known after close"
-        )
         
         let chunkResult = file.readNextChunk()
         switch chunkResult {
