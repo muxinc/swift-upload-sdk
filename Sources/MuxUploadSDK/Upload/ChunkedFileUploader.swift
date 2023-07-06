@@ -62,6 +62,7 @@ class ChunkedFileUploader {
     func start() {
         switch _currentState {
         case .ready, .paused:
+            _currentState = .starting
             beginUpload()
         case .starting, .uploading, .canceled, .success, .failure:
             MuxUploadSDK.logger?.info("start() ignored in state \(String(describing: self._currentState))")
@@ -75,11 +76,10 @@ class ChunkedFileUploader {
         cleanupResources()
         
         switch _currentState {
-        case .starting: fallthrough
-        case .uploading(_): do {
+        case .starting, .uploading:
             notifyStateFromMain(.canceled)
-        }
-        default: do {}
+        default:
+            break
         }
     }
     
