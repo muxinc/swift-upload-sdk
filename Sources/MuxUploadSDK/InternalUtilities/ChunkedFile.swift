@@ -56,9 +56,7 @@ class ChunkedFile {
     func openFile(fileURL: URL) throws {
         if state == nil {
             do {
-                guard let fileSize = try fileManager.attributesOfItem(atPath: fileURL.path)[FileAttributeKey.size] as? UInt64 else {
-                    throw ChunkedFileError.invalidState("Cannot retrieve file size")
-                }
+                let fileSize = try (fileManager.attributesOfItem(atPath: fileURL.path) as NSDictionary).fileSize()
                 let fileHandle = try FileHandle(forReadingFrom: fileURL)
                 state = State(
                     fileHandle: fileHandle,
@@ -95,14 +93,9 @@ class ChunkedFile {
         }
         let data = try fileHandle.read(upToCount: chunkSize)
 
-        let fileAttributes = try fileManager.attributesOfItem(
+        let fileSize = try (fileManager.attributesOfItem(
             atPath: fileURL.path
-        )
-        guard let fileSize = fileAttributes[
-            FileAttributeKey.size
-        ] as? UInt64 else {
-            throw ChunkedFileError.invalidState("Cannot retrieve file size")
-        }
+        ) as NSDictionary).fileSize()
 
         guard let data = data else {
             // Called while already at the end of the file. We read zero bytes, "ending" at the end of the file

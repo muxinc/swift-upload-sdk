@@ -88,10 +88,7 @@ class ChunkedFileUploader {
         let task = Task.detached { [self] in
             do {
                 // It's fine if it's already open, that's handled by ignoring the call
-                let fileSize = (try? FileManager.default.attributesOfItem(
-                    atPath: uploadInfo.videoFile.path
-                )[FileAttributeKey.size] as? UInt64) ?? 0
-
+                let fileSize = (try FileManager.default.attributesOfItem(atPath: uploadInfo.videoFile.path) as NSDictionary).fileSize()
                 let result = try await makeWorker().performUpload()
                 file.close()
 
@@ -243,16 +240,9 @@ fileprivate actor Worker {
         try chunkedFile.seekTo(byte: startingReadCount)
         
         let startTime = Date().timeIntervalSince1970
-
-        let fileAttributes = try FileManager.default.attributesOfItem(
+        let fileSize = (try FileManager.default.attributesOfItem(
             atPath: uploadInfo.videoFile.path
-        )
-        guard let fileSize = fileAttributes[
-            FileAttributeKey.size
-        ] as? UInt64 else {
-            // TODO: Does the worker need its own error defintion?
-            throw ChunkedFileError.invalidState("Cannot retrieve file size")
-        }
+        ) as NSDictionary).fileSize()
 
         let wideFileSize: Int64
 
