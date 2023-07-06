@@ -54,7 +54,8 @@ class ChunkedFileUploader {
             currentWorkTask = nil
             notifyStateFromMain(.paused(update))
         }
-        default: do {}
+        case .ready, .paused, .canceled, .success, .failure:
+            break
         }
     }
     
