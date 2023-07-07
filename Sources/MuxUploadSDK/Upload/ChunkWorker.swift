@@ -224,8 +224,8 @@ fileprivate class ProgressReportingURLSessionTaskDelegate : NSObject, URLSession
 }
 
 class ChunkResponseValidator {
-    public static let acceptableHTTPStatusCodes = [200, 201, 202, 204, 308]
-    public static let retryableHTTPStatusCodes = [408, 502, 503, 504]
+    static let acceptableHTTPStatusCodes = [200, 201, 202, 204, 308]
+    static let retryableHTTPStatusCodes = [408, 502, 503, 504]
     
     func validate(statusCode: Int) -> Disposition {
         if ChunkResponseValidator.acceptableHTTPStatusCodes.contains(statusCode) {
