@@ -187,6 +187,19 @@ public struct UploadOptions {
 
 }
 
+extension UploadOptions.InputStandardization.MaximumResolution: CustomStringConvertible {
+    public var description: String {
+        switch self {
+        case .preset1280x720:
+            return "preset1280x720"
+        case .preset1920x1080:
+            return "preset1920x1080"
+        case .default:
+            return "default"
+        }
+    }
+}
+
 extension UploadOptions: Codable { }
 
 extension UploadOptions.EventTracking: Codable { }
