@@ -21,9 +21,12 @@ enum UploadInputFormatInspectionResult {
         case unsupportedPixelFormat
     }
 
-    case inspectionFailure
-    case standard
-    case nonstandard([NonstandardInputReason])
+    case inspectionFailure(duration: CMTime)
+    case standard(duration: CMTime)
+    case nonstandard(
+        reasons: [NonstandardInputReason],
+        duration: CMTime
+    )
 
     var isStandard: Bool {
         if case Self.standard = self {
@@ -33,8 +36,19 @@ enum UploadInputFormatInspectionResult {
         }
     }
 
+    var sourceInputDuration: CMTime {
+        switch self {
+        case .inspectionFailure(duration: let duration):
+            return duration
+        case .standard(duration: let duration):
+            return duration
+        case .nonstandard(_, duration: let duration):
+            return duration
+        }
+    }
+
     var nonstandardInputReasons: [NonstandardInputReason]? {
-        if case Self.nonstandard(let nonstandardInputReasons) = self {
+        if case Self.nonstandard(let nonstandardInputReasons, _) = self {
             return nonstandardInputReasons
         } else {
             return nil

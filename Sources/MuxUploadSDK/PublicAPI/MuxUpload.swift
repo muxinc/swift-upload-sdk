@@ -504,7 +504,7 @@ public final class MuxUpload : Hashable, Equatable {
 
                     reporter.reportUploadInputStandardizationFailure(
                         errorDescription: "Input inspection failure",
-                        inputDuration: 0.0,
+                        inputDuration: inspectionResult.sourceInputDuration.seconds,
                         inputSize: inputSize,
                         nonStandardInputReasons: [],
                         options: self.uploadInfo.options,
@@ -528,7 +528,7 @@ public final class MuxUpload : Hashable, Equatable {
                 case .standard:
                     self.startNetworkTransport(videoFile: videoFile)
                 case .nonstandard(
-                    let reasons
+                    let reasons, _
                 ):
                     print("""
                     Detected Nonstandard Reasons
@@ -562,7 +562,7 @@ public final class MuxUpload : Hashable, Equatable {
                         if let outputURL, success {
 
                             reporter.reportUploadInputStandardizationSuccess(
-                                inputDuration: 0.0,
+                                inputDuration: inspectionResult.sourceInputDuration.seconds,
                                 inputSize: inputSize,
                                 options: self.uploadInfo.options,
                                 nonStandardInputReasons: [],
@@ -583,7 +583,7 @@ public final class MuxUpload : Hashable, Equatable {
 
                             reporter.reportUploadInputStandardizationFailure(
                                 errorDescription: "",
-                                inputDuration: 0.0,
+                                inputDuration: inspectionResult.sourceInputDuration.seconds,
                                 inputSize: inputSize,
                                 nonStandardInputReasons: [],
                                 options: self.uploadInfo.options,
