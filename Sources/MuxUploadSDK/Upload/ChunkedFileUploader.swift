@@ -14,13 +14,12 @@ import Foundation
 class ChunkedFileUploader {
     
     let uploadInfo: UploadInfo
-    var currentState: InternalUploadState { get { _currentState } }
+    private(set) var currentState: InternalUploadState = .ready
     
     private var delegates: [String : ChunkedFileUploaderDelegate] = [:]
     
     private let file: ChunkedFile
     private var currentWorkTask: Task<(), Never>? = nil
-    private var _currentState: InternalUploadState = .ready
     private var overallProgress: Progress = Progress()
     private var lastReadCount: UInt64 = 0
     private let reporter = Reporter()
@@ -35,7 +34,7 @@ class ChunkedFileUploader {
     
     /// If currently uploading, will pause the upload. If not uploading, this methd has no effect
     func pause() {
-        switch _currentState {
+        switch currentState {
         case .starting: do {
             currentWorkTask?.cancel()
             currentWorkTask = nil
@@ -60,12 +59,12 @@ class ChunkedFileUploader {
     
     /// Starts the upload if it wasn't already starting
     func start() {
-        switch _currentState {
+        switch currentState {
         case .ready: fallthrough
         case .paused(_):
             beginUpload()
         default:
-            MuxUploadSDK.logger?.info("start() ignored in state \(String(describing: self._currentState))")
+            MuxUploadSDK.logger?.info("start() ignored in state \(String(describing: self.currentState))")
         }
     }
     
@@ -74,8 +73,8 @@ class ChunkedFileUploader {
         currentWorkTask?.cancel()
         currentWorkTask = nil
         cleanupResources()
-        
-        switch _currentState {
+
+        switch currentState {
         case .starting: fallthrough
         case .uploading(_): do {
             notifyStateFromMain(.canceled)
@@ -126,7 +125,7 @@ class ChunkedFileUploader {
                 if error is CancellationError {
                     MuxUploadSDK.logger?.debug("Task finished due to cancellation in state \(String(describing: self.currentState))")
                     if case let .uploading(update) = self.currentState {
-                        self._currentState = .paused(update)
+                        self.currentState = .paused(update)
                     }
                 } else {
                     MuxUploadSDK.logger?.debug("Task finished due to error in state \(String(describing: self.currentState))")
@@ -166,7 +165,7 @@ class ChunkedFileUploader {
     
     /// Notify delegates of state updates. This method *must* be called from the main thread. See ``notifyStateFromWorker``
     private func notifyStateFromMain(_ state: InternalUploadState) {
-        _currentState = state
+        currentState = state
         
         if case .uploading(let update) = state {
             let count = update.progress.completedUnitCount
