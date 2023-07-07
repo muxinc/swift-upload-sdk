@@ -5,7 +5,7 @@
 import Foundation
 
 extension NSMutableURLRequest {
-    static func make(
+    static func makeJSONPost(
         url: URL,
         httpBody: Data
     ) -> NSMutableURLRequest {
