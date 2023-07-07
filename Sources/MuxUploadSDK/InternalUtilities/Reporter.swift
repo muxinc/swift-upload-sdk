@@ -94,7 +94,7 @@ class Reporter: NSObject {
 // TODO: Implement as a separate object so the URLSession
 // can become non-optional, which removes a bunch of edge cases
 extension Reporter: URLSessionDelegate, URLSessionTaskDelegate {
-    public func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest, completionHandler: @escaping (URLRequest?) -> Swift.Void) {
+    func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest, completionHandler: @escaping (URLRequest?) -> Swift.Void) {
         if(self.pendingUploadEvent != nil) {
             if let redirectUrl = request.url {
                 let request = self.generateRequest(url: redirectUrl)
