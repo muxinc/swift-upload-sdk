@@ -484,17 +484,11 @@ public final class MuxUpload : Hashable, Equatable {
 
                 switch inspectionResult {
                 case .inspectionFailure:
-                    // TODO: Request upload confirmation
-                    // before proceeding
-
-                    guard let nonStandardInputHandler = self.nonStandardInputHandler else {
-                        self.startNetworkTransport(
-                            videoFile: videoFile
-                        )
-                        return
-                    }
-
-                    let shouldCancelUpload = nonStandardInputHandler()
+                    // Request upload confirmation
+                    // before proceeding. If handler unset,
+                    // by default do not cancel upload if
+                    // input standardization fails
+                    let shouldCancelUpload = self.nonStandardInputHandler?() ?? false
 
                     if !shouldCancelUpload {
                         self.startNetworkTransport(
@@ -546,14 +540,11 @@ public final class MuxUpload : Hashable, Equatable {
                                 videoFile: outputURL
                             )
                         } else {
-                            guard let nonStandardInputHandler = self.nonStandardInputHandler else {
-                                self.startNetworkTransport(
-                                    videoFile: videoFile
-                                )
-                                return
-                            }
-
-                            let shouldCancelUpload = nonStandardInputHandler()
+                            // Request upload confirmation
+                            // before proceeding. If handler unset,
+                            // by default do not cancel upload if
+                            // input standardization fails
+                            let shouldCancelUpload = self.nonStandardInputHandler?() ?? false
 
                             if !shouldCancelUpload {
                                 self.startNetworkTransport(
