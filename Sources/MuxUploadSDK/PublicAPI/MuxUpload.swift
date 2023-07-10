@@ -557,24 +557,9 @@ public final class MuxUpload : Hashable, Equatable {
                         sourceAsset: AVAsset(url: videoFile),
                         maximumResolution: maximumResolution,
                         outputURL: outputURL
-                    ) { sourceAsset, standardizedAsset, outputURL, success in
+                    ) { sourceAsset, standardizedAsset, error in
 
-                        if let outputURL, success {
-
-                            reporter.reportUploadInputStandardizationSuccess(
-                                inputDuration: inspectionResult.sourceInputDuration.seconds,
-                                inputSize: inputSize,
-                                options: self.uploadInfo.options,
-                                nonStandardInputReasons: [],
-                                standardizationEndTime: Date(),
-                                standardizationStartTime: inputStandardizationStartTime,
-                                uploadURL: self.uploadURL
-                            )
-
-                            self.startNetworkTransport(
-                                videoFile: outputURL
-                            )
-                        } else {
+                        if let error {
                             // Request upload confirmation
                             // before proceeding. If handler unset,
                             // by default do not cancel upload if
@@ -582,7 +567,7 @@ public final class MuxUpload : Hashable, Equatable {
                             let shouldCancelUpload = self.nonStandardInputHandler?() ?? false
 
                             reporter.reportUploadInputStandardizationFailure(
-                                errorDescription: "",
+                                errorDescription: error.localizedDescription,
                                 inputDuration: inspectionResult.sourceInputDuration.seconds,
                                 inputSize: inputSize,
                                 nonStandardInputReasons: [],
@@ -602,6 +587,20 @@ public final class MuxUpload : Hashable, Equatable {
                                 self.uploadManager.acknowledgeUpload(id: self.id)
                                 self.input.processUploadCancellation()
                             }
+                        } else {
+                            reporter.reportUploadInputStandardizationSuccess(
+                                inputDuration: inspectionResult.sourceInputDuration.seconds,
+                                inputSize: inputSize,
+                                options: self.uploadInfo.options,
+                                nonStandardInputReasons: [],
+                                standardizationEndTime: Date(),
+                                standardizationStartTime: inputStandardizationStartTime,
+                                uploadURL: self.uploadURL
+                            )
+
+                            self.startNetworkTransport(
+                                videoFile: outputURL
+                            )
                         }
 
                         self.inputStandardizer.acknowledgeCompletion(id: self.id)
