@@ -67,6 +67,16 @@ class ChunkedFileUploader {
             MuxUploadSDK.logger?.info("start() ignored in state \(String(describing: self.currentState))")
         }
     }
+
+    func start(duration: CMTime) {
+        switch currentState {
+        case .ready: fallthrough
+        case .paused(_):
+            beginUpload(duration: duration)
+        default:
+            MuxUploadSDK.logger?.info("start() ignored in state \(String(describing: self.currentState))")
+        }
+    }
     
     /// Cancels the upload. It can't be restarted
     func cancel() {
@@ -95,6 +105,89 @@ class ChunkedFileUploader {
                 await asset.loadValues(forKeys: ["duration"])
                 duration = asset.duration
             }
+
+            do {
+                // It's fine if it's already open, that's handled by ignoring the call
+                let fileSize = try FileManager.default.fileSizeOfItem(
+                    atPath: inputFileURL.path
+                )
+                let result = try await makeWorker().performUpload()
+                file.close()
+
+                let success = UploadResult(
+                    finalProgress: result.progress,
+                    startTime: result.startTime,
+                    finishTime: result.updateTime
+                )
+
+                reporter.reportUploadSuccess(
+                    inputDuration: duration.seconds,
+                    inputSize: fileSize,
+                    options: uploadInfo.options,
+                    uploadEndTime: Date(
+                        timeIntervalSince1970: success.finishTime
+                    ),
+                    uploadStartTime: Date(
+                        timeIntervalSince1970: success.startTime
+                    ),
+                    uploadURL: uploadInfo.uploadURL
+                )
+                notifyStateFromWorker(.success(success))
+            } catch {
+                file.close()
+                if error is CancellationError {
+                    MuxUploadSDK.logger?.debug("Task finished due to cancellation in state \(String(describing: self.currentState))")
+                    if case let .uploading(update) = self.currentState {
+                        self.currentState = .paused(update)
+                    }
+                } else {
+                    MuxUploadSDK.logger?.debug("Task finished due to error in state \(String(describing: self.currentState))")
+                    let uploadError = InternalUploaderError(reason: error, lastByte: lastReadCount)
+
+                    let lastUpdate: Update?
+                    if case InternalUploadState.uploading(let update) = currentState {
+                        lastUpdate = update
+                    } else {
+                        lastUpdate = nil
+                    }
+
+                    // This modifies currentState, so capture
+                    // the last update first
+                    notifyStateFromWorker(.failure(uploadError))
+
+                    // FIXME: Will only work if currentState
+                    // was uploading before the upload failed
+                    // may miss some edge cases
+                    if let lastUpdate {
+                        let fileSize = try FileManager.default.fileSizeOfItem(
+                            atPath: inputFileURL.path
+                        )
+
+                        let startTime = Date(
+                            timeIntervalSince1970: lastUpdate.startTime
+                        )
+                        // When failing assume transport ends
+                        // when error is received
+                        let endTime = Date()
+
+                        reporter.reportUploadFailure(
+                            errorDescription: uploadError.localizedDescription,
+                            inputDuration: duration.seconds,
+                            inputSize: fileSize,
+                            options: uploadInfo.options,
+                            uploadEndTime: endTime,
+                            uploadStartTime: startTime,
+                            uploadURL: uploadInfo.uploadURL
+                        )
+                    }
+                }
+            }
+        }
+        currentWorkTask = task
+    }
+
+    private func beginUpload(duration: CMTime) {
+        let task = Task.detached { [self] in
 
             do {
                 // It's fine if it's already open, that's handled by ignoring the call

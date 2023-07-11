@@ -570,7 +570,7 @@ public final class MuxUpload : Hashable, Equatable {
                                 errorDescription: error.localizedDescription,
                                 inputDuration: inspectionResult.sourceInputDuration.seconds,
                                 inputSize: inputSize,
-                                nonStandardInputReasons: [],
+                                nonStandardInputReasons: reasons,
                                 options: self.uploadInfo.options,
                                 standardizationEndTime: Date(),
                                 standardizationStartTime: inputStandardizationStartTime,
@@ -592,14 +592,15 @@ public final class MuxUpload : Hashable, Equatable {
                                 inputDuration: inspectionResult.sourceInputDuration.seconds,
                                 inputSize: inputSize,
                                 options: self.uploadInfo.options,
-                                nonStandardInputReasons: [],
+                                nonStandardInputReasons: reasons,
                                 standardizationEndTime: Date(),
                                 standardizationStartTime: inputStandardizationStartTime,
                                 uploadURL: self.uploadURL
                             )
 
                             self.startNetworkTransport(
-                                videoFile: outputURL
+                                videoFile: outputURL,
+                                duration: inspectionResult.sourceInputDuration
                             )
                         }
 
@@ -629,6 +630,37 @@ public final class MuxUpload : Hashable, Equatable {
         self.fileWorker = fileWorker
         uploadManager.registerUpload(self)
 
+        let transportStatus = TransportStatus(
+            progress: fileWorker.currentState.progress ?? Progress(),
+            updatedTime: Date().timeIntervalSince1970,
+            startTime: Date().timeIntervalSince1970,
+            isPaused: false
+        )
+        self.input.processStartNetworkTransport(
+            startingTransportStatus: transportStatus
+        )
+        inputStatusHandler?(inputStatus)
+    }
+
+    func startNetworkTransport(
+        videoFile: URL,
+        duration: CMTime
+    ) {
+        let completedUnitCount = UInt64(uploadStatus?.progress?.completedUnitCount ?? 0)
+
+        let fileWorker = ChunkedFileUploader(
+            uploadInfo: input.uploadInfo,
+            inputFileURL: videoFile,
+            file: ChunkedFile(chunkSize: input.uploadInfo.options.transport.chunkSizeInBytes),
+            startingByte: completedUnitCount
+        )
+        fileWorker.addDelegate(
+            withToken: id,
+            InternalUploaderDelegate { [self] state in handleStateUpdate(state) }
+        )
+        fileWorker.start(duration: duration)
+        uploadManager.registerUploader(fileWorker, withId: id)
+        self.fileWorker = fileWorker
         let transportStatus = TransportStatus(
             progress: fileWorker.currentState.progress ?? Progress(),
             updatedTime: Date().timeIntervalSince1970,
