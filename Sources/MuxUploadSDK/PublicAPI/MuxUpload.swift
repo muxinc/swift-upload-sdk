@@ -313,9 +313,15 @@ extension MuxUpload.UploadError {
     }
 }
 
-fileprivate struct InternalUploaderDelegate : ChunkedFileUploaderDelegate {
+fileprivate class InternalUploaderDelegate : ChunkedFileUploaderDelegate {
     let outerDelegate: (ChunkedFileUploader.InternalUploadState) -> Void
-    
+
+    init(
+        outerDelegate: @escaping (ChunkedFileUploader.InternalUploadState) -> Void
+    ) {
+        self.outerDelegate = outerDelegate
+    }
+
     func chunkedFileUploader(_ uploader: ChunkedFileUploader, stateUpdated state: ChunkedFileUploader.InternalUploadState) {
         outerDelegate(state)
     }
