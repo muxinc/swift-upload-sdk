@@ -443,13 +443,9 @@ public final class MuxUpload : Hashable, Equatable {
 
         if self.manageBySDK {
             // See if there's anything in progress already
-<<<<<<< HEAD
-            fileWorker = uploadManager.findChunkedFileUploader(inputFileURL: videoFile)
-=======
-            fileWorker = uploadManager.findUploader(
+            fileWorker = uploadManager.findChunkedFileUploader(
                 inputFileURL: videoFile
             )
->>>>>>> ea14d5c (Upload Input Inspection and Standardization 1 (#17))
         }
         if fileWorker != nil && !forceRestart {
             MuxUploadSDK.logger?.warning("start() called but upload is already in progress")
@@ -584,9 +580,8 @@ public final class MuxUpload : Hashable, Equatable {
         )
         fileWorker.start()
         self.fileWorker = fileWorker
-<<<<<<< HEAD
         uploadManager.registerUpload(self)
-=======
+
         let transportStatus = TransportStatus(
             progress: fileWorker.currentState.progress ?? Progress(),
             updatedTime: Date().timeIntervalSince1970,
@@ -597,7 +592,6 @@ public final class MuxUpload : Hashable, Equatable {
             startingTransportStatus: transportStatus
         )
         inputStatusHandler?(inputStatus)
->>>>>>> 071c77b (Input standardization 2 (#41))
     }
     
     /**
