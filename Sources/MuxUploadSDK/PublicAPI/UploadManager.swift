@@ -117,6 +117,7 @@ public final class UploadManager {
     }
 
     internal func registerUpload(_ upload: MuxUpload) {
+
         guard let fileWorker = upload.fileWorker else {
             // Only started uploads, aka uploads with a file
             // worker can be registered.
@@ -126,26 +127,6 @@ public final class UploadManager {
         }
 
         uploadsByID.updateValue(upload, forKey: upload.id)
-    }
-
-    internal func findUploader(
-        inputFileURL: URL
-    ) -> ChunkedFileUploader? {
-        guard let uploader = uploadersByID.values.first(where: { uploader in
-            uploader.inputFileURL == inputFileURL
-        }) else {
-            return nil
-        }
-
-        return uploader
-    }
-
-    internal func findUploader(uploadID: String) -> ChunkedFileUploader? {
-        return uploadersByID[uploadID]
-    }
-    
-    internal func registerUploader(_ fileWorker: ChunkedFileUploader, withId id: String) {
-        uploadersByID.updateValue(fileWorker, forKey: fileWorker.uploadInfo.id)
         fileWorker.addDelegate(withToken: UUID().uuidString, uploaderDelegate)
         Task.detached {
             await self.uploadActor.updateUpload(
