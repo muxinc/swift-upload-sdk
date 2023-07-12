@@ -48,7 +48,7 @@ public final class MuxUpload : Hashable, Equatable {
  
     private let uploadInfo: UploadInfo
     private let manageBySDK: Bool
-    private var id: String {
+    var id: String {
         uploadInfo.id
     }
     private let uploadManager: UploadManager
@@ -170,7 +170,7 @@ public final class MuxUpload : Hashable, Equatable {
         // Use an existing globally-managed upload if desired & one exists
         if self.manageBySDK && fileWorker == nil {
             // See if there's anything in progress already
-            fileWorker = uploadManager.findUploaderFor(videoFile: videoFile)
+            fileWorker = uploadManager.findChunkedFileUploader(inputFileURL: videoFile)
         }
         if fileWorker != nil && !forceRestart {
             MuxUploadSDK.logger?.warning("start() called but upload is already in progress")
@@ -193,8 +193,8 @@ public final class MuxUpload : Hashable, Equatable {
             InternalUploaderDelegate { [self] state in handleStateUpdate(state) }
         )
         fileWorker.start()
-        uploadManager.registerUploader(fileWorker, withId: id)
         self.fileWorker = fileWorker
+        uploadManager.registerUpload(self)
     }
     
     /**
