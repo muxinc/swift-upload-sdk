@@ -17,20 +17,7 @@ class UploadListModel : ObservableObject {
                 handler: { uploads in
                 var uploadSet = Set(self.lastKnownUploads)
                 uploads.forEach {
-
-                    if case MuxUpload.InputStatus.ready = $0.inputStatus {
-                        return
-                    } else if case MuxUpload.InputStatus.started = $0.inputStatus {
-                        return
-                    } else if case MuxUpload.InputStatus.preparing = $0.inputStatus {
-                        return
-                    } else if case MuxUpload.InputStatus.awaitingUploadConfirmation = $0.inputStatus {
-                        return
-                    } else {
-                        uploadSet.insert($0)
-                    }
-
-
+                    uploadSet.insert($0)
                 }
                 self.lastKnownUploads = Array(uploadSet)
                     .sorted(
