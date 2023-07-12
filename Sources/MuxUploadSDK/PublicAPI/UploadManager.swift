@@ -28,7 +28,7 @@ import Foundation
 ///
 public final class UploadManager {
     
-    private var uploadersByID: [String : ChunkedFileUploader] = [:]
+    private var uploadsByID: [String : MuxUpload] = [:]
     private var uploadsUpdateDelegatesByToken: [ObjectIdentifier : any UploadsUpdatedDelegate] = [:]
     private let uploadActor = UploadCacheActor()
     private lazy var uploaderDelegate: FileUploaderDelegate = FileUploaderDelegate(manager: self)
@@ -37,23 +37,21 @@ public final class UploadManager {
     /// to track and control its state
     /// Returns nil if there was no uplod in progress for thr given file
     public func findStartedUpload(ofFile url: URL) -> MuxUpload? {
-        if let uploader = Dictionary<URL, ChunkedFileUploader>(
-            uniqueKeysWithValues: uploadersByID.mapValues { value in
-                (value.uploadInfo.videoFile, value)
+        for upload in uploadsByID.values {
+            if upload.videoFile == url {
+                return upload
             }
-            .values
-        )[url] {
-            return MuxUpload(wrapping: uploader, uploadManager: self)
-        } else {
-            return nil
         }
+
+        return nil
     }
     
     /// Returns all uploads currently-managed uploads.
     /// Uploads are managed while in-progress or compelted.
     ///  Uploads become un-managed when canceled, or if the process dies after they complete
     public func allManagedUploads() -> [MuxUpload] {
-        return uploadersByID.compactMap { (key, value) in MuxUpload(wrapping: value, uploadManager: self) }
+        // Sort upload list for consistent ordering
+        return Array(uploadsByID.values)
     }
     
     /// Attempts to resume an upload that was previously paused or interrupted by process death
@@ -100,27 +98,34 @@ public final class UploadManager {
     }
     
     internal func acknowledgeUpload(id: String) {
-        if let uploader = uploadersByID[id] {
+        if let uploader = uploadsByID[id] {
+            uploadsByID.removeValue(forKey: id)
             uploader.cancel()
         }
-        uploadersByID.removeValue(forKey: id)
         Task.detached {
             await self.uploadActor.remove(uploadID: id)
             self.notifyDelegates()
         }
     }
     
-    internal func findUploaderFor(videoFile url: URL) -> ChunkedFileUploader? {
-        return Dictionary<URL, ChunkedFileUploader>(
-            uniqueKeysWithValues: uploadersByID.mapValues { value in
-                (value.uploadInfo.videoFile, value)
-            }
-            .values
-        )[url]
+    internal func findChunkedFileUploader(
+        inputFileURL: URL
+    ) -> ChunkedFileUploader? {
+        findStartedUpload(
+            ofFile: inputFileURL
+        )?.fileWorker
     }
 
-    internal func registerUploader(_ fileWorker: ChunkedFileUploader, withId id: String) {
-        uploadersByID.updateValue(fileWorker, forKey: fileWorker.uploadInfo.id)
+    internal func registerUpload(_ upload: MuxUpload) {
+        guard let fileWorker = upload.fileWorker else {
+            // Only started uploads, aka uploads with a file
+            // worker can be registered.
+            // TODO: Should this throw?
+            MuxUploadSDK.logger?.debug("registerUpload() called for an unstarted upload")
+            return
+        }
+
+        uploadsByID.updateValue(upload, forKey: upload.id)
         fileWorker.addDelegate(withToken: UUID().uuidString, uploaderDelegate)
         Task.detached {
             await self.uploadActor.updateUpload(
