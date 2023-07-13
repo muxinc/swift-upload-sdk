@@ -625,12 +625,9 @@ public final class MuxUpload : Hashable, Equatable {
                 startTime: result.startTime,
                 isPaused: false
             )
-            let success = MuxUpload.Success(finalState: transportStatus)
+            let successDetails = MuxUpload.Success(finalState: transportStatus)
             input.processUploadSuccess(transportStatus: transportStatus)
-            if let notifySuccess = resultHandler {
-                let finalStatus = TransportStatus(progress: result.finalProgress, updatedTime: result.finishTime, startTime: result.startTime, isPaused: false)
-                notifySuccess(Result<Success, UploadError>.success(Success(finalState: finalStatus)))
-            }
+            resultHandler?(Result<Success, UploadError>.success(successDetails))
             fileWorker?.removeDelegate(withToken: id)
             fileWorker = nil
         }
