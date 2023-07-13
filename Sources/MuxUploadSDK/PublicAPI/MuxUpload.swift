@@ -460,13 +460,13 @@ public final class MuxUpload : Hashable, Equatable {
         }
 
         // Start a new upload
-        if forceRestart {
+
+        if case UploadInput.Status.ready = input.status {
+            input.status = .started(input.sourceAsset, uploadInfo)
+            startInspection(videoFile: videoFile)
+        } else if forceRestart {
             cancel()
         }
-
-        input.status = .started(input.sourceAsset, uploadInfo)
-
-        startInspection(videoFile: videoFile)
     }
 
     func startInspection(
