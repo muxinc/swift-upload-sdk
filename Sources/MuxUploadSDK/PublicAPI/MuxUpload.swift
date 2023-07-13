@@ -626,7 +626,7 @@ public final class MuxUpload : Hashable, Equatable {
                 isPaused: false
             )
             let success = MuxUpload.Success(finalState: transportStatus)
-            input.status = .uploadSucceeded(input.uploadInfo, success)
+            input.processUploadSuccess(transportStatus: transportStatus)
             if let notifySuccess = resultHandler {
                 let finalStatus = TransportStatus(progress: result.finalProgress, updatedTime: result.finishTime, startTime: result.startTime, isPaused: false)
                 notifySuccess(Result<Success, UploadError>.success(Success(finalState: finalStatus)))
@@ -643,6 +643,7 @@ public final class MuxUpload : Hashable, Equatable {
                     isPaused: false
                 )
             )
+            input.processUploadFailure(error: parsedError)
             if let notifyFailure = resultHandler {
                 if case .cancelled = parsedError.code {
                     // This differs from what MuxUpload does

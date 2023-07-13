@@ -131,8 +131,10 @@ extension UploadInput {
         }
     }
 
-    mutating func processUploadSuccess() {
-        if case UploadInput.Status.uploadInProgress(let info, let transportStatus) = status {
+    mutating func processUploadSuccess(
+        transportStatus: MuxUpload.TransportStatus
+    ) {
+        if case UploadInput.Status.uploadInProgress(let info, _) = status {
             status = .uploadSucceeded(info, MuxUpload.Success(finalState: transportStatus))
         } else {
             return
