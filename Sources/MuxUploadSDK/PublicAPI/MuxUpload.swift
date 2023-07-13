@@ -404,8 +404,7 @@ public final class MuxUpload : Hashable, Equatable {
      the upload has been prepared
      */
     public var videoFile: URL? {
-        #warning("This isn't the actual implementation, should return either the exported asset file URL or the standardized file URL depending on the inspection result")
-        return (input.sourceAsset as? AVURLAsset)?.url
+        return fileWorker?.inputFileURL
     }
     
     /**
