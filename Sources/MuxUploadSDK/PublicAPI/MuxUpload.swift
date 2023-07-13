@@ -576,7 +576,14 @@ public final class MuxUpload : Hashable, Equatable {
         )
         fileWorker.addDelegate(
             withToken: id,
-            InternalUploaderDelegate { [self] state in handleStateUpdate(state) }
+            InternalUploaderDelegate { [weak self] state in
+
+                guard let self = self else {
+                    return
+                }
+
+                self.handleStateUpdate(state)
+            }
         )
         fileWorker.start()
         self.fileWorker = fileWorker
