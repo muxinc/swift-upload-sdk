@@ -338,7 +338,13 @@ public final class MuxUpload : Hashable, Equatable {
         handleStateUpdate(uploader.currentState)
         uploader.addDelegate(
             withToken: id,
-            InternalUploaderDelegate { [weak self] state in self?.handleStateUpdate(state) }
+            InternalUploaderDelegate { [weak self] state in
+                guard let self = self else {
+                    return
+                }
+
+                self.handleStateUpdate(state)
+            }
         )
     }
 
