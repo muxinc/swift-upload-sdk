@@ -641,35 +641,32 @@ public final class MuxUpload : Hashable, Equatable {
                 )
             )
             input.processUploadFailure(error: parsedError)
-            if let notifyFailure = resultHandler {
-                if case .cancelled = parsedError.code {
-                    // This differs from what MuxUpload does
-                    // when cancelled with an external API call
-                    MuxUploadSDK.logger?.info("task canceled")
-                    let canceledStatus = MuxUpload.TransportStatus(
-                        progress: input.transportStatus?.progress,
-                        updatedTime: input.transportStatus?.updatedTime ?? Date().timeIntervalSince1970,
-                        startTime: input.transportStatus?.startTime ?? Date().timeIntervalSince1970,
-                        isPaused: true
-                    )
-                    if let notifyProgress = progressHandler { notifyProgress(canceledStatus) }
-                } else {
-                    notifyFailure(Result.failure(parsedError))
-                }
+            if case .cancelled = parsedError.code {
+                // This differs from what MuxUpload does
+                // when cancelled with an external API call
+                MuxUploadSDK.logger?.info("task canceled")
+                let canceledStatus = MuxUpload.TransportStatus(
+                    progress: input.transportStatus?.progress,
+                    updatedTime: input.transportStatus?.updatedTime ?? Date().timeIntervalSince1970,
+                    startTime: input.transportStatus?.startTime ?? Date().timeIntervalSince1970,
+                    isPaused: true
+                )
+                progressHandler?(canceledStatus)
+            } else {
+                resultHandler?(Result.failure(parsedError))
             }
             fileWorker?.removeDelegate(withToken: id)
             fileWorker = nil
         }
         case .uploading(let update): do {
-            if let notifyProgress = progressHandler {
-                let status = TransportStatus(
-                    progress: update.progress,
-                    updatedTime: update.updateTime,
-                    startTime: update.startTime, isPaused: false
-                )
-                input.status = .uploadInProgress(input.uploadInfo, status)
-                notifyProgress(status)
-            }
+            let status = TransportStatus(
+                progress: update.progress,
+                updatedTime: update.updateTime,
+                startTime: update.startTime,
+                isPaused: false
+            )
+            input.status = .uploadInProgress(input.uploadInfo, status)
+            progressHandler?(status)
         }
         default: do {}
         }
