@@ -23,8 +23,8 @@ struct UploadInput {
         case awaitingUploadConfirmation(UploadInfo)
         case uploadInProgress(UploadInfo, MuxUpload.TransportStatus)
         case uploadPaused(UploadInfo, MuxUpload.TransportStatus)
-        case uploadSucceeded(UploadInfo, MuxUpload.TransportStatus)
-        case uploadFailed(UploadInfo, MuxUpload.TransportStatus)
+        case uploadSucceeded(UploadInfo, MuxUpload.Success)
+        case uploadFailed(UploadInfo, MuxUpload.UploadError)
     }
 
     var status: Status
@@ -103,10 +103,10 @@ struct UploadInput {
             return transportStatus
         case .uploadPaused(_, let transportStatus):
             return transportStatus
-        case .uploadSucceeded(_, let transportStatus):
-            return transportStatus
-        case .uploadFailed(_, let transportStatus):
-            return transportStatus
+        case .uploadSucceeded(_, let successDetails):
+            return successDetails.finalState
+        case .uploadFailed:
+            return nil
         }
     }
 }
@@ -131,11 +131,21 @@ extension UploadInput {
         }
     }
 
+    mutating func processUploadSuccess() {
+        if case UploadInput.Status.uploadInProgress(let info, let transportStatus) = status {
+            status = .uploadSucceeded(info, MuxUpload.Success(finalState: transportStatus))
+        } else {
+            return
+        }
+    }
+
+    mutating func processUploadFailure(error: MuxUpload.UploadError) {
+        status = .uploadFailed(uploadInfo, error)
+    }
+
 }
 
-extension UploadInput.Status: Equatable {
-
-}
+extension UploadInput.Status: Equatable { }
 
 extension UploadInput {
     init(
