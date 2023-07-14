@@ -665,7 +665,7 @@ public final class MuxUpload : Hashable, Equatable {
             InternalUploaderDelegate { [self] state in handleStateUpdate(state) }
         )
         fileWorker.start(duration: duration)
-        uploadManager.registerUploader(fileWorker, withId: id)
+        uploadManager.registerUpload(self)
         self.fileWorker = fileWorker
         let transportStatus = TransportStatus(
             progress: fileWorker.currentState.progress ?? Progress(),
