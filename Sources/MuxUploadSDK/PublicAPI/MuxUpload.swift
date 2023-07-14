@@ -749,7 +749,14 @@ public final class MuxUpload : Hashable, Equatable {
                 startTime: update.startTime,
                 isPaused: false
             )
-            input.status = .uploadInProgress(input.uploadInfo, status)
+            if update.progress.totalUnitCount == update.progress.completedUnitCount {
+                input.processUploadSuccess(transportStatus: status)
+            } else {
+                input.status = .uploadInProgress(
+                    input.uploadInfo,
+                    status
+                )
+            }
             progressHandler?(status)
         }
         default: do {}
