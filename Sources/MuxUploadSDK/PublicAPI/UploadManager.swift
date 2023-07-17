@@ -100,7 +100,7 @@ public final class UploadManager {
     internal func acknowledgeUpload(id: String) {
         if let uploader = uploadsByID[id] {
             uploadsByID.removeValue(forKey: id)
-            uploader.cancel()
+            uploader.fileWorker?.cancel()
         }
         Task.detached {
             await self.uploadActor.remove(uploadID: id)
@@ -141,10 +141,12 @@ public final class UploadManager {
     private func notifyDelegates() {
         Task.detached {
             await MainActor.run {
-                self.uploadsUpdateDelegatesByToken
-                    .map { it in it.value }
-                    .forEach { it in it.uploadListUpdated(with: self.allManagedUploads()) }
-                
+                let delegates = self.uploadsUpdateDelegatesByToken.values
+                let allManagedUploads = self.allManagedUploads()
+
+                for delegate in delegates {
+                    delegate.uploadListUpdated(with: allManagedUploads)
+                }
             }
         }
     }
