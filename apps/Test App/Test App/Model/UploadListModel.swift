@@ -15,17 +15,27 @@ class UploadListModel : ObservableObject {
         UploadManager.shared.addUploadsUpdatedDelegate(
             Delegate(
                 handler: { uploads in
-                var uploadSet = Set(self.lastKnownUploads)
-                uploads.forEach {
-                    uploadSet.insert($0)
-                }
-                self.lastKnownUploads = Array(uploadSet)
-                    .sorted(
-                        by: { lhs, rhs in
-                            (lhs.uploadStatus?.startTime ?? 0) >= (rhs.uploadStatus?.startTime ?? 0)
+
+                    var lastKnownUploadsToUpdate = self.lastKnownUploads
+
+                    for updatedUpload in uploads {
+                        if !lastKnownUploadsToUpdate.contains(
+                            where: {
+                                $0.uploadURL == updatedUpload.uploadURL &&
+                                $0.videoFile == updatedUpload.videoFile
+                            }
+                        ) {
+                            lastKnownUploadsToUpdate.append(updatedUpload)
                         }
-                    )
-                }
+                    }
+
+                    self.lastKnownUploads = lastKnownUploadsToUpdate
+                        .sorted(
+                            by: { lhs, rhs in
+                                (lhs.uploadStatus?.startTime ?? 0) >= (rhs.uploadStatus?.startTime ?? 0)
+                            }
+                        )
+                    }
             )
         )
     }
