@@ -10,6 +10,30 @@ import XCTest
 
 extension UploadInput {
 
+    static func mockReadyInput() throws -> Self {
+        let uploadURL = try XCTUnwrap(
+            URL(string: "https://www.example.com/upload")
+        )
+
+        let videoInputURL = try XCTUnwrap(
+            URL(string: "file://path/to/dummy/file/")
+        )
+
+        let uploadInputAsset = AVAsset(
+            url: videoInputURL
+        )
+
+        return UploadInput(
+            status: .ready(
+                uploadInputAsset,
+                UploadInfo(
+                    uploadURL: uploadURL,
+                    options: .default
+                )
+            )
+        )
+    }
+
     static func mockStartedInput() throws -> Self {
         let uploadURL = try XCTUnwrap(
             URL(string: "https://www.example.com/upload")

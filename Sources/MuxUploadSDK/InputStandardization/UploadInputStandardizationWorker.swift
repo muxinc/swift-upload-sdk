@@ -19,6 +19,22 @@ enum StandardizationStrategy {
     case exportSession
 }
 
+struct StandardizationError: Error {
+    var localizedDescription: String
+
+    static var missingExportPreset = StandardizationError(
+        localizedDescription: "Missing export session preset"
+    )
+
+    static var exportSessionInitializationFailure = StandardizationError(
+        localizedDescription: "Export session failed to initialize"
+    )
+
+    static var standardizedAssetExportFailure = StandardizationError(
+        localizedDescription: "Failed to export standardized asset"
+    )
+}
+
 class UploadInputStandardizationWorker {
 
     var sourceInput: AVAsset?
@@ -29,7 +45,7 @@ class UploadInputStandardizationWorker {
         sourceAsset: AVAsset,
         maximumResolution: UploadOptions.InputStandardization.MaximumResolution,
         outputURL: URL,
-        completion: @escaping (AVAsset, AVAsset?, URL?, Bool) -> ()
+        completion: @escaping (AVAsset, AVAsset?, Error?) -> ()
     ) {
 
         let availableExportPresets = AVAssetExportSession.allExportPresets()
@@ -45,7 +61,7 @@ class UploadInputStandardizationWorker {
             $0 == exportPreset
         }) else {
             // TODO: Use VideoToolbox if export preset unavailable
-            completion(sourceAsset, nil, nil, false)
+            completion(sourceAsset, nil, StandardizationError.missingExportPreset)
             return
         }
 
@@ -54,7 +70,7 @@ class UploadInputStandardizationWorker {
             presetName: exportPreset
         ) else {
             // TODO: Use VideoToolbox if export session fails to initialize
-            completion(sourceAsset, nil, nil, false)
+            completion(sourceAsset, nil, StandardizationError.exportSessionInitializationFailure)
             return
         }
 
@@ -64,12 +80,12 @@ class UploadInputStandardizationWorker {
         // TODO: Use Swift Concurrency
         exportSession.exportAsynchronously {
             if let exportError = exportSession.error {
-                completion(sourceAsset, nil, nil, false)
+                completion(sourceAsset, nil, exportError)
             } else if let standardizedAssetURL = exportSession.outputURL {
                 let standardizedAsset = AVAsset(url: standardizedAssetURL)
-                completion(sourceAsset, standardizedAsset, outputURL, true)
+                completion(sourceAsset, standardizedAsset, nil)
             } else {
-                completion(sourceAsset, nil, nil, false)
+                completion(sourceAsset, nil, StandardizationError.standardizedAssetExportFailure)
             }
         }
     }

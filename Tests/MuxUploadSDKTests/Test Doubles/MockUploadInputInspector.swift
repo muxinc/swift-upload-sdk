@@ -10,17 +10,17 @@ import Foundation
 class MockUploadInputInspector: UploadInputInspector {
 
     static let alwaysStandard: MockUploadInputInspector = MockUploadInputInspector(
-        mockInspectionResult: .standard
+        mockInspectionResult: .standard(duration: .zero)
     )
 
     static let alwaysFailing: MockUploadInputInspector = MockUploadInputInspector(
-        mockInspectionResult: .inspectionFailure
+        mockInspectionResult: .inspectionFailure(duration: .zero)
     )
 
     var mockInspectionResult: UploadInputFormatInspectionResult
 
     init() {
-        self.mockInspectionResult = .standard
+        self.mockInspectionResult = .standard(duration: .zero)
     }
 
     init(
