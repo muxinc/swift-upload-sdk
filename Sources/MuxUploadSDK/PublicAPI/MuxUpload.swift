@@ -425,27 +425,8 @@ public final class MuxUpload : Hashable, Equatable {
      Begins the upload. You can control what happens when the upload is already started. If `forceRestart` is true, the upload will be restarted. Otherwise, nothing will happen. The default is not to restart
      */
     public func start(forceRestart: Bool = false) {
-        guard let videoFile else {
-            let startFailureTransportStatus = TransportStatus(
-                progress: nil,
-                updatedTime: Date().timeIntervalSince1970,
-                startTime: Date().timeIntervalSince1970,
-                isPaused: true
-            )
-            let error: UploadError = UploadError(
-                lastStatus: startFailureTransportStatus,
-                code: .file,
-                message: "",
-                reason: nil
-            )
-            let result: UploadResult = .failure(error)
-            input.status = .uploadFailed(
-                input.uploadInfo,
-                error
-            )
-            resultHandler?(result)
-            return
-        }
+
+        let videoFile = (input.sourceAsset as! AVURLAsset).url
 
         if self.manageBySDK {
             // See if there's anything in progress already
