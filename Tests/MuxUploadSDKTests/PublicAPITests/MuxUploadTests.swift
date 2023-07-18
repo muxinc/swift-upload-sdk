@@ -46,7 +46,7 @@ class MuxUploadTest: XCTestCase {
     }
 
     func testInputInspectionSuccess() throws {
-        let input = try UploadInput.mockStartedInput()
+        let input = try UploadInput.mockReadyInput()
 
         let upload = MuxUpload(
             input: input,
@@ -82,7 +82,7 @@ class MuxUploadTest: XCTestCase {
     }
 
     func testInputInspectionFailure() throws {
-        let input = try UploadInput.mockStartedInput()
+        let input = try UploadInput.mockReadyInput()
 
         let upload = MuxUpload(
             input: input,

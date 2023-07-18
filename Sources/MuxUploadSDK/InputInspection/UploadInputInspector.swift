@@ -21,18 +21,45 @@ class AVFoundationUploadInputInspector: UploadInputInspector {
         sourceInput: AVAsset,
         completionHandler: @escaping (UploadInputFormatInspectionResult) -> ()
     ) {
+        sourceInput.loadValuesAsynchronously(
+            forKeys: [
+                "duration"
+            ]
+        ) {
+            // FIXME: Trying to avoid the callback pyramid of doom
+            // here, newer AVAsset APIs use Concurrency
+            // but Concurrency itself has very primitive
+            // task sequencing. Replace with async AVAsset
+            // methods.
+            let sourceInputDuration = sourceInput.duration
+            self.performInspection(
+                sourceInput: sourceInput,
+                sourceInputDuration: sourceInputDuration,
+                completionHandler: completionHandler
+            )
+        }
+    }
+
+    func performInspection(
+        sourceInput: AVAsset,
+        sourceInputDuration: CMTime,
+        completionHandler: @escaping (UploadInputFormatInspectionResult) -> ()
+    ) {
         // TODO: Eventually load audio tracks too
         if #available(iOS 15, *) {
             sourceInput.loadTracks(
                 withMediaType: .video
             ) { tracks, error in
                 if error != nil {
-                    completionHandler(.inspectionFailure)
+                    completionHandler(
+                        .inspectionFailure(duration: sourceInputDuration)
+                    )
                     return
                 }
 
                 if let tracks {
                     self.inspect(
+                        sourceInputDuration: sourceInputDuration,
                         tracks: tracks,
                         completionHandler: completionHandler
                     )
@@ -40,22 +67,26 @@ class AVFoundationUploadInputInspector: UploadInputInspector {
             }
         } else {
             sourceInput.loadValuesAsynchronously(
-                forKeys: ["tracks"]
+                forKeys: [
+                    "tracks"
+                ]
             ) {
                 // Non-blocking if "tracks" is already loaded
                 let tracks = sourceInput.tracks(
                     withMediaType: .video
                 )
+
                 self.inspect(
+                    sourceInputDuration: sourceInputDuration,
                     tracks: tracks,
                     completionHandler: completionHandler
                 )
             }
         }
-
     }
 
     func inspect(
+        sourceInputDuration: CMTime,
         tracks: [AVAssetTrack],
         completionHandler: @escaping (UploadInputFormatInspectionResult) -> ()
     ) {
@@ -63,7 +94,9 @@ class AVFoundationUploadInputInspector: UploadInputInspector {
         case 0:
             // Nothing to inspect, therefore nothing to standardize
             // declare as already standard
-            completionHandler(.standard)
+            completionHandler(
+                .standard(duration: sourceInputDuration)
+            )
         case 1:
             if let track = tracks.first {
                 track.loadValuesAsynchronously(
@@ -73,12 +106,18 @@ class AVFoundationUploadInputInspector: UploadInputInspector {
                     ]
                 ) {
                     guard let formatDescriptions = track.formatDescriptions as? [CMFormatDescription] else {
-                        completionHandler(.inspectionFailure)
+                        completionHandler(
+                            .inspectionFailure(
+                                duration: sourceInputDuration
+                            )
+                        )
                         return
                     }
 
                     guard let formatDescription = formatDescriptions.first else {
-                        completionHandler(.inspectionFailure)
+                        completionHandler(
+                            .inspectionFailure(duration: sourceInputDuration)
+                        )
                         return
                     }
 
@@ -106,9 +145,11 @@ class AVFoundationUploadInputInspector: UploadInputInspector {
                     }
 
                     if nonStandardReasons.isEmpty {
-                        completionHandler(.standard)
+                        completionHandler(
+                            .standard(duration: sourceInputDuration)
+                        )
                     } else {
-                        completionHandler(.nonstandard(nonStandardReasons))
+                        completionHandler(.nonstandard(reasons: nonStandardReasons, duration: sourceInputDuration))
                     }
 
                 }
@@ -116,7 +157,9 @@ class AVFoundationUploadInputInspector: UploadInputInspector {
         default:
             // Inspection fails for multi-video track inputs
             // for the time being
-            completionHandler(.inspectionFailure)
+            completionHandler(
+                .inspectionFailure(duration: sourceInputDuration)
+            )
         }
     }
 }

@@ -13,7 +13,7 @@ class UploadInputStandardizer {
         sourceAsset: AVAsset,
         maximumResolution: UploadOptions.InputStandardization.MaximumResolution,
         outputURL: URL,
-        completion: @escaping (AVAsset, AVAsset?, URL?, Bool) -> ()
+        completion: @escaping (AVAsset, AVAsset?, Error?) -> ()
     ) {
         let worker = UploadInputStandardizationWorker()
 

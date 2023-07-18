@@ -338,7 +338,13 @@ public final class MuxUpload : Hashable, Equatable {
         handleStateUpdate(uploader.currentState)
         uploader.addDelegate(
             withToken: id,
-            InternalUploaderDelegate { [weak self] state in self?.handleStateUpdate(state) }
+            InternalUploaderDelegate { [weak self] state in
+                guard let self = self else {
+                    return
+                }
+
+                self.handleStateUpdate(state)
+            }
         )
     }
 
@@ -419,27 +425,8 @@ public final class MuxUpload : Hashable, Equatable {
      Begins the upload. You can control what happens when the upload is already started. If `forceRestart` is true, the upload will be restarted. Otherwise, nothing will happen. The default is not to restart
      */
     public func start(forceRestart: Bool = false) {
-        guard let videoFile else {
-            let startFailureTransportStatus = TransportStatus(
-                progress: nil,
-                updatedTime: Date().timeIntervalSince1970,
-                startTime: Date().timeIntervalSince1970,
-                isPaused: true
-            )
-            let error: UploadError = UploadError(
-                lastStatus: startFailureTransportStatus,
-                code: .file,
-                message: "",
-                reason: nil
-            )
-            let result: UploadResult = .failure(error)
-            input.status = .uploadFailed(
-                input.uploadInfo,
-                error
-            )
-            resultHandler?(result)
-            return
-        }
+
+        let videoFile = (input.sourceAsset as! AVURLAsset).url
 
         if self.manageBySDK {
             // See if there's anything in progress already
@@ -458,13 +445,13 @@ public final class MuxUpload : Hashable, Equatable {
         }
 
         // Start a new upload
-        if forceRestart {
+
+        if case UploadInput.Status.ready = input.status {
+            input.status = .started(input.sourceAsset, uploadInfo)
+            startInspection(videoFile: videoFile)
+        } else if forceRestart {
             cancel()
         }
-
-        input.status = .started(input.sourceAsset, uploadInfo)
-
-        startInspection(videoFile: videoFile)
     }
 
     func startInspection(
@@ -473,6 +460,19 @@ public final class MuxUpload : Hashable, Equatable {
         if !uploadInfo.options.inputStandardization.isEnabled {
             startNetworkTransport(videoFile: videoFile)
         } else {
+            let inputStandardizationStartTime = Date()
+            let reporter = Reporter.shared
+
+            // For consistency report non-std
+            // input size. Should the std size
+            // be reported too?
+            // FIXME: if file size is zero, should
+            // instead throw an error since upload
+            // will likely fail
+            let inputSize = (try? FileManager.default.fileSizeOfItem(
+                atPath: videoFile.path
+            )) ?? 0
+
             input.status = .underInspection(input.sourceAsset, uploadInfo)
             inputInspector.performInspection(
                 sourceInput: input.sourceAsset
@@ -486,6 +486,18 @@ public final class MuxUpload : Hashable, Equatable {
                     // by default do not cancel upload if
                     // input standardization fails
                     let shouldCancelUpload = self.nonStandardInputHandler?() ?? false
+
+                    reporter.reportUploadInputStandardizationFailure(
+                        errorDescription: "Input inspection failure",
+                        inputDuration: inspectionResult.sourceInputDuration.seconds,
+                        inputSize: inputSize,
+                        nonStandardInputReasons: [],
+                        options: self.uploadInfo.options,
+                        standardizationEndTime: Date(),
+                        standardizationStartTime: inputStandardizationStartTime,
+                        uploadCanceled: shouldCancelUpload,
+                        uploadURL: self.uploadURL
+                    )
 
                     if !shouldCancelUpload {
                         self.startNetworkTransport(
@@ -501,7 +513,7 @@ public final class MuxUpload : Hashable, Equatable {
                 case .standard:
                     self.startNetworkTransport(videoFile: videoFile)
                 case .nonstandard(
-                    let reasons
+                    let reasons, _
                 ):
                     print("""
                     Detected Nonstandard Reasons
@@ -530,18 +542,26 @@ public final class MuxUpload : Hashable, Equatable {
                         sourceAsset: AVAsset(url: videoFile),
                         maximumResolution: maximumResolution,
                         outputURL: outputURL
-                    ) { sourceAsset, standardizedAsset, outputURL, success in
+                    ) { sourceAsset, standardizedAsset, error in
 
-                        if let outputURL, success {
-                            self.startNetworkTransport(
-                                videoFile: outputURL
-                            )
-                        } else {
+                        if let error {
                             // Request upload confirmation
                             // before proceeding. If handler unset,
                             // by default do not cancel upload if
                             // input standardization fails
                             let shouldCancelUpload = self.nonStandardInputHandler?() ?? false
+
+                            reporter.reportUploadInputStandardizationFailure(
+                                errorDescription: error.localizedDescription,
+                                inputDuration: inspectionResult.sourceInputDuration.seconds,
+                                inputSize: inputSize,
+                                nonStandardInputReasons: reasons,
+                                options: self.uploadInfo.options,
+                                standardizationEndTime: Date(),
+                                standardizationStartTime: inputStandardizationStartTime,
+                                uploadCanceled: shouldCancelUpload,
+                                uploadURL: self.uploadURL
+                            )
 
                             if !shouldCancelUpload {
                                 self.startNetworkTransport(
@@ -552,6 +572,21 @@ public final class MuxUpload : Hashable, Equatable {
                                 self.uploadManager.acknowledgeUpload(id: self.id)
                                 self.input.processUploadCancellation()
                             }
+                        } else {
+                            reporter.reportUploadInputStandardizationSuccess(
+                                inputDuration: inspectionResult.sourceInputDuration.seconds,
+                                inputSize: inputSize,
+                                options: self.uploadInfo.options,
+                                nonStandardInputReasons: reasons,
+                                standardizationEndTime: Date(),
+                                standardizationStartTime: inputStandardizationStartTime,
+                                uploadURL: self.uploadURL
+                            )
+
+                            self.startNetworkTransport(
+                                videoFile: outputURL,
+                                duration: inspectionResult.sourceInputDuration
+                            )
                         }
 
                         self.inputStandardizer.acknowledgeCompletion(id: self.id)
@@ -592,6 +627,37 @@ public final class MuxUpload : Hashable, Equatable {
         )
         inputStatusHandler?(inputStatus)
 >>>>>>> 071c77b (Input standardization 2 (#41))
+    }
+
+    func startNetworkTransport(
+        videoFile: URL,
+        duration: CMTime
+    ) {
+        let completedUnitCount = UInt64(uploadStatus?.progress?.completedUnitCount ?? 0)
+
+        let fileWorker = ChunkedFileUploader(
+            uploadInfo: input.uploadInfo,
+            inputFileURL: videoFile,
+            file: ChunkedFile(chunkSize: input.uploadInfo.options.transport.chunkSizeInBytes),
+            startingByte: completedUnitCount
+        )
+        fileWorker.addDelegate(
+            withToken: id,
+            InternalUploaderDelegate { [self] state in handleStateUpdate(state) }
+        )
+        fileWorker.start(duration: duration)
+        uploadManager.registerUpload(self)
+        self.fileWorker = fileWorker
+        let transportStatus = TransportStatus(
+            progress: fileWorker.currentState.progress ?? Progress(),
+            updatedTime: Date().timeIntervalSince1970,
+            startTime: Date().timeIntervalSince1970,
+            isPaused: false
+        )
+        self.input.processStartNetworkTransport(
+            startingTransportStatus: transportStatus
+        )
+        inputStatusHandler?(inputStatus)
     }
     
     /**
@@ -664,7 +730,16 @@ public final class MuxUpload : Hashable, Equatable {
                 startTime: update.startTime,
                 isPaused: false
             )
-            input.status = .uploadInProgress(input.uploadInfo, status)
+            if update.progress.totalUnitCount == update.progress.completedUnitCount {
+                input.processUploadSuccess(
+                    transportStatus: status
+                )
+            } else {
+                input.status = .uploadInProgress(
+                    input.uploadInfo,
+                    status
+                )
+            }
             progressHandler?(status)
         }
         default: do {}
