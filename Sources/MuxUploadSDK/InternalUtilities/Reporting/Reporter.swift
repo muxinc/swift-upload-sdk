@@ -20,6 +20,9 @@ class Reporter: NSObject {
 
     var sessionID: String = UUID().uuidString
     var url: URL
+    var additionalHTTPHeaders: [String: String] {
+        ["x-litix-sdk": "swift-upload-sdk"]
+    }
 
     // TODO: Set these using dependency Injection
     var locale: Locale {
@@ -65,7 +68,8 @@ class Reporter: NSObject {
 
         let request = NSMutableURLRequest.makeJSONPost(
             url: url,
-            httpBody: httpBody
+            httpBody: httpBody,
+            additionalHTTPHeaders: additionalHTTPHeaders
         )
 
         guard let dataTask = session?.dataTask(
@@ -268,7 +272,8 @@ extension Reporter: URLSessionDelegate, URLSessionTaskDelegate {
             // for any weirdness
             let request = NSMutableURLRequest.makeJSONPost(
                 url: redirectURL,
-                httpBody: httpBody
+                httpBody: httpBody,
+                additionalHTTPHeaders: additionalHTTPHeaders
             )
 
             completionHandler(request as URLRequest)
