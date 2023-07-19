@@ -9,9 +9,6 @@ To use this SDK, you'll need to add it as a dependency using either Swift Packag
 ### Server-Side: Create a Direct Upload
 
 If you haven't yet done so, you must create an [access token](https://docs.mux.com/guides/system/make-api-requests#http-basic-auth) to complete these steps.
-
-Creating a direct upload
-
 To start an upload, you must first create an [upload URL](https://docs.mux.com/guides/video/upload-files-directly). Then, provide that direct-upload PUT URL to your app, so the app can begin the upload process.
 
 ### App-Side: Install the SDK
