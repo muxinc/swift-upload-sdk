@@ -25,7 +25,7 @@ To integrate our SDK into your Xcode project using Cocoapods, specify it in your
 
 ```ruby
 
-pod 'SwiftUploadSDK'
+pod 'Mux-Upload-SDK'
 
 ```
 
