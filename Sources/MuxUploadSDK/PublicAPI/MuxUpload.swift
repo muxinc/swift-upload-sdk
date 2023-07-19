@@ -48,7 +48,7 @@ public typealias UploadResult = Result<MuxUpload.Success, MuxUpload.UploadError>
 /// Uploads created by this SDK are globally managed by default, and can be resumed after failures or even after process death. For more information on
 /// this topic, see ``UploadManager``
 ///
-public final class MuxUpload : Hashable, Equatable {
+public final class MuxUpload {
 
     var input: UploadInput {
         didSet {
@@ -745,18 +745,6 @@ public final class MuxUpload : Hashable, Equatable {
         default: do {}
         }
     }
-    
-    /// Two`MuxUpload`s with the same ``MuxUpload/videoFile`` and ``MuxUpload/uploadURL`` are considered equivalent
-    public static func == (lhs: MuxUpload, rhs: MuxUpload) -> Bool {
-        lhs.videoFile == rhs.videoFile
-        && lhs.uploadURL == rhs.uploadURL
-    }
-    
-    /// This object's hash is computed based on its ``MuxUpload/videoFile`` and its ``MuxUpload/uploadURL``
-    public func hash(into hasher: inout Hasher) {
-        hasher.combine(videoFile)
-        hasher.combine(uploadURL)
-    }   
 }
 
 extension MuxUpload.UploadError {

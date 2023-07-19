@@ -23,6 +23,12 @@ struct UploadListScreen: View {
     }
 }
 
+extension MuxUpload {
+    var objectIdentifier: ObjectIdentifier {
+        ObjectIdentifier(self)
+    }
+}
+
 fileprivate struct ListContainerView: View {
     
     @EnvironmentObject var viewModel: UploadListModel
@@ -33,7 +39,7 @@ fileprivate struct ListContainerView: View {
         } else {
             ScrollView {
                 LazyVStack {
-                    ForEach(viewModel.lastKnownUploads, id: \.self) { upload in
+                    ForEach(viewModel.lastKnownUploads, id: \.objectIdentifier) { upload in
                         ListItem(upload: upload)
                     }
                 }
