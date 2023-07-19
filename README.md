@@ -1,7 +1,7 @@
 # Mux's Swift Upload SDK
 This SDK makes it easy to upload videos for ingest to Mux from an iOS or iPadOS application. It handles large files by breaking them into chunks and uploading each chunk individually.
 
-Each video is uploaded to an authenticated upload URL [upload URL created by a trusted backend server request to the Mux Video API](https://docs.mux.com/guides/video/upload-files-directly). **Do not include secret API credentials to create an authenticated upload URL in an application.**
+Each video is uploaded to an authenticated [upload URL created by a trusted backend server request to the Mux Video API](https://docs.mux.com/guides/video/upload-files-directly). **Do not include the secret API credentials to create an authenticated upload URL in your application.**
 
 ## Usage
 To use this SDK, you'll need to add it as a dependency using either Swift Package Manager or Cocoapods.
