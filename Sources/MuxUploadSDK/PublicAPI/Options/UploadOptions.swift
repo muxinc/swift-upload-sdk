@@ -166,7 +166,7 @@ public struct UploadOptions {
     /// - Parameters:
     ///     - inputStandardization: settings to enable or
     ///     disable standardizing the format of the direct
-    ///     upload inputs, it isrequested by default. To
+    ///     upload inputs, it is requested by default. To
     ///     prevent the SDK from making any changes to the
     ///     format of the input use ``UploadSettings.InputStandardization.skipped``
     ///     - transport: settings for transporting the
