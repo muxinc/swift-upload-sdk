@@ -98,16 +98,16 @@ public struct UploadOptions {
             maximumResolution: .default
         )
 
-        /// Disable all local input standardization by the SDK.
+        /// Skip all local input standardization by the SDK.
         ///
         /// Initializing an upload with input standardization
-        /// disabled will prevent the SDK from making any
+        /// skipped will prevent the SDK from making any
         /// changes before commencing the upload. All input
         /// will be uploaded to Mux as-is.
         ///
         /// Note: non-standard input will still be converted
         /// to a standardized format upon ingestion.
-        public static let disabled: InputStandardization = InputStandardization(
+        public static let skipped: InputStandardization = InputStandardization(
             isRequested: false,
             maximumResolution: .default
         )
@@ -168,7 +168,7 @@ public struct UploadOptions {
     ///     disable standardizing the format of the direct
     ///     upload inputs, it isrequested by default. To
     ///     prevent the SDK from making any changes to the
-    ///     format of the input use ``UploadSettings.InputStandardization.disabled``
+    ///     format of the input use ``UploadSettings.InputStandardization.skipped``
     ///     - transport: settings for transporting the
     ///     direct upload input to Mux
     ///     - eventTracking: event tracking settings for the
