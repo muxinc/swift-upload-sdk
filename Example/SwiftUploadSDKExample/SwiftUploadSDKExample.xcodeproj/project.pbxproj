@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		191C59C42A69C9A900D3AF05 /* SwiftUploadSDKExampleUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19822A7B2A4CA6A300CFA822 /* SwiftUploadSDKExampleUITests.swift */; };
+		191C59C52A69C9AC00D3AF05 /* SwiftUploadSDKExampleLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19822A7C2A4CA6A300CFA822 /* SwiftUploadSDKExampleLaunchTests.swift */; };
 		19822A692A4CA69700CFA822 /* Mux Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 19822A522A4CA69700CFA822 /* Mux Assets.xcassets */; };
 		19822A6A2A4CA69700CFA822 /* Buttons.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19822A542A4CA69700CFA822 /* Buttons.swift */; };
 		19822A6B2A4CA69700CFA822 /* MuxNavBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19822A552A4CA69700CFA822 /* MuxNavBar.swift */; };
@@ -22,10 +24,7 @@
 		19822A752A4CA69700CFA822 /* UploadCreationModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19822A632A4CA69700CFA822 /* UploadCreationModel.swift */; };
 		19822A762A4CA69700CFA822 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19822A642A4CA69700CFA822 /* ContentView.swift */; };
 		19822A772A4CA69700CFA822 /* UploadCTA.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19822A662A4CA69700CFA822 /* UploadCTA.swift */; };
-		19822A782A4CA69700CFA822 /* UploadProgressView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19822A672A4CA69700CFA822 /* UploadProgressView.swift */; };
 		19822A792A4CA69700CFA822 /* ImagePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19822A682A4CA69700CFA822 /* ImagePicker.swift */; };
-		19822A7D2A4CA6A300CFA822 /* Test_AppUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19822A7B2A4CA6A300CFA822 /* Test_AppUITests.swift */; };
-		19822A7E2A4CA6A300CFA822 /* Test_AppUITestsLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19822A7C2A4CA6A300CFA822 /* Test_AppUITestsLaunchTests.swift */; };
 		19DCD95B2A4CA567001FBBF6 /* MuxUploadSDK in Frameworks */ = {isa = PBXBuildFile; productRef = 19DCD95A2A4CA567001FBBF6 /* MuxUploadSDK */; };
 /* End PBXBuildFile section */
 
@@ -55,10 +54,9 @@
 		19822A632A4CA69700CFA822 /* UploadCreationModel.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = UploadCreationModel.swift; sourceTree = "<group>"; };
 		19822A642A4CA69700CFA822 /* ContentView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		19822A662A4CA69700CFA822 /* UploadCTA.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = UploadCTA.swift; sourceTree = "<group>"; };
-		19822A672A4CA69700CFA822 /* UploadProgressView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = UploadProgressView.swift; sourceTree = "<group>"; };
 		19822A682A4CA69700CFA822 /* ImagePicker.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ImagePicker.swift; sourceTree = "<group>"; };
-		19822A7B2A4CA6A300CFA822 /* Test_AppUITests.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Test_AppUITests.swift; sourceTree = "<group>"; };
-		19822A7C2A4CA6A300CFA822 /* Test_AppUITestsLaunchTests.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Test_AppUITestsLaunchTests.swift; sourceTree = "<group>"; };
+		19822A7B2A4CA6A300CFA822 /* SwiftUploadSDKExampleUITests.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SwiftUploadSDKExampleUITests.swift; sourceTree = "<group>"; };
+		19822A7C2A4CA6A300CFA822 /* SwiftUploadSDKExampleLaunchTests.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SwiftUploadSDKExampleLaunchTests.swift; sourceTree = "<group>"; };
 		19DCD9592A4CA546001FBBF6 /* swift-upload-sdk */ = {isa = PBXFileReference; lastKnownFileType = wrapper; name = "swift-upload-sdk"; path = ../..; sourceTree = "<group>"; };
 		358E3C7729A92167005261CB /* SwiftUploadSDKExample.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SwiftUploadSDKExample.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		358E3C9129A92168005261CB /* SwiftUploadSDKExampleTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SwiftUploadSDKExampleTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -157,7 +155,6 @@
 			isa = PBXGroup;
 			children = (
 				19822A662A4CA69700CFA822 /* UploadCTA.swift */,
-				19822A672A4CA69700CFA822 /* UploadProgressView.swift */,
 				19822A682A4CA69700CFA822 /* ImagePicker.swift */,
 			);
 			path = Widgets;
@@ -166,8 +163,8 @@
 		19822A7A2A4CA6A300CFA822 /* SwiftUploadSDKExampleTests */ = {
 			isa = PBXGroup;
 			children = (
-				19822A7B2A4CA6A300CFA822 /* Test_AppUITests.swift */,
-				19822A7C2A4CA6A300CFA822 /* Test_AppUITestsLaunchTests.swift */,
+				19822A7B2A4CA6A300CFA822 /* SwiftUploadSDKExampleUITests.swift */,
+				19822A7C2A4CA6A300CFA822 /* SwiftUploadSDKExampleLaunchTests.swift */,
 			);
 			path = SwiftUploadSDKExampleTests;
 			sourceTree = "<group>";
@@ -315,17 +312,14 @@
 				19822A762A4CA69700CFA822 /* ContentView.swift in Sources */,
 				19822A722A4CA69700CFA822 /* SwiftUploadSDKExample.swift in Sources */,
 				19822A792A4CA69700CFA822 /* ImagePicker.swift in Sources */,
-				19822A7E2A4CA6A300CFA822 /* Test_AppUITestsLaunchTests.swift in Sources */,
 				19822A6C2A4CA69700CFA822 /* Mux Colors.swift in Sources */,
 				19822A752A4CA69700CFA822 /* UploadCreationModel.swift in Sources */,
 				19822A6B2A4CA69700CFA822 /* MuxNavBar.swift in Sources */,
 				19822A732A4CA69700CFA822 /* ThumbnailModel.swift in Sources */,
 				19822A6A2A4CA69700CFA822 /* Buttons.swift in Sources */,
-				19822A782A4CA69700CFA822 /* UploadProgressView.swift in Sources */,
 				19822A6D2A4CA69700CFA822 /* FakeBackend.swift in Sources */,
 				19822A712A4CA69700CFA822 /* UploadListView.swift in Sources */,
 				19822A742A4CA69700CFA822 /* UploadListModel.swift in Sources */,
-				19822A7D2A4CA6A300CFA822 /* Test_AppUITests.swift in Sources */,
 				19822A772A4CA69700CFA822 /* UploadCTA.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -334,6 +328,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				191C59C52A69C9AC00D3AF05 /* SwiftUploadSDKExampleLaunchTests.swift in Sources */,
+				191C59C42A69C9A900D3AF05 /* SwiftUploadSDKExampleUITests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -469,7 +465,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_ASSET_PATHS = "\"Test App/Preview Content\"";
+				DEVELOPMENT_ASSET_PATHS = "\"SwiftUploadSDKExample/Preview Content\"";
 				DEVELOPMENT_TEAM = XX95P4Y787;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -501,7 +497,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_ASSET_PATHS = "\"Test App/Preview Content\"";
+				DEVELOPMENT_ASSET_PATHS = "\"SwiftUploadSDKExample/Preview Content\"";
 				DEVELOPMENT_TEAM = XX95P4Y787;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -532,7 +528,7 @@
 				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = XX95P4Y787;
+				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.mux.video.upload.Test-AppUITests";
@@ -540,7 +536,7 @@
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_TARGET_NAME = "Test App";
+				TEST_TARGET_NAME = SwiftUploadSDKExample;
 			};
 			name = Debug;
 		};
@@ -550,7 +546,7 @@
 				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = XX95P4Y787;
+				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.mux.video.upload.Test-AppUITests";
@@ -558,7 +554,7 @@
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_TARGET_NAME = "Test App";
+				TEST_TARGET_NAME = SwiftUploadSDKExample;
 			};
 			name = Release;
 		};
