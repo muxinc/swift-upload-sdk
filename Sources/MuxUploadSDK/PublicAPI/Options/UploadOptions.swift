@@ -46,7 +46,7 @@ public struct UploadOptions {
         /// non-standard input formats and if so detected
         /// will attempt to standardize to a standard input
         /// format. ``true`` by default
-        public var isEnabled: Bool = true
+        public var isRequested: Bool = true
 
         /// Preset to control the resolution of the standard
         /// input.
@@ -94,7 +94,7 @@ public struct UploadOptions {
         /// Default options where input standardization is
         /// enabled and the maximum resolution is set to 1080p.
         public static let `default`: InputStandardization = InputStandardization(
-            isEnabled: true,
+            isRequested: true,
             maximumResolution: .default
         )
 
@@ -108,17 +108,17 @@ public struct UploadOptions {
         /// Note: non-standard input will still be converted
         /// to a standardized format upon ingestion.
         public static let disabled: InputStandardization = InputStandardization(
-            isEnabled: false,
+            isRequested: false,
             maximumResolution: .default
         )
 
         // Kept private to an invalid combination of parameters
         // being used for initialization
         private init(
-            isEnabled: Bool,
+            isRequested: Bool,
             maximumResolution: MaximumResolution
         ) {
-            self.isEnabled = isEnabled
+            self.isRequested = isRequested
             self.maximumResolution = maximumResolution
         }
 
@@ -132,7 +132,7 @@ public struct UploadOptions {
         public init(
             maximumResolution: MaximumResolution
         ) {
-            self.isEnabled = true
+            self.isRequested = true
             self.maximumResolution = maximumResolution
         }
     }

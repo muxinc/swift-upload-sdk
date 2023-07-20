@@ -459,7 +459,7 @@ public final class MuxUpload {
     func startInspection(
         videoFile: URL
     ) {
-        if !uploadInfo.options.inputStandardization.isEnabled {
+        if !uploadInfo.options.inputStandardization.isRequested {
             startNetworkTransport(videoFile: videoFile)
         } else {
             let inputStandardizationStartTime = Date()
