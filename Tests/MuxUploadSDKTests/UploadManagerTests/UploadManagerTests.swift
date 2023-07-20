@@ -2,10 +2,21 @@
 //  UploadManagerTests.swift
 //
 
+import AVFoundation
 import Foundation
 import XCTest
 
 @testable import MuxUploadSDK
+
+extension UploadOptions {
+
+    static var inputStandardizationDisabled: UploadOptions {
+        UploadOptions(
+            inputStandardization: .disabled
+        )
+    }
+
+}
 
 class UploadManagerTests: XCTestCase {
 
@@ -22,25 +33,23 @@ class UploadManagerTests: XCTestCase {
         )
 
         let upload = MuxUpload(
-            uploadInfo: UploadInfo(
-                id: UUID().uuidString,
-                uploadURL: uploadURL,
-                videoFile: videoInputURL,
-                chunkSize: 8,
-                retriesPerChunk: 2,
-                optOutOfEventTracking: true
+            input: UploadInput(
+                asset: AVAsset(url: videoInputURL),
+                info: UploadInfo(
+                    uploadURL: uploadURL,
+                    options: .inputStandardizationDisabled
+                )
             ),
             uploadManager: uploadManager
         )
 
         let duplicateUpload = MuxUpload(
-            uploadInfo: UploadInfo(
-                id: UUID().uuidString,
-                uploadURL: uploadURL,
-                videoFile: videoInputURL,
-                chunkSize: 8,
-                retriesPerChunk: 2,
-                optOutOfEventTracking: true
+            input: UploadInput(
+                asset: AVAsset(url: videoInputURL),
+                info: UploadInfo(
+                    uploadURL: uploadURL,
+                    options: .inputStandardizationDisabled
+                )
             ),
             uploadManager: uploadManager
         )
