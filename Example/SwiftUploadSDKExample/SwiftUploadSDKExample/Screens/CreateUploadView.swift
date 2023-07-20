@@ -73,7 +73,7 @@ fileprivate struct ErrorView: View {
                     trailing: 20
                 )
             )
-            .frame(height: Test_AppApp.THUMBNAIL_HEIGHT)
+            .frame(height: SwiftUploadSDKExample.THUMBNAIL_HEIGHT)
             
             Spacer()
         }
@@ -130,7 +130,7 @@ fileprivate struct ThumbnailView: View {
                     trailing: 20
                 )
             )
-            .frame(height: Test_AppApp.THUMBNAIL_HEIGHT)
+            .frame(height: SwiftUploadSDKExample.THUMBNAIL_HEIGHT)
             Spacer()
             StretchyDefaultButton("Upload") {
                 if let preparedMedia = preparedMedia {
@@ -169,7 +169,7 @@ fileprivate struct ProcessingView: View {
                     trailing: 20
                 )
             )
-            .frame(height: Test_AppApp.THUMBNAIL_HEIGHT)
+            .frame(height: SwiftUploadSDKExample.THUMBNAIL_HEIGHT)
             Spacer()
         }
     }

@@ -1,13 +1,12 @@
 //
-//  Test_AppUITests.swift
-//  Test AppUITests
+//  SwiftUploadSDKExampleUITests.swift
 //
 //  Created by Emily Dixon on 2/14/23.
 //
 
 import XCTest
 
-final class Test_AppUITests: XCTestCase {
+final class SwiftUploadSDKExampleUITests: XCTestCase {
 
     override func setUpWithError() throws {
         // Put setup code here. This method is called before the invocation of each test method in the class.

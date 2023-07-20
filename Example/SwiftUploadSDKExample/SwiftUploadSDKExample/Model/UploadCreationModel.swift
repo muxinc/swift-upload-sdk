@@ -185,7 +185,7 @@ class UploadCreationModel : ObservableObject {
     private var prepareTask: Task<Void, Never>? = nil
     private var thumbnailGenerator: AVAssetImageGenerator? = nil
     
-    private let logger = Test_AppApp.logger
+    private let logger = SwiftUploadSDKExample.logger
     private let myServerBackend = FakeBackend(urlSession: URLSession(configuration: URLSessionConfiguration.default))
     
     @Published

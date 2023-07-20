@@ -49,7 +49,7 @@ class FakeBackend {
         return url
     }
     
-    private let logger = Test_AppApp.logger
+    private let logger = SwiftUploadSDKExample.logger
     
     let urlSession: URLSession
     let jsonEncoder: JSONEncoder
