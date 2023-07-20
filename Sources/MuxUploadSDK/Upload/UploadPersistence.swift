@@ -18,13 +18,21 @@ class UploadPersistence {
     private var cache: [String : PersistenceEntry]? // populated on first write for this object (see ensureCache())
     private let uploadsFile: UploadsFile
     
-    func update(uploadState state: ChunkedFileUploader.InternalUploadState, forUpload upload: UploadInfo) {
+    func update(
+        uploadState state: ChunkedFileUploader.InternalUploadState,
+        for uploadInfo: UploadInfo,
+        fileInputURL: URL
+    ) {
         do {
             // If the new state is persistable, persist it (overwriting the old) otherwise delete it
-            if let entry = PersistenceEntry.fromUploadState(state, forUpload: upload) {
-                try write(entry: entry, for: upload.id)
+            if let entry = PersistenceEntry.fromUploadState(
+                state,
+                forUpload: uploadInfo,
+                inputFileURL: fileInputURL
+            ) {
+                try write(entry: entry, for: uploadInfo.id)
             } else {
-                try remove(entryAtID: upload.id)
+                try remove(entryAtID: uploadInfo.id)
             }
         } catch {
             // This makes a lot of noise on the emulator, but might be worth logging if you're having issues around here
@@ -123,6 +131,7 @@ struct PersistenceEntry : Codable {
     let stateCode: PreviousStateCode
     let lastSuccessfulByte: UInt64
     let uploadInfo: UploadInfo
+    let inputFileURL: URL
     
     enum PreviousStateCode : Int, Codable {
         case wasInProgress = 0, wasPaused = 1
@@ -132,17 +141,24 @@ struct PersistenceEntry : Codable {
         savedAt: TimeInterval? = nil,
         stateCode: PreviousStateCode? = nil,
         lastSuccessfulByte: UInt64? = nil,
-        uploadInfo: UploadInfo? = nil
+        uploadInfo: UploadInfo? = nil,
+        inputFileURL: URL,
+        uploadURL: URL
     ) -> PersistenceEntry {
         return PersistenceEntry(
             savedAt: savedAt ?? self.savedAt,
             stateCode: stateCode ?? self.stateCode,
             lastSuccessfulByte: lastSuccessfulByte ?? self.lastSuccessfulByte,
-            uploadInfo: uploadInfo ?? self.uploadInfo
+            uploadInfo: uploadInfo ?? self.uploadInfo,
+            inputFileURL: inputFileURL
         )
     }
     
-    static func fromUploadState(_ state: ChunkedFileUploader.InternalUploadState, forUpload upload: UploadInfo) -> PersistenceEntry? {
+    static func fromUploadState(
+        _ state: ChunkedFileUploader.InternalUploadState,
+        forUpload upload: UploadInfo,
+        inputFileURL: URL
+    ) -> PersistenceEntry? {
         switch state {
             // Cases that aren't stored also aren't parsed
         case .success(_), .canceled, .failure(_): return nil
@@ -151,19 +167,22 @@ struct PersistenceEntry : Codable {
             savedAt: Date().timeIntervalSince1970,
             stateCode: .wasInProgress,
             lastSuccessfulByte: 0,
-            uploadInfo: upload
+            uploadInfo: upload,
+            inputFileURL: inputFileURL
         )
         case .paused(let update): return PersistenceEntry(
             savedAt: Date().timeIntervalSince1970,
             stateCode: .wasPaused,
             lastSuccessfulByte: UInt64(update.progress.completedUnitCount),
-            uploadInfo: upload
+            uploadInfo: upload,
+            inputFileURL: inputFileURL
         )
         case .uploading(let update): return PersistenceEntry(
             savedAt: Date().timeIntervalSince1970,
             stateCode: .wasInProgress,
             lastSuccessfulByte: UInt64(update.progress.completedUnitCount),
-            uploadInfo: upload
+            uploadInfo: upload,
+            inputFileURL: inputFileURL
         )
 //        case .failure(let error): return PersistenceEntry(
 //            savedAt: Date().timeIntervalSince1970,

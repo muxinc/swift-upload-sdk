@@ -96,7 +96,7 @@ class ChunkedFile {
         let fileSize = try fileManager.fileSizeOfItem(
             atPath: fileURL.path
         )
-
+        
         guard let data = data else {
             // Called while already at the end of the file. We read zero bytes, "ending" at the end of the file
             return FileChunk(startByte: fileSize, endByte: fileSize, totalFileSize: fileSize, chunkData: Data(capacity: 0))

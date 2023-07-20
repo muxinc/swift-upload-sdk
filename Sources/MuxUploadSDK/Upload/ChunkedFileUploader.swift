@@ -12,17 +12,17 @@ import Foundation
 /// This object is not externally thread-safe. Access its methods only from the main thread
 /// If you need to start this over again from the beginning, make a new object (and cancel your old one)
 class ChunkedFileUploader {
-    
-    let uploadInfo: UploadInfo
+
     private(set) var currentState: InternalUploadState = .ready
-    
+    let uploadInfo: UploadInfo
+    let inputFileURL: URL
     private var delegates: [String : ChunkedFileUploaderDelegate] = [:]
     
     private let file: ChunkedFile
     private var currentWorkTask: Task<(), Never>? = nil
     private var overallProgress: Progress = Progress()
     private var lastReadCount: UInt64 = 0
-    private let reporter = Reporter()
+    private let reporter: Reporter
     
     func addDelegate(withToken token: String, _ delegate: ChunkedFileUploaderDelegate) {
         delegates.updateValue(delegate, forKey: token)
@@ -67,6 +67,16 @@ class ChunkedFileUploader {
             MuxUploadSDK.logger?.info("start() ignored in state \(String(describing: self.currentState))")
         }
     }
+
+    func start(duration: CMTime) {
+        switch currentState {
+        case .ready: fallthrough
+        case .paused(_):
+            beginUpload(duration: duration)
+        default:
+            MuxUploadSDK.logger?.info("start() ignored in state \(String(describing: self.currentState))")
+        }
+    }
     
     /// Cancels the upload. It can't be restarted
     func cancel() {
@@ -85,10 +95,26 @@ class ChunkedFileUploader {
     
     private func beginUpload() {
         let task = Task.detached { [self] in
+
+            let asset = AVAsset(url: inputFileURL)
+
+            var duration: CMTime
+
             do {
-                // It's fine if it's already open, that's handled by ignoring the call
+                if #available(iOS 15, *) {
+                    duration = try await asset.load(.duration)
+                } else {
+                    await asset.loadValues(forKeys: ["duration"])
+                    duration = asset.duration
+                }
+            } catch {
+                // Cannot get duration, assume it is zero
+                duration = CMTime.zero
+            }
+
+            do {
                 let fileSize = try FileManager.default.fileSizeOfItem(
-                    atPath: uploadInfo.videoFile.path
+                    atPath: inputFileURL.path
                 )
                 let result = try await makeWorker().performUpload()
                 file.close()
@@ -99,26 +125,108 @@ class ChunkedFileUploader {
                     finishTime: result.updateTime
                 )
 
-                let asset = AVAsset(url: uploadInfo.videoFile)
+                reporter.reportUploadSuccess(
+                    inputDuration: duration.seconds,
+                    inputSize: fileSize,
+                    options: uploadInfo.options,
+                    uploadEndTime: Date(
+                        timeIntervalSince1970: success.finishTime
+                    ),
+                    uploadStartTime: Date(
+                        timeIntervalSince1970: success.startTime
+                    ),
+                    uploadURL: uploadInfo.uploadURL
+                )
+                notifyStateFromWorker(.success(success))
+            } catch {
+                handle(
+                    error: error,
+                    duration: duration
+                )
+            }
+        }
+        currentWorkTask = task
+    }
 
-                var duration: CMTime
-                if #available(iOS 15, *) {
-                    duration = try await asset.load(.duration)
-                } else {
-                    await asset.loadValues(forKeys: ["duration"])
-                    duration = asset.duration
-                }
+    private func handle(
+        error: Error,
+        duration: CMTime
+    ) {
+        file.close()
+        if error is CancellationError {
+            MuxUploadSDK.logger?.debug("Task finished due to cancellation in state \(String(describing: self.currentState))")
+            if case let .uploading(update) = self.currentState {
+                self.currentState = .paused(update)
+            }
+        } else {
+            MuxUploadSDK.logger?.debug("Task finished due to error in state \(String(describing: self.currentState))")
+            let uploadError = InternalUploaderError(reason: error, lastByte: lastReadCount)
 
-                if !uploadInfo.optOutOfEventTracking {
-                    reporter.report(
-                        startTime: success.startTime,
-                        endTime: success.finishTime,
-                        fileSize: fileSize,
-                        videoDuration: duration.seconds,
-                        uploadURL: uploadInfo.uploadURL
-                    )
-                }
+            let lastUpdate: Update?
+            if case InternalUploadState.uploading(let update) = currentState {
+                lastUpdate = update
+            } else {
+                lastUpdate = nil
+            }
 
+            // This modifies currentState, so capture
+            // the last update first
+            notifyStateFromWorker(.failure(uploadError))
+
+            // FIXME: Will only work if currentState
+            // was uploading before the upload failed
+            // may miss some edge cases
+            if let lastUpdate {
+                let fileSize = (try? FileManager.default.fileSizeOfItem(atPath: inputFileURL.path)) ?? 0
+
+                let startTime = Date(
+                    timeIntervalSince1970: lastUpdate.startTime
+                )
+                // When failing assume transport ends
+                // when error is received
+                let endTime = Date()
+
+                reporter.reportUploadFailure(
+                    errorDescription: uploadError.localizedDescription,
+                    inputDuration: duration.seconds,
+                    inputSize: fileSize,
+                    options: uploadInfo.options,
+                    uploadEndTime: endTime,
+                    uploadStartTime: startTime,
+                    uploadURL: uploadInfo.uploadURL
+                )
+            }
+        }
+    }
+
+    private func beginUpload(duration: CMTime) {
+        let task = Task.detached { [self] in
+            do {
+                // It's fine if it's already open, that's handled by ignoring the call
+                let fileSize = try FileManager.default.fileSizeOfItem(
+                    atPath: inputFileURL.path
+                )
+                let result = try await makeWorker().performUpload()
+                file.close()
+
+                let success = UploadResult(
+                    finalProgress: result.progress,
+                    startTime: result.startTime,
+                    finishTime: result.updateTime
+                )
+
+                reporter.reportUploadSuccess(
+                    inputDuration: duration.seconds,
+                    inputSize: fileSize,
+                    options: uploadInfo.options,
+                    uploadEndTime: Date(
+                        timeIntervalSince1970: success.finishTime
+                    ),
+                    uploadStartTime: Date(
+                        timeIntervalSince1970: success.startTime
+                    ),
+                    uploadURL: uploadInfo.uploadURL
+                )
                 notifyStateFromWorker(.success(success))
             } catch {
                 file.close()
@@ -130,7 +238,43 @@ class ChunkedFileUploader {
                 } else {
                     MuxUploadSDK.logger?.debug("Task finished due to error in state \(String(describing: self.currentState))")
                     let uploadError = InternalUploaderError(reason: error, lastByte: lastReadCount)
+
+                    let lastUpdate: Update?
+                    if case InternalUploadState.uploading(let update) = currentState {
+                        lastUpdate = update
+                    } else {
+                        lastUpdate = nil
+                    }
+
+                    // This modifies currentState, so capture
+                    // the last update first
                     notifyStateFromWorker(.failure(uploadError))
+
+                    // FIXME: Will only work if currentState
+                    // was uploading before the upload failed
+                    // may miss some edge cases
+                    if let lastUpdate {
+                        let fileSize = try? FileManager.default.fileSizeOfItem(
+                            atPath: inputFileURL.path
+                        )
+
+                        let startTime = Date(
+                            timeIntervalSince1970: lastUpdate.startTime
+                        )
+                        // When failing assume transport ends
+                        // when error is received
+                        let endTime = Date()
+
+                        reporter.reportUploadFailure(
+                            errorDescription: uploadError.localizedDescription,
+                            inputDuration: duration.seconds,
+                            inputSize: fileSize ?? 0,
+                            options: uploadInfo.options,
+                            uploadEndTime: endTime,
+                            uploadStartTime: startTime,
+                            uploadURL: uploadInfo.uploadURL
+                        )
+                    }
                 }
             }
         }
@@ -140,6 +284,7 @@ class ChunkedFileUploader {
     private func makeWorker() -> Worker {
         return Worker(
             uploadInfo: uploadInfo,
+            inputFileURL: inputFileURL,
             chunkedFile: file,
             progress: overallProgress,
             startByte: lastReadCount
@@ -183,23 +328,48 @@ class ChunkedFileUploader {
             self.notifyStateFromMain(state)
         }
     }
-    
-    convenience init(uploadInfo: UploadInfo, startingAtByte: UInt64 = 0) {
+
+    convenience init(
+        persistenceEntry: PersistenceEntry
+    ) {
         self.init(
-            uploadInfo: uploadInfo,
-            file: ChunkedFile(chunkSize: uploadInfo.chunkSize),
-            startingByte: startingAtByte
+            uploadInfo: persistenceEntry.uploadInfo,
+            inputFileURL: persistenceEntry.inputFileURL,
+            file: ChunkedFile(chunkSize: persistenceEntry.uploadInfo.options.transport.chunkSizeInBytes),
+            startingByte: persistenceEntry.lastSuccessfulByte
         )
     }
     
-    init(uploadInfo: UploadInfo, file: ChunkedFile, startingByte: UInt64 = 0) {
+    init(
+        uploadInfo: UploadInfo,
+        inputFileURL: URL,
+        file: ChunkedFile,
+        startingByte: UInt64 = 0
+    ) {
         self.uploadInfo = uploadInfo
         self.file = file
         self.lastReadCount = startingByte
+        self.inputFileURL = inputFileURL
+        self.reporter = Reporter.shared
     }
     
     enum InternalUploadState {
         case ready, starting, uploading(Update), canceled, paused(Update), success(UploadResult), failure(Error)
+
+        var progress: Progress? {
+            switch self {
+            case .ready, .starting, .canceled:
+                return nil
+            case .uploading(let update):
+                return update.progress
+            case .paused(let update):
+                return update.progress
+            case .success(let result):
+                return result.finalProgress
+            case .failure:
+                return nil
+            }
+        }
     }
     
     struct UploadResult {
@@ -231,20 +401,20 @@ struct InternalUploaderError : Error {
 /// This object is not resuable. If you want to resume where you left off, the ``ChunkedFile`` must be seeked to that position
 fileprivate actor Worker {
     private let uploadInfo: UploadInfo
+    private let inputFileURL: URL
     private let chunkedFile: ChunkedFile
     private let overallProgress: Progress
     private let progressHandler: ProgressHandler
     private let startingReadCount: UInt64
     
     func performUpload() async throws -> ChunkedFileUploader.Update {
-        try chunkedFile.openFile(fileURL: uploadInfo.videoFile)
+        try chunkedFile.openFile(fileURL: inputFileURL)
         try chunkedFile.seekTo(byte: startingReadCount)
         
         let startTime = Date().timeIntervalSince1970
         let fileSize = try FileManager.default.fileSizeOfItem(
-            atPath: uploadInfo.videoFile.path
+            atPath: inputFileURL.path
         )
-
         let wideFileSize: Int64
 
         // Prevent overflow if UInt64 exceeds Int64.max
@@ -273,7 +443,7 @@ fileprivate actor Worker {
                 uploadURL: uploadInfo.uploadURL,
                 fileChunk: chunk,
                 chunkProgress: chunkProgress,
-                maxRetries: uploadInfo.retriesPerChunk
+                maxRetries: uploadInfo.options.transport.retriesPerChunk
             )
             chunkWorker.addDelegate {[self] update in
                 // Called on the main thread
@@ -287,10 +457,10 @@ fileprivate actor Worker {
             
             let chunkResult = try await chunkWorker.getTask().value
             MuxUploadSDK.logger?.info("Completed Chunk:\n \(String(describing: chunkResult))")
-        } while (readBytes == uploadInfo.chunkSize)
-        
-        MuxUploadSDK.logger?.info("Finished uploading file: \(self.uploadInfo.videoFile.relativeString)")
-        
+        } while (readBytes == uploadInfo.options.transport.chunkSizeInBytes)
+
+        MuxUploadSDK.logger?.info("Finished uploading file: \(self.inputFileURL.relativeString)")
+
         let finalState = ChunkedFileUploader.Update(
             progress: overallProgress,
             startTime: startTime,
@@ -303,12 +473,14 @@ fileprivate actor Worker {
     
     init(
         uploadInfo: UploadInfo,
+        inputFileURL: URL,
         chunkedFile: ChunkedFile,
         progress: Progress,
         startByte: UInt64,
         _ progressHandler: @escaping ProgressHandler
     ) {
         self.uploadInfo = uploadInfo
+        self.inputFileURL = inputFileURL
         self.chunkedFile = chunkedFile
         self.progressHandler = progressHandler
         self.overallProgress = progress

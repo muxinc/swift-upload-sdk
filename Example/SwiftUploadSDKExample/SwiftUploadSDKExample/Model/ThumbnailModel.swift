@@ -52,7 +52,7 @@ class ThumbnailModel: ObservableObject {
     private var thumbnailGenerator: AVAssetImageGenerator?
     
     @Published var thumbnail: CGImage?
-    @Published var uploadProgress: MuxUpload.Status?
+    @Published var uploadProgress: MuxUpload.TransportStatus?
     
     init(asset: AVAsset, upload: MuxUpload) {
         self.asset = asset
