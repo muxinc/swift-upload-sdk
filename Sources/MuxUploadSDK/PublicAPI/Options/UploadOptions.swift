@@ -42,11 +42,11 @@ public struct UploadOptions {
     /// Settings controlling direct upload input standardization
     public struct InputStandardization {
 
-        /// If enabled the SDK will attempt to detect
+        /// If requested the SDK will attempt to detect
         /// non-standard input formats and if so detected
         /// will attempt to standardize to a standard input
         /// format. ``true`` by default
-        public var isEnabled: Bool = true
+        public var isRequested: Bool = true
 
         /// Preset to control the resolution of the standard
         /// input.
@@ -75,7 +75,7 @@ public struct UploadOptions {
         /// no other non-standard input parameters with
         /// ``MaximumResolution.default`` selected.
         ///
-        /// If input standardization is enabled, the SDK
+        /// If input standardization is requested, the SDK
         /// will attempt standardize the input into an H.264
         /// encoded output that will maintain its original
         /// 1440 x 1080 resolution.
@@ -85,40 +85,40 @@ public struct UploadOptions {
         /// non-standard input format parameters with
         /// ``MaximumResolution.preset1280x720`` selected.
         ///
-        /// If input standardization is enabled, the SDK
+        /// If input standardization is requested, the SDK
         /// will attempt standardize the input into an H.264
         /// encoded output with a reduced 1280 x 720 resolution.
         ///
         public var maximumResolution: MaximumResolution = .default
 
         /// Default options where input standardization is
-        /// enabled and the maximum resolution is set to 1080p.
+        /// requested and the maximum resolution is set to 1080p.
         public static let `default`: InputStandardization = InputStandardization(
-            isEnabled: true,
+            isRequested: true,
             maximumResolution: .default
         )
 
-        /// Disable all local input standardization by the SDK.
+        /// Skip all local input standardization by the SDK.
         ///
         /// Initializing an upload with input standardization
-        /// disabled will prevent the SDK from making any
+        /// skipped will prevent the SDK from making any
         /// changes before commencing the upload. All input
         /// will be uploaded to Mux as-is.
         ///
         /// Note: non-standard input will still be converted
         /// to a standardized format upon ingestion.
-        public static let disabled: InputStandardization = InputStandardization(
-            isEnabled: false,
+        public static let skipped: InputStandardization = InputStandardization(
+            isRequested: false,
             maximumResolution: .default
         )
 
         // Kept private to an invalid combination of parameters
         // being used for initialization
         private init(
-            isEnabled: Bool,
+            isRequested: Bool,
             maximumResolution: MaximumResolution
         ) {
-            self.isEnabled = isEnabled
+            self.isRequested = isRequested
             self.maximumResolution = maximumResolution
         }
 
@@ -132,7 +132,7 @@ public struct UploadOptions {
         public init(
             maximumResolution: MaximumResolution
         ) {
-            self.isEnabled = true
+            self.isRequested = true
             self.maximumResolution = maximumResolution
         }
     }
@@ -166,9 +166,9 @@ public struct UploadOptions {
     /// - Parameters:
     ///     - inputStandardization: settings to enable or
     ///     disable standardizing the format of the direct
-    ///     upload inputs, enabled by default. To prevent the
-    ///     SDK from making any changes to the format of the
-    ///     input use ``UploadSettings.InputStandardization.disabled``
+    ///     upload inputs, it is requested by default. To
+    ///     prevent the SDK from making any changes to the
+    ///     format of the input use ``UploadSettings.InputStandardization.skipped``
     ///     - transport: settings for transporting the
     ///     direct upload input to Mux
     ///     - eventTracking: event tracking settings for the

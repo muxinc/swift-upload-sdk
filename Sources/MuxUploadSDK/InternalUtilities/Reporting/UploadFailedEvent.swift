@@ -17,7 +17,7 @@ struct UploadFailedEvent: Codable {
         var errorDescription: String
         var inputDuration: Double
         var inputSize: UInt64
-        var inputStandardizationEnabled: Bool
+        var inputStandardizationRequested: Bool
         var platformName: String
         var platformVersion: String
         var regionCode: String?

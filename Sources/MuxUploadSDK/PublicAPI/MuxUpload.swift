@@ -77,7 +77,7 @@ public final class MuxUpload {
         /// Upload started by a call to ``MuxUpload.start(forceRestart:)``
         case started(AVAsset)
         /// Upload is being prepared for transport to the
-        /// server. If input standardization was enabled,
+        /// server. If input standardization was requested,
         /// this stage includes the inspection and standardization
         /// of input formats
         case preparing(AVAsset)
@@ -459,7 +459,7 @@ public final class MuxUpload {
     func startInspection(
         videoFile: URL
     ) {
-        if !uploadInfo.options.inputStandardization.isEnabled {
+        if !uploadInfo.options.inputStandardization.isRequested {
             startNetworkTransport(videoFile: videoFile)
         } else {
             let inputStandardizationStartTime = Date()

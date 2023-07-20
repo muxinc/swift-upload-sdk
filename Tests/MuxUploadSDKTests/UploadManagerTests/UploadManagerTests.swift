@@ -10,9 +10,9 @@ import XCTest
 
 extension UploadOptions {
 
-    static var inputStandardizationDisabled: UploadOptions {
+    static var inputStandardizationSkipped: UploadOptions {
         UploadOptions(
-            inputStandardization: .disabled
+            inputStandardization: .skipped
         )
     }
 
@@ -37,7 +37,7 @@ class UploadManagerTests: XCTestCase {
                 asset: AVAsset(url: videoInputURL),
                 info: UploadInfo(
                     uploadURL: uploadURL,
-                    options: .inputStandardizationDisabled
+                    options: .inputStandardizationSkipped
                 )
             ),
             uploadManager: uploadManager
@@ -48,7 +48,7 @@ class UploadManagerTests: XCTestCase {
                 asset: AVAsset(url: videoInputURL),
                 info: UploadInfo(
                     uploadURL: uploadURL,
-                    options: .inputStandardizationDisabled
+                    options: .inputStandardizationSkipped
                 )
             ),
             uploadManager: uploadManager
