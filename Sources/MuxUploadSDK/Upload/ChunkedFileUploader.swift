@@ -443,7 +443,7 @@ fileprivate actor Worker {
                 uploadURL: uploadInfo.uploadURL,
                 fileChunk: chunk,
                 chunkProgress: chunkProgress,
-                maxRetries: uploadInfo.options.transport.retriesPerChunk
+                maxRetries: uploadInfo.options.transport.retryLimitPerChunk
             )
             chunkWorker.addDelegate {[self] update in
                 // Called on the main thread
