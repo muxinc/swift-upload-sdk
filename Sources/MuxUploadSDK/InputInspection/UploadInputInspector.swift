@@ -119,11 +119,11 @@ class AVFoundationUploadInputInspector: UploadInputInspector {
                             nonStandardReasons.append(.videoResolution)
                         }
 
-                        let videoCodecType = formatDescription.mediaSubType
+                        let rawVideoCodecType = formatDescription.mediaSubType.rawValue
 
-                        let standard = CMFormatDescription.MediaSubType.h264
+                        let rawStandardCodecType = CMFormatDescription.MediaSubType.h264.rawValue
 
-                        if videoCodecType != standard {
+                        if rawVideoCodecType != rawStandardCodecType {
                             nonStandardReasons.append(.videoCodec)
                         }
 
