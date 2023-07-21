@@ -18,14 +18,14 @@ public struct UploadOptions {
 
         /// Number of retry attempts per chunk if the
         /// associated request fails
-        public var retriesPerChunk: Int
+        public var retryLimitPerChunk: Int
 
         /// A default set of transport options: 8MB chunk
         /// size and chunk request retry limit of 3
         public static var `default`: Transport {
             Transport(
                 chunkSizeInBytes: 8 * 1024 * 1024,
-                retriesPerChunk: 3
+                retryLimitPerChunk: 3
             )
         }
 
@@ -40,10 +40,10 @@ public struct UploadOptions {
         ///     if the chunk request fails, default value is 3
         public init(
             chunkSizeInBytes: Int = 8 * 1024 * 1024,
-            retriesPerChunk: Int = 3
+            retryLimitPerChunk: Int = 3
         ) {
             self.chunkSizeInBytes = chunkSizeInBytes
-            self.retriesPerChunk = retriesPerChunk
+            self.retryLimitPerChunk = retryLimitPerChunk
         }
     }
 

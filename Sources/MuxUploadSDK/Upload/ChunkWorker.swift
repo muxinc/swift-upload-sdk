@@ -153,7 +153,7 @@ class ChunkWorker {
             uploadURL: uploadInfo.uploadURL,
             fileChunk: fileChunk,
             chunkProgress: chunkProgress,
-            maxRetries: uploadInfo.options.transport.retriesPerChunk
+            maxRetries: uploadInfo.options.transport.retryLimitPerChunk
         )
     }
     

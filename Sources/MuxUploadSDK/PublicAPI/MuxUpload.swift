@@ -245,7 +245,7 @@ public final class MuxUpload {
                         inputStandardization: inputStandardization,
                         transport: UploadOptions.Transport(
                             chunkSizeInBytes: chunkSize,
-                            retriesPerChunk: retriesPerChunk
+                            retryLimitPerChunk: retriesPerChunk
                         ),
                         eventTracking: eventTracking
                     )
