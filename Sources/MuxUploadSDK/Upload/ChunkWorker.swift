@@ -34,11 +34,15 @@ class ChunkWorker {
     }
     
     func getTask() -> Task<Success, Error> {
-        if uploadTask == nil {
+
+        guard let uploadTask else {
             chunkStartTime = Date().timeIntervalSince1970
-            uploadTask = makeUploadTask()
+            let uploadTask = makeUploadTask()
+            self.uploadTask = uploadTask
+            return uploadTask
         }
-        return uploadTask!
+
+        return uploadTask
     }
     
     func cancel() {
@@ -149,7 +153,7 @@ class ChunkWorker {
             uploadURL: uploadInfo.uploadURL,
             fileChunk: fileChunk,
             chunkProgress: chunkProgress,
-            maxRetries: uploadInfo.retriesPerChunk
+            maxRetries: uploadInfo.options.transport.retryLimitPerChunk
         )
     }
     
@@ -170,7 +174,15 @@ fileprivate actor ChunkActor {
     let urlSession: URLSession
     
     func upload() async throws -> URLResponse {
-        let contentRangeValue = "bytes \(chunk.startByte)-\(chunk.endByte - 1)/\(chunk.totalFileSize)"
+        let startByte = "\(chunk.startByte)"
+        let endByte: String
+        if chunk.endByte == 0 {
+            endByte = "0"
+        } else {
+            endByte = "\(chunk.endByte - 1)"
+        }
+
+        let contentRangeValue = "bytes \(startByte)-\(endByte)/\(chunk.totalFileSize)"
         var request = URLRequest(url: uploadURL)
         request.httpMethod = "PUT"
         request.setValue("video/*", forHTTPHeaderField: "Content-Type")
@@ -212,13 +224,13 @@ fileprivate class ProgressReportingURLSessionTaskDelegate : NSObject, URLSession
 }
 
 class ChunkResponseValidator {
-    public static let ACCEPTABLE_HTTP_STATUS_CODES = [200, 201, 202, 204, 308]
-    public static let RETRYABLE_HTTP_STATUS_CODES = [408, 502, 503, 504]
+    static let acceptableHTTPStatusCodes = [200, 201, 202, 204, 308]
+    static let retryableHTTPStatusCodes = [408, 502, 503, 504]
     
     func validate(statusCode: Int) -> Disposition {
-        if ChunkResponseValidator.ACCEPTABLE_HTTP_STATUS_CODES.contains(statusCode) {
+        if ChunkResponseValidator.acceptableHTTPStatusCodes.contains(statusCode) {
             return .proceed
-        } else if ChunkResponseValidator.RETRYABLE_HTTP_STATUS_CODES.contains(statusCode) {
+        } else if ChunkResponseValidator.retryableHTTPStatusCodes.contains(statusCode) {
             return .retry
         } else {
             return .error

@@ -11,7 +11,7 @@ import MuxUploadSDK
 
 class UploadCreationModel : ObservableObject {
     
-    struct PickerError: Error {
+    struct PickerError: Error, Equatable {
         
         static var unexpectedFormat: PickerError {
             PickerError(localizedDescription: "Unexpected video file format")
@@ -23,6 +23,10 @@ class UploadCreationModel : ObservableObject {
         
         static var createUploadFailed: PickerError {
             PickerError(localizedDescription: "Upload could not be created")
+        }
+
+        static var assetExportSessionFailed: PickerError {
+            PickerError(localizedDescription: "Upload could not be exported")
         }
         
         var localizedDescription: String
@@ -37,7 +41,7 @@ class UploadCreationModel : ObservableObject {
         }
     }
     
-    func startUpload(preparedMedia: PreparedUpload, forceRestart: Bool) -> MuxUpload {
+    @discardableResult func startUpload(preparedMedia: PreparedUpload, forceRestart: Bool) -> MuxUpload {
         let upload = MuxUpload(
             uploadURL: preparedMedia.remoteURL,
             videoFileURL: preparedMedia.localVideoFile
@@ -52,6 +56,10 @@ class UploadCreationModel : ObservableObject {
     
     /// Prepares a Photos Asset for upload by exporting it to a local temp file
     func tryToPrepare(from pickerResult: PHPickerResult) {
+        if case ExportState.preparing = exportState {
+            return
+        }
+
         // Cancel anything that was already happening
         if let assetRequestId = assetRequestId {
             PHImageManager.default().cancelImageRequest(assetRequestId)
@@ -71,11 +79,11 @@ class UploadCreationModel : ObservableObject {
         
         guard let assetIdentitfier = pickerResult.assetIdentifier else {
             NSLog("!! No Asset ID for chosen asset")
-            exportState = .failure(nil)
+            exportState = .failure(UploadCreationModel.PickerError.assetExportSessionFailed)
             return
         }
         let options = PHFetchOptions()
-        options.includeAssetSourceTypes = .typeUserLibrary
+        options.includeAssetSourceTypes = [.typeUserLibrary, .typeCloudShared]
         let phAssetResult = PHAsset.fetchAssets(withLocalIdentifiers: [assetIdentitfier], options: options)
         guard let phAsset = phAssetResult.firstObject else {
             self.logger.error("!! No Asset fetched")
@@ -88,12 +96,13 @@ class UploadCreationModel : ObservableObject {
         }
         
         let exportOptions = PHVideoRequestOptions()
-        //exportOptions.deliveryMode = .highQualityFormat
+        exportOptions.isNetworkAccessAllowed = true
+        exportOptions.deliveryMode = .highQualityFormat
         assetRequestId = PHImageManager.default().requestExportSession(forVideo: phAsset, options: exportOptions, exportPreset: AVAssetExportPresetHighestQuality, resultHandler: {(exportSession, info) -> Void in
             DispatchQueue.main.async {
                 guard let exportSession = exportSession else {
                     self.logger.error("!! No Export session")
-                    self.exportState = .failure(nil)
+                    self.exportState = .failure(UploadCreationModel.PickerError.assetExportSessionFailed)
                     return
                 }
                 self.exportToOutFile(session: exportSession, outFile: tempFile)
@@ -207,7 +216,7 @@ struct PreparedUpload {
 }
 
 enum ExportState {
-    case not_started, preparing, failure(UploadCreationModel.PickerError?), ready(PreparedUpload)
+    case not_started, preparing, failure(UploadCreationModel.PickerError), ready(PreparedUpload)
 }
 
 enum PhotosAuthState {

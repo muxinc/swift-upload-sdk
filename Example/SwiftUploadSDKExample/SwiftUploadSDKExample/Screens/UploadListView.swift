@@ -17,23 +17,29 @@ struct UploadListScreen: View {
             WindowBackground
             VStack(spacing: 0) {
                 MuxNavBar()
-                ListContianer()
+                ListContainerView()
             }
         }
     }
 }
 
-fileprivate struct ListContianer: View {
+extension MuxUpload {
+    var objectIdentifier: ObjectIdentifier {
+        ObjectIdentifier(self)
+    }
+}
+
+fileprivate struct ListContainerView: View {
     
-    @EnvironmentObject var listVM: UploadListModel
+    @EnvironmentObject var viewModel: UploadListModel
     
     var body: some View {
-        if listVM.lastKnownUploads.isEmpty {
+        if viewModel.lastKnownUploads.isEmpty {
             EmptyList()
         } else {
             ScrollView {
                 LazyVStack {
-                    ForEach(listVM.lastKnownUploads, id: \.self) { upload in
+                    ForEach(viewModel.lastKnownUploads, id: \.objectIdentifier) { upload in
                         ListItem(upload: upload)
                     }
                 }
@@ -124,12 +130,12 @@ fileprivate struct ListItem: View {
         }
     }
     
-    private func statusLine(status: MuxUpload.Status?) -> String {
-        guard let status = status, let progress = status.progress, status.startTime > 0 else {
+    private func statusLine(status: MuxUpload.TransportStatus?) -> String {
+        guard let status = status, let progress = status.progress, let startTime = status.startTime, startTime > 0 else {
             return "missing status"
         }
         
-        let totalTimeSecs = status.updatedTime - status.startTime
+        let totalTimeSecs = status.updatedTime - (status.startTime ?? 0)
         let totalTimeMs = Int64((totalTimeSecs) * 1000)
         let kbytesPerSec = (progress.completedUnitCount) / totalTimeMs // bytes/milli = kb/sec
         let fourSigs = NumberFormatter()
@@ -146,7 +152,7 @@ fileprivate struct ListItem: View {
         return "\(formattedMBytes) MB in \(formattedTime)s (\(formattedDataRate) KB/s)"
     }
     
-    private func elapsedBytesOfTotal(status: MuxUpload.Status) -> String {
+    private func elapsedBytesOfTotal(status: MuxUpload.TransportStatus) -> String {
         guard let progress = status.progress else {
             return "unknown"
         }
@@ -157,7 +163,7 @@ fileprivate struct ListItem: View {
         self.upload = upload
         _thumbnailModel = StateObject(
             wrappedValue: {
-                ThumbnailModel(asset: AVAsset(url: upload.videoFile), upload: upload)
+                ThumbnailModel(asset: AVAsset(url: upload.videoFile!), upload: upload)
             }()
         )
     }
@@ -188,7 +194,7 @@ struct ListContent_Previews: PreviewProvider {
     static var previews: some View {
         ZStack(alignment: .top) {
             WindowBackground
-            ListContianer()
+            ListContainerView()
         }
         .environmentObject(UploadListModel())
     }

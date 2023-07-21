@@ -40,7 +40,7 @@ let videoInputURL: URL = /* File URL to your video file. See Test App for how to
 
 let upload = MuxUpload(
     uploadURL: directUploadURL,
-    videoFileURL: videoInputURL,
+    inputFileURL: videoInputURL,
 )
 
 upload.progressHandler = { state in
@@ -63,7 +63,7 @@ self.upload = upload
 upload.start()
 ```
 
-A simple example usage can be found in our [Test App](https://github.com/muxinc/swift-upload-sdk/blob/main/apps/Test%20App/Test%20App/Screens/UploadScreenViewModel.swift)
+A simple example of how to use the SDK in a realistic app can be found [here](https://github.com/muxinc/swift-upload-sdk/blob/main/Examples/)
 
 ## Development
 

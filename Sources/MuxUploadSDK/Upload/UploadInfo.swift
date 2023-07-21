@@ -5,6 +5,7 @@
 //  Created by Emily Dixon on 2/10/23.
 //
 
+import AVFoundation
 import Foundation
 
 /**
@@ -12,23 +13,27 @@ import Foundation
  */
 struct UploadInfo : Codable {
     /**
-     URI of the upload's destinatoin
+     Unique internal ID for the upload
+     */
+    var id: String = UUID().uuidString
+    
+    /**
+     URI of the upload destination
      */
     var uploadURL: URL
+
     /**
-     file::// URL to the video file to be uploaded
+     Options selected for the upload
      */
-    var videoFile: URL
-    /**
-     The size of the outgoing chunks, in bytes
-     */
-    var chunkSize: Int
-    /**
-     The number of failed upload attempts, per chunk, to retry
-     **/
-    var retriesPerChunk: Int
-    /**
-     True if the user opted out of sending us performance metrics
-     */
-    var optOutOfEventTracking: Bool
+    var options: UploadOptions
+}
+
+extension UploadInfo: Equatable { }
+
+extension UploadInfo {
+    func sourceAsset() -> AVAsset {
+        AVAsset(
+            url: uploadURL
+        )
+    }
 }

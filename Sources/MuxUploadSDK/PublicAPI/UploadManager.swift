@@ -27,8 +27,24 @@ import Foundation
 /// ```
 ///
 public final class UploadManager {
+
+    private struct UploadStorage: Equatable, Hashable {
+        let upload: MuxUpload
+
+        static func == (lhs: UploadManager.UploadStorage, rhs: UploadManager.UploadStorage) -> Bool {
+            ObjectIdentifier(
+                lhs.upload
+            ) == ObjectIdentifier(
+                rhs.upload
+            )
+        }
+
+        func hash(into hasher: inout Hasher) {
+            hasher.combine(ObjectIdentifier(upload))
+        }
+    }
     
-    private var uploadersByURL: [URL : ChunkedFileUploader] = [:]
+    private var uploadsByID: [String : UploadStorage] = [:]
     private var uploadsUpdateDelegatesByToken: [ObjectIdentifier : any UploadsUpdatedDelegate] = [:]
     private let uploadActor = UploadCacheActor()
     private lazy var uploaderDelegate: FileUploaderDelegate = FileUploaderDelegate(manager: self)
@@ -37,18 +53,21 @@ public final class UploadManager {
     /// to track and control its state
     /// Returns nil if there was no uplod in progress for thr given file
     public func findStartedUpload(ofFile url: URL) -> MuxUpload? {
-        if let uploader = uploadersByURL[url] {
-            return MuxUpload(wrapping: uploader, uploadManager: self)
-        } else {
-            return nil
+        for upload in uploadsByID.values.map(\.upload) {
+            if upload.videoFile == url {
+                return upload
+            }
         }
+
+        return nil
     }
     
     /// Returns all uploads currently-managed uploads.
     /// Uploads are managed while in-progress or compelted.
     ///  Uploads become un-managed when canceled, or if the process dies after they complete
     public func allManagedUploads() -> [MuxUpload] {
-        return uploadersByURL.compactMap { (key, value) in MuxUpload(wrapping: value, uploadManager: self) }
+        // Sort upload list for consistent ordering
+        return Array(uploadsByID.values.map(\.upload))
     }
     
     /// Attempts to resume an upload that was previously paused or interrupted by process death
@@ -56,7 +75,7 @@ public final class UploadManager {
     public func resumeUpload(ofFile: URL) async -> MuxUpload? {
         let fileUploader = await uploadActor.getUpload(ofFileAt: ofFile)
         if let nonNilUploader = fileUploader {
-            nonNilUploader.addDelegate(withToken: Int.random(in: Int.min...Int.max), uploaderDelegate)
+            nonNilUploader.addDelegate(withToken: UUID().uuidString, uploaderDelegate)
             return MuxUpload(wrapping: nonNilUploader, uploadManager: self)
         } else {
             return nil
@@ -79,7 +98,7 @@ public final class UploadManager {
     public func resumeAllUploads() {
         Task.detached { [self] in
             for upload in await uploadActor.getAllUploads() {
-                upload.addDelegate(withToken: Int.random(in: Int.min...Int.max), uploaderDelegate)
+                upload.addDelegate(withToken: UUID().uuidString, uploaderDelegate)
             }
         }
     }
@@ -94,27 +113,41 @@ public final class UploadManager {
         uploadsUpdateDelegatesByToken.removeValue(forKey: ObjectIdentifier(delegate))
     }
     
-    internal func acknowledgeUpload(ofFile url: URL) {
-        if let uploader = uploadersByURL[url] {
-            uploader.cancel()
+    internal func acknowledgeUpload(id: String) {
+        if let upload = uploadsByID[id]?.upload {
+            uploadsByID.removeValue(forKey: id)
+            upload.fileWorker?.cancel()
         }
-        uploadersByURL.removeValue(forKey: url)
         Task.detached {
-            await self.uploadActor.remove(uploadAt:url)
+            await self.uploadActor.remove(uploadID: id)
             self.notifyDelegates()
         }
     }
     
-    internal func findUploaderFor(videoFile url: URL) -> ChunkedFileUploader? {
-        return uploadersByURL[url]
+    internal func findChunkedFileUploader(
+        inputFileURL: URL
+    ) -> ChunkedFileUploader? {
+        findStartedUpload(
+            ofFile: inputFileURL
+        )?.fileWorker
     }
-    
-    internal func registerUploader(_ fileWorker: ChunkedFileUploader, withId id: Int) {
-        uploadersByURL.updateValue(fileWorker, forKey: fileWorker.uploadInfo.videoFile)
-        fileWorker.addDelegate(withToken: id + 1, uploaderDelegate)
+
+    internal func registerUpload(_ upload: MuxUpload) {
+
+        guard let fileWorker = upload.fileWorker else {
+            // Only started uploads, aka uploads with a file
+            // worker can be registered.
+            // TODO: Should this throw?
+            MuxUploadSDK.logger?.debug("registerUpload() called for an unstarted upload")
+            return
+        }
+
+        uploadsByID.updateValue(UploadStorage(upload: upload), forKey: upload.id)
+        fileWorker.addDelegate(withToken: UUID().uuidString, uploaderDelegate)
         Task.detached {
             await self.uploadActor.updateUpload(
                 fileWorker.uploadInfo,
+                fileInputURL: fileWorker.inputFileURL,
                 withUpdate: fileWorker.currentState
             )
             self.notifyDelegates()
@@ -124,28 +157,34 @@ public final class UploadManager {
     private func notifyDelegates() {
         Task.detached {
             await MainActor.run {
-                self.uploadsUpdateDelegatesByToken
-                    .map { it in it.value }
-                    .forEach { it in it.uploadListUpdated(with: self.allManagedUploads()) }
-                
+                let delegates = self.uploadsUpdateDelegatesByToken.values
+                let allManagedUploads = self.allManagedUploads()
+
+                for delegate in delegates {
+                    delegate.uploadListUpdated(with: allManagedUploads)
+                }
             }
         }
     }
     
     /// The shared instance of this object that should be used
     public static let shared = UploadManager()
-    private init() { }
+    internal init() { }
     
     private struct FileUploaderDelegate : ChunkedFileUploaderDelegate {
         let manager: UploadManager
         
         func chunkedFileUploader(_ uploader: ChunkedFileUploader, stateUpdated state: ChunkedFileUploader.InternalUploadState) {
             Task.detached {
-                await manager.uploadActor.updateUpload(uploader.uploadInfo, withUpdate: state)
+                await manager.uploadActor.updateUpload(
+                    uploader.uploadInfo,
+                    fileInputURL: uploader.inputFileURL,
+                    withUpdate: state
+                )
                 manager.notifyDelegates()
             }
             switch state {
-            case .success(_), .canceled: manager.acknowledgeUpload(ofFile: uploader.uploadInfo.videoFile)
+            case .success(_), .canceled: manager.acknowledgeUpload(id: uploader.uploadInfo.id)
             default: do { }
             }
         }
@@ -163,34 +202,60 @@ public protocol UploadsUpdatedDelegate: AnyObject {
 internal actor UploadCacheActor {
     private let persistence: UploadPersistence
     
-    func updateUpload(_ info: UploadInfo, withUpdate update: ChunkedFileUploader.InternalUploadState) async {
+    func updateUpload(
+        _ uploadInfo: UploadInfo,
+        fileInputURL: URL,
+        withUpdate update: ChunkedFileUploader.InternalUploadState
+    ) async {
         Task {
-            persistence.update(uploadState: update, forUpload: info)
+            persistence.update(
+                uploadState: update,
+                for: uploadInfo,
+                fileInputURL: fileInputURL
+            )
         }
     }
     
-    func getUpload(ofFileAt url: URL) async -> ChunkedFileUploader? {
+    func getUpload(uploadID: String) async -> ChunkedFileUploader? {
         // reminder: doesn't start the uploader, just makes it
         return await Task<ChunkedFileUploader?, Never> {
-            let optEntry = try? persistence.readEntry(forFileAt: url)
-            guard let entry = optEntry else {
+            try? persistence
+                .readEntry(uploadID: uploadID)
+                .map({ entry in
+                    return ChunkedFileUploader(
+                        persistenceEntry: entry
+                    )
+                })
+        }.value
+    }
+
+    func getUpload(ofFileAt: URL) async -> ChunkedFileUploader? {
+        return await Task<ChunkedFileUploader?, Never> {
+            guard let matchingEntry = try? persistence.readAll().first(
+                where: { $0.uploadInfo.uploadURL == ofFileAt }
+            ) else {
                 return nil
             }
-            return ChunkedFileUploader(uploadInfo: entry.uploadInfo, startingAtByte: entry.lastSuccessfulByte)
+
+            return ChunkedFileUploader(
+                persistenceEntry: matchingEntry
+            )
         }.value
     }
     
     func getAllUploads() async -> [ChunkedFileUploader] {
         return await Task<[ChunkedFileUploader]?, Never> {
             return try? persistence.readAll().compactMap { it in
-                ChunkedFileUploader(uploadInfo: it.uploadInfo, startingAtByte: it.lastSuccessfulByte)
+                ChunkedFileUploader(
+                    persistenceEntry: it
+                )
             }
         }.value ?? []
     }
     
-    func remove(uploadAt url: URL) async {
+    func remove(uploadID: String) async {
         await Task<(), Never> {
-            try? persistence.remove(entryAtAbsUrl: url)
+            try? persistence.remove(entryAtID: uploadID)
         }.value
     }
     
