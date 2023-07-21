@@ -1,13 +1,15 @@
 //
-//  UploadSettings.swift
+//  UploadOptions.swift
 //
 
 import Foundation
 
-/// Settings for the direct upload
+/// Options for the direct upload
 public struct UploadOptions {
 
-    /// Settings to control the SDK network operations to
+    // MARK: - Transport Options
+
+    /// Options to control the SDK network operations to
     /// transport the direct upload input to Mux
     public struct Transport {
 
@@ -17,6 +19,15 @@ public struct UploadOptions {
         /// Number of retry attempts per chunk if the
         /// associated request fails
         public var retriesPerChunk: Int
+
+        /// A default set of transport options: 8MB chunk
+        /// size and chunk request retry limit of 3
+        public static var `default`: Transport {
+            Transport(
+                chunkSizeInBytes: 8 * 1024 * 1024,
+                retriesPerChunk: 3
+            )
+        }
 
         /// Initializes options that govern network transport
         /// by the SDK
@@ -36,10 +47,12 @@ public struct UploadOptions {
         }
     }
 
-    /// Transport settings for the direct upload
+    /// Transport options for the direct upload
     public var transport: Transport
 
-    /// Settings controlling direct upload input standardization
+    // MARK: - Input Standardization Options
+
+    /// Options controlling direct upload input standardization
     public struct InputStandardization {
 
         /// If requested the SDK will attempt to detect
@@ -51,7 +64,7 @@ public struct UploadOptions {
         /// Preset to control the resolution of the standard
         /// input.
         ///
-        /// See ``UploadSettings.Standardization.maximumResolution``
+        /// See ``UploadOptions.Standardization.maximumResolution``
         /// for more details.
         public enum MaximumResolution {
             /// Preset standardized upload input to the SDK
@@ -137,55 +150,66 @@ public struct UploadOptions {
         }
     }
 
-    /// Input standardization settings for the direct upload
+    /// Input standardization options for the direct upload
     public var inputStandardization: InputStandardization
 
-    ///
+    // MARK: - Event Tracking Options
+
+    /// Event tracking options
     public struct EventTracking {
 
+        /// Default options that opt into event tracking
         static public var `default`: EventTracking {
             EventTracking(optedOut: false)
         }
 
-        ///
+        /// Flag indicating if opted out of event tracking
         public var optedOut: Bool
 
-        ///
-        public init(optedOut: Bool) {
+        /// - Parameters:
+        ///     - optedOut: if true opts out of event
+        ///     tracking
+        public init(
+            optedOut: Bool
+        ) {
             self.optedOut = optedOut
         }
     }
 
-    /// Event tracking settings for the direct upload
+    /// Event tracking options for the direct upload
     public var eventTracking: EventTracking
+
+    // MARK: Default Upload Options
 
     public static var `default`: UploadOptions {
         UploadOptions()
     }
 
+    // MARK: Upload Options Initializer
+
     /// - Parameters:
-    ///     - inputStandardization: settings to enable or
+    ///     - inputStandardization: options to enable or
     ///     disable standardizing the format of the direct
     ///     upload inputs, it is requested by default. To
     ///     prevent the SDK from making any changes to the
-    ///     format of the input use ``UploadSettings.InputStandardization.skipped``
-    ///     - transport: settings for transporting the
+    ///     format of the input use ``UploadOptions.InputStandardization.skipped``
+    ///     - transport: options for transporting the
     ///     direct upload input to Mux
-    ///     - eventTracking: event tracking settings for the
+    ///     - eventTracking: event tracking options for the
     ///     direct upload
     public init(
-        inputStandardization: InputStandardization = InputStandardization(
-            maximumResolution: .default
-        ),
-        transport: Transport = Transport(),
+        inputStandardization: InputStandardization = .default,
+        transport: Transport = .default,
         eventTracking: EventTracking = .default
     ) {
-        self.transport = transport
         self.inputStandardization = inputStandardization
+        self.transport = transport
         self.eventTracking = eventTracking
     }
 
 }
+
+// MARK: - Extensions
 
 extension UploadOptions.InputStandardization.MaximumResolution: CustomStringConvertible {
     public var description: String {
