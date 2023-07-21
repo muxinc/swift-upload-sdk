@@ -510,8 +510,6 @@ public final class MuxUpload {
                         self.uploadManager.acknowledgeUpload(id: self.id)
                         self.input.processUploadCancellation()
                     }
-
-                    self.startNetworkTransport(videoFile: videoFile)
                 case .standard:
                     self.startNetworkTransport(videoFile: videoFile)
                 case .nonstandard(
