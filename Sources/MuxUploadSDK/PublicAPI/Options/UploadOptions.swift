@@ -64,7 +64,7 @@ public struct UploadOptions {
         /// Preset to control the resolution of the standard
         /// input.
         ///
-        /// See ``UploadOptions.Standardization.maximumResolution``
+        /// See ``UploadOptions.InputStandardization.maximumResolution``
         /// for more details.
         public enum MaximumResolution {
             /// Preset standardized upload input to the SDK
