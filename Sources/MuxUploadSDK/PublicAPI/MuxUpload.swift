@@ -611,10 +611,9 @@ public final class MuxUpload {
             withToken: id,
             InternalUploaderDelegate { [self] state in handleStateUpdate(state) }
         )
-        fileWorker.start()
         self.fileWorker = fileWorker
         uploadManager.registerUpload(self)
-
+        fileWorker.start()
         let transportStatus = TransportStatus(
             progress: fileWorker.currentState.progress ?? Progress(),
             updatedTime: Date().timeIntervalSince1970,
@@ -643,9 +642,9 @@ public final class MuxUpload {
             withToken: id,
             InternalUploaderDelegate { [self] state in handleStateUpdate(state) }
         )
-        fileWorker.start(duration: duration)
-        uploadManager.registerUpload(self)
         self.fileWorker = fileWorker
+        uploadManager.registerUpload(self)
+        fileWorker.start(duration: duration)
         let transportStatus = TransportStatus(
             progress: fileWorker.currentState.progress ?? Progress(),
             updatedTime: Date().timeIntervalSince1970,
