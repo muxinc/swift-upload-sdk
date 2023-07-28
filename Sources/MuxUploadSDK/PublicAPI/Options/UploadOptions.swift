@@ -185,7 +185,7 @@ public struct UploadOptions {
         UploadOptions()
     }
 
-    // MARK: Upload Options Initializer
+    // MARK: Upload Options Initializers
 
     /// - Parameters:
     ///     - inputStandardization: options to enable or
@@ -205,6 +205,33 @@ public struct UploadOptions {
         self.inputStandardization = inputStandardization
         self.transport = transport
         self.eventTracking = eventTracking
+    }
+
+    /// - Parameters:
+    ///     - eventTracking: event tracking options for the
+    ///     direct upload
+    ///     - inputStandardization: options to enable or
+    ///     disable standardizing the format of the direct
+    ///     upload inputs, it is requested by default. To
+    ///     prevent the SDK from making any changes to the
+    ///     format of the input use ``UploadOptions.InputStandardization.skipped``
+    ///     - chunkSize: the size of each file chunk in
+    ///     bytes the SDK sends when uploading, default
+    ///     value is 8MB
+    ///     - retriesPerChunk: number of retry attempts
+    ///     if the chunk request fails, default value is 3
+    public init(
+        eventTracking: EventTracking = .default,
+        inputStandardization: InputStandardization = .default,
+        chunkSizeInBytes: Int = 8 * 1024 * 1024,
+        retryLimitPerChunk: Int = 3
+    ) {
+        self.eventTracking = eventTracking
+        self.inputStandardization = inputStandardization
+        self.transport = Transport(
+            chunkSizeInBytes: chunkSizeInBytes,
+            retryLimitPerChunk: retryLimitPerChunk
+        )
     }
 
 }
