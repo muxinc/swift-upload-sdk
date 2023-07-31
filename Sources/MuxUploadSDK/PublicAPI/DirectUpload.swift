@@ -88,10 +88,9 @@ public final class DirectUpload {
         case uploadInProgress(AVAsset, TransportStatus)
         /// Upload has been paused
         case uploadPaused(AVAsset, TransportStatus)
-        /// Upload has succeeded
-        case uploadSucceeded(AVAsset, DirectUpload.Success)
-        /// Upload has failed
-        case uploadFailed(AVAsset, DirectUploadError)
+        /// Direct upload has succeeded and all inputs
+        /// transported or upload failed with a fatal error
+        case finished(AVAsset, DirectUploadResult)
     }
 
     /// Current status of the upload input as it goes through
@@ -125,14 +124,14 @@ public final class DirectUpload {
                 transportStatus
             )
         case .uploadSucceeded(let uploadInfo, let success):
-            return InputStatus.uploadSucceeded(
+            return InputStatus.finished(
                 uploadInfo.sourceAsset(),
-                success
+                .success(success)
             )
         case .uploadFailed(let uploadInfo, let error):
-            return InputStatus.uploadFailed(
+            return InputStatus.finished(
                 uploadInfo.sourceAsset(),
-                error
+                .failure(error)
             )
         }
     }
@@ -379,9 +378,7 @@ public final class DirectUpload {
      True if this upload was completed
      */
     public var complete: Bool {
-        if case InputStatus.uploadSucceeded = inputStatus {
-            return true
-        } else if case InputStatus.uploadFailed = inputStatus {
+        if case InputStatus.finished = inputStatus {
             return true
         } else {
             return false
