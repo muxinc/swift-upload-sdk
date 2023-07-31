@@ -163,7 +163,7 @@ public final class DirectUpload {
     var id: String {
         uploadInfo.id
     }
-    private let uploadManager: UploadManager
+    private let uploadManager: DirectUploadManager
     private let inputInspector: UploadInputInspector
     private let inputStandardizer: UploadInputStandardizer = UploadInputStandardizer()
     
@@ -291,7 +291,7 @@ public final class DirectUpload {
     init(
         input: UploadInput,
         manage: Bool = true,
-        uploadManager: UploadManager,
+        uploadManager: DirectUploadManager,
         inputInspector: AVFoundationUploadInputInspector = .shared
     ) {
         self.input = input
@@ -304,7 +304,7 @@ public final class DirectUpload {
     init(
         input: UploadInput,
         manage: Bool = true,
-        uploadManager: UploadManager,
+        uploadManager: DirectUploadManager,
         inputInspector: UploadInputInspector
     ) {
         self.input = input
@@ -316,7 +316,7 @@ public final class DirectUpload {
 
     internal convenience init(
         wrapping uploader: ChunkedFileUploader,
-        uploadManager: UploadManager
+        uploadManager: DirectUploadManager
     ) {
         self.init(
             input: UploadInput(

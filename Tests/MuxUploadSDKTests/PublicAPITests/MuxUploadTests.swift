@@ -50,7 +50,7 @@ class MuxUploadTest: XCTestCase {
 
         let upload = DirectUpload(
             input: input,
-            uploadManager: UploadManager(),
+            uploadManager: DirectUploadManager(),
             inputInspector: MockUploadInputInspector.alwaysStandard
         )
 
@@ -86,7 +86,7 @@ class MuxUploadTest: XCTestCase {
 
         let upload = DirectUpload(
             input: input,
-            uploadManager: UploadManager(),
+            uploadManager: DirectUploadManager(),
             inputInspector: MockUploadInputInspector.alwaysFailing
         )
 

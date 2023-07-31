@@ -1,5 +1,5 @@
 //
-//  UploadManager.swift
+//  DirectUploadManager.swift
 //  Manages large file uploads in a global context for access by many UI elements
 //
 //  Created by Emily Dixon on 3/8/23.
@@ -21,17 +21,17 @@ import Foundation
 ///
 /// ```swift
 /// // Call during app init
-/// UploadManager.resumeAllUploads()
-/// let restartedUploads = UploadManager.allManagedUploads()
+/// DirectUploadManager.resumeAllUploads()
+/// let restartedUploads = DirectUploadManager.allManagedUploads()
 /// // ... do something with the restrted uploads, like subscribing to progress updates for instance
 /// ```
 ///
-public final class UploadManager {
+public final class DirectUploadManager {
 
     private struct UploadStorage: Equatable, Hashable {
         let upload: DirectUpload
 
-        static func == (lhs: UploadManager.UploadStorage, rhs: UploadManager.UploadStorage) -> Bool {
+        static func == (lhs: DirectUploadManager.UploadStorage, rhs: DirectUploadManager.UploadStorage) -> Bool {
             ObjectIdentifier(
                 lhs.upload
             ) == ObjectIdentifier(
@@ -168,11 +168,11 @@ public final class UploadManager {
     }
     
     /// The shared instance of this object that should be used
-    public static let shared = UploadManager()
+    public static let shared = DirectUploadManager()
     internal init() { }
     
     private struct FileUploaderDelegate : ChunkedFileUploaderDelegate {
-        let manager: UploadManager
+        let manager: DirectUploadManager
         
         func chunkedFileUploader(_ uploader: ChunkedFileUploader, stateUpdated state: ChunkedFileUploader.InternalUploadState) {
             Task.detached {
