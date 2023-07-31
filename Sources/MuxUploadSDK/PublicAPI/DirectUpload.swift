@@ -245,8 +245,8 @@ public final class DirectUpload {
         videoFileURL: URL,
         chunkSize: Int = 8 * 1024 * 1024, // Google recommends at least 8M
         retriesPerChunk: Int = 3,
-        inputStandardization: UploadOptions.InputStandardization = .default,
-        eventTracking: UploadOptions.EventTracking = .default
+        inputStandardization: DirectUploadOptions.InputStandardization = .default,
+        eventTracking: DirectUploadOptions.EventTracking = .default
     ) {
         let asset = AVAsset(url: videoFileURL)
         self.init(
@@ -255,9 +255,9 @@ public final class DirectUpload {
                 info: UploadInfo(
                     id: UUID().uuidString,
                     uploadURL: uploadURL,
-                    options: UploadOptions(
+                    options: DirectUploadOptions(
                         inputStandardization: inputStandardization,
-                        transport: UploadOptions.Transport(
+                        transport: DirectUploadOptions.Transport(
                             chunkSizeInBytes: chunkSize,
                             retryLimitPerChunk: retriesPerChunk
                         ),
@@ -283,7 +283,7 @@ public final class DirectUpload {
     public convenience init(
         uploadURL: URL,
         inputFileURL: URL,
-        options: UploadOptions = .default
+        options: DirectUploadOptions = .default
     ) {
         let asset = AVAsset(
             url: inputFileURL

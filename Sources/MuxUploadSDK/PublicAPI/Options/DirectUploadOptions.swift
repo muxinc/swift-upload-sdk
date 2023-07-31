@@ -1,11 +1,11 @@
 //
-//  UploadOptions.swift
+//  DirectUploadOptions.swift
 //
 
 import Foundation
 
 /// Options for the direct upload
-public struct UploadOptions {
+public struct DirectUploadOptions {
 
     // MARK: - Transport Options
 
@@ -64,24 +64,24 @@ public struct UploadOptions {
         /// Preset to control the resolution of the standard
         /// input.
         ///
-        /// See ``UploadOptions.InputStandardization.maximumResolution``
+        /// See ``DirectUploadOptions.InputStandardization.maximumResolution``
         /// for more details.
         public enum MaximumResolution {
-            /// Preset standardized upload input to the SDK
+            /// Preset standardized direct upload input to the SDK
             /// default standard resolution of 1920x1080 (1080p).
             case `default`
-            /// Limit standardized upload input resolution to
+            /// Limit standardized direct upload input resolution to
             /// 1280x720 (720p).
             case preset1280x720  // 720p
-            /// Limit standardized upload input resolution to
+            /// Limit standardized direct upload input resolution to
             /// 1920x1080 (1080p).
             case preset1920x1080 // 1080p
         }
 
-        /// The maximum resolution of the standardized upload
-        /// input. If the input video provided to the upload
-        /// has a resolution below this value, the resolution
-        /// will remain unchanged after input standardization.
+        /// The maximum resolution of the standardized direct
+        /// upload input. If the input has a video resolution
+        /// below this value, the resolution will remain
+        /// unchanged after input standardization.
         ///
         /// Example 1: a direct upload input with 1440 x 1080
         /// resolution encoded using Apple ProRes and with
@@ -113,13 +113,12 @@ public struct UploadOptions {
 
         /// Skip all local input standardization by the SDK.
         ///
-        /// Initializing an upload with input standardization
-        /// skipped will prevent the SDK from making any
-        /// changes before commencing the upload. All input
-        /// will be uploaded to Mux as-is.
-        ///
-        /// Note: non-standard input will still be converted
-        /// to a standardized format upon ingestion.
+        /// Initializing a ``DirectUpload`` with input
+        /// standardization skipped will result in SDK
+        /// uploading all inputs as they are with no format
+        /// changes performed on the client. Mux Video will
+        /// still convert your input to a standard format
+        /// on the server when it is ingested.
         public static let skipped: InputStandardization = InputStandardization(
             isRequested: false,
             maximumResolution: .default
@@ -135,13 +134,13 @@ public struct UploadOptions {
             self.maximumResolution = maximumResolution
         }
 
-        /// Used to initialize ``UploadOptions.InputStandardization``
+        /// Used to initialize ``DirectUploadOptions.InputStandardization``
         /// with that enables input standardization with
         /// a maximum resolution
         ///
         /// - Parameters:
         ///     - maximumResolution: the maximum resolution
-        ///     of the standardized upload input
+        ///     of the standardized input
         public init(
             maximumResolution: MaximumResolution
         ) {
@@ -179,20 +178,20 @@ public struct UploadOptions {
     /// Event tracking options for the direct upload
     public var eventTracking: EventTracking
 
-    // MARK: Default Upload Options
+    // MARK: Default Direct Upload Options
 
-    public static var `default`: UploadOptions {
-        UploadOptions()
+    public static var `default`: DirectUploadOptions {
+        DirectUploadOptions()
     }
 
-    // MARK: Upload Options Initializers
+    // MARK: Direct Upload Options Initializers
 
     /// - Parameters:
     ///     - inputStandardization: options to enable or
     ///     disable standardizing the format of the direct
     ///     upload inputs, it is requested by default. To
     ///     prevent the SDK from making any changes to the
-    ///     format of the input use ``UploadOptions.InputStandardization.skipped``
+    ///     format of the input use ``DirectUploadOptions.InputStandardization.skipped``
     ///     - transport: options for transporting the
     ///     direct upload input to Mux
     ///     - eventTracking: event tracking options for the
@@ -214,7 +213,7 @@ public struct UploadOptions {
     ///     disable standardizing the format of the direct
     ///     upload inputs, it is requested by default. To
     ///     prevent the SDK from making any changes to the
-    ///     format of the input use ``UploadOptions.InputStandardization.skipped``
+    ///     format of the input use ``DirectUploadOptions.InputStandardization.skipped``
     ///     - chunkSize: the size of each file chunk in
     ///     bytes the SDK sends when uploading, default
     ///     value is 8MB
@@ -238,7 +237,7 @@ public struct UploadOptions {
 
 // MARK: - Extensions
 
-extension UploadOptions.InputStandardization.MaximumResolution: CustomStringConvertible {
+extension DirectUploadOptions.InputStandardization.MaximumResolution: CustomStringConvertible {
     public var description: String {
         switch self {
         case .preset1280x720:
@@ -251,22 +250,22 @@ extension UploadOptions.InputStandardization.MaximumResolution: CustomStringConv
     }
 }
 
-extension UploadOptions: Codable { }
+extension DirectUploadOptions: Codable { }
 
-extension UploadOptions.EventTracking: Codable { }
+extension DirectUploadOptions.EventTracking: Codable { }
 
-extension UploadOptions.InputStandardization: Codable { }
+extension DirectUploadOptions.InputStandardization: Codable { }
 
-extension UploadOptions.InputStandardization.MaximumResolution: Codable { }
+extension DirectUploadOptions.InputStandardization.MaximumResolution: Codable { }
 
-extension UploadOptions.Transport: Codable { }
+extension DirectUploadOptions.Transport: Codable { }
 
-extension UploadOptions: Equatable { }
+extension DirectUploadOptions: Equatable { }
 
-extension UploadOptions.EventTracking: Equatable { }
+extension DirectUploadOptions.EventTracking: Equatable { }
 
-extension UploadOptions.InputStandardization: Equatable { }
+extension DirectUploadOptions.InputStandardization: Equatable { }
 
-extension UploadOptions.InputStandardization.MaximumResolution: Equatable { }
+extension DirectUploadOptions.InputStandardization.MaximumResolution: Equatable { }
 
-extension UploadOptions.Transport: Equatable { }
+extension DirectUploadOptions.Transport: Equatable { }

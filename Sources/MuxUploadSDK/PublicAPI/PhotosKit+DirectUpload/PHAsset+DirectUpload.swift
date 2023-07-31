@@ -28,7 +28,7 @@ extension PHAsset {
     ///    failed or if the ``PHAsset`` callee is not a video
     func prepareForDirectUpload(
         from imageManager: PHImageManager = .default(),
-        options: UploadOptions = .default,
+        options: DirectUploadOptions = .default,
         uploadURL: URL,
         completion: @escaping (DirectUpload?) -> ()
     ) {

@@ -8,10 +8,10 @@ import XCTest
 
 @testable import MuxUploadSDK
 
-extension UploadOptions {
+extension DirectUploadOptions {
 
-    static var inputStandardizationSkipped: UploadOptions {
-        UploadOptions(
+    static var inputStandardizationSkipped: DirectUploadOptions {
+        DirectUploadOptions(
             inputStandardization: .skipped
         )
     }

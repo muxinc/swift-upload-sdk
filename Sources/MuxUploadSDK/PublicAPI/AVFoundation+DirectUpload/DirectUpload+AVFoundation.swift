@@ -20,7 +20,7 @@ extension DirectUpload {
     public convenience init(
         uploadURL: URL,
         inputAsset: AVAsset,
-        options: UploadOptions
+        options: DirectUploadOptions
     ) {
         self.init(
             input: UploadInput(
