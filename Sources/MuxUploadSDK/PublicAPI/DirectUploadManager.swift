@@ -23,7 +23,7 @@ import Foundation
 /// // Call during app init
 /// DirectUploadManager.shared.resumeAllDirectUploads()
 /// let restartedUploads = DirectUploadManager.shared.allManagedDirectUploads()
-/// // ... do something with the restarted uploads, like subscribing to progress updates for instance
+/// // ... do something with the restrted uploads, like subscribing to progress updates for instance
 /// ```
 ///
 public final class DirectUploadManager {
