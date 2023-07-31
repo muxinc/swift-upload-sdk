@@ -32,7 +32,7 @@ class UploadManagerTests: XCTestCase {
             URL(string: "file://path/to/dummy/file/")
         )
 
-        let upload = MuxUpload(
+        let upload = DirectUpload(
             input: UploadInput(
                 asset: AVAsset(url: videoInputURL),
                 info: UploadInfo(
@@ -43,7 +43,7 @@ class UploadManagerTests: XCTestCase {
             uploadManager: uploadManager
         )
 
-        let duplicateUpload = MuxUpload(
+        let duplicateUpload = DirectUpload(
             input: UploadInput(
                 asset: AVAsset(url: videoInputURL),
                 info: UploadInfo(

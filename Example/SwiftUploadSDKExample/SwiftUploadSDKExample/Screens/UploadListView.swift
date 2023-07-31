@@ -23,7 +23,7 @@ struct UploadListScreen: View {
     }
 }
 
-extension MuxUpload {
+extension DirectUpload {
     var objectIdentifier: ObjectIdentifier {
         ObjectIdentifier(self)
     }
@@ -51,7 +51,7 @@ fileprivate struct ListContainerView: View {
 fileprivate struct ListItem: View {
     
     @StateObject var thumbnailModel: ThumbnailModel
-    let upload: MuxUpload
+    let upload: DirectUpload
     
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -130,7 +130,7 @@ fileprivate struct ListItem: View {
         }
     }
     
-    private func statusLine(status: MuxUpload.TransportStatus?) -> String {
+    private func statusLine(status: DirectUpload.TransportStatus?) -> String {
         guard let status = status, let progress = status.progress, let startTime = status.startTime, startTime > 0 else {
             return "missing status"
         }
@@ -152,14 +152,14 @@ fileprivate struct ListItem: View {
         return "\(formattedMBytes) MB in \(formattedTime)s (\(formattedDataRate) KB/s)"
     }
     
-    private func elapsedBytesOfTotal(status: MuxUpload.TransportStatus) -> String {
+    private func elapsedBytesOfTotal(status: DirectUpload.TransportStatus) -> String {
         guard let progress = status.progress else {
             return "unknown"
         }
         return "\(progress.completedUnitCount / 1000)KB"
     }
     
-    init(upload: MuxUpload) {
+    init(upload: DirectUpload) {
         self.upload = upload
         _thumbnailModel = StateObject(
             wrappedValue: {
@@ -214,7 +214,7 @@ struct UploadListItem_Previews: PreviewProvider {
     static var previews: some View {
         ZStack {
             WindowBackground
-            let upload = MuxUpload(uploadURL: URL(string: "file:///")!, videoFileURL: URL(string: "file:///")!)
+            let upload = DirectUpload(uploadURL: URL(string: "file:///")!, videoFileURL: URL(string: "file:///")!)
             ListItem(upload: upload)
         }
     }

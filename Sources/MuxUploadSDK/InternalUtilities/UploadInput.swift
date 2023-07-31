@@ -21,10 +21,10 @@ struct UploadInput {
         )
         case standardizationFailed(AVAsset, UploadInfo)
         case awaitingUploadConfirmation(UploadInfo)
-        case uploadInProgress(UploadInfo, MuxUpload.TransportStatus)
-        case uploadPaused(UploadInfo, MuxUpload.TransportStatus)
-        case uploadSucceeded(UploadInfo, MuxUpload.Success)
-        case uploadFailed(UploadInfo, MuxUpload.UploadError)
+        case uploadInProgress(UploadInfo, DirectUpload.TransportStatus)
+        case uploadPaused(UploadInfo, DirectUpload.TransportStatus)
+        case uploadSucceeded(UploadInfo, DirectUpload.Success)
+        case uploadFailed(UploadInfo, DirectUpload.UploadError)
     }
 
     var status: Status
@@ -83,7 +83,7 @@ struct UploadInput {
         }
     }
 
-    var transportStatus: MuxUpload.TransportStatus? {
+    var transportStatus: DirectUpload.TransportStatus? {
         switch status {
         case .ready:
             return nil
@@ -122,7 +122,7 @@ extension UploadInput {
     }
 
     mutating func processStartNetworkTransport(
-        startingTransportStatus: MuxUpload.TransportStatus
+        startingTransportStatus: DirectUpload.TransportStatus
     ) {
         if case UploadInput.Status.underInspection = status {
             status = .uploadInProgress(uploadInfo, startingTransportStatus)
@@ -132,16 +132,16 @@ extension UploadInput {
     }
 
     mutating func processUploadSuccess(
-        transportStatus: MuxUpload.TransportStatus
+        transportStatus: DirectUpload.TransportStatus
     ) {
         if case UploadInput.Status.uploadInProgress(let info, _) = status {
-            status = .uploadSucceeded(info, MuxUpload.Success(finalState: transportStatus))
+            status = .uploadSucceeded(info, DirectUpload.Success(finalState: transportStatus))
         } else {
             return
         }
     }
 
-    mutating func processUploadFailure(error: MuxUpload.UploadError) {
+    mutating func processUploadFailure(error: DirectUpload.UploadError) {
         status = .uploadFailed(uploadInfo, error)
     }
 

@@ -40,17 +40,17 @@ class UploadListModel : ObservableObject {
         )
     }
     
-    @Published var lastKnownUploads: [MuxUpload] = Array()
+    @Published var lastKnownUploads: [DirectUpload] = Array()
 }
 
 fileprivate class Delegate: UploadsUpdatedDelegate {
-    let handler: ([MuxUpload]) -> Void
+    let handler: ([DirectUpload]) -> Void
     
-    func uploadListUpdated(with list: [MuxUpload]) {
+    func uploadListUpdated(with list: [DirectUpload]) {
         handler(list)
     }
     
-    init(handler: @escaping ([MuxUpload]) -> Void) {
+    init(handler: @escaping ([DirectUpload]) -> Void) {
         self.handler = handler
     }
 }

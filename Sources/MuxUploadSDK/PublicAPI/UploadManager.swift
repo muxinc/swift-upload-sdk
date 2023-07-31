@@ -10,8 +10,8 @@ import Foundation
 /// Manages uploads in-progress by the Mux Upload SDK. Uploads are managed globally by default and can be started, paused,
 /// or cancelled from anywhere in your app.
 ///
-/// This class is used to find and resume uploads previously-created via ``MuxUpload``. Upload tasks created by ``MuxUpload``
-/// are, by defauly globally managed. If your ``MuxUpload`` is managed, you can get a new handle to it anywhere by  using
+/// This class is used to find and resume uploads previously-created via ``DirectUpload``. Upload tasks created by ``DirectUpload``
+/// are, by defauly globally managed. If your ``DirectUpload`` is managed, you can get a new handle to it anywhere by  using
 /// ``findStartedUpload(ofFile:)`` or ``allManagedUploads()``
 ///
 /// ## Handling failure, backgrounding, and process death
@@ -29,7 +29,7 @@ import Foundation
 public final class UploadManager {
 
     private struct UploadStorage: Equatable, Hashable {
-        let upload: MuxUpload
+        let upload: DirectUpload
 
         static func == (lhs: UploadManager.UploadStorage, rhs: UploadManager.UploadStorage) -> Bool {
             ObjectIdentifier(
@@ -49,10 +49,10 @@ public final class UploadManager {
     private let uploadActor = UploadCacheActor()
     private lazy var uploaderDelegate: FileUploaderDelegate = FileUploaderDelegate(manager: self)
     
-    /// Finds an upload already in-progress and returns a new ``MuxUpload`` that can be observed
+    /// Finds an upload already in-progress and returns a new ``DirectUpload`` that can be observed
     /// to track and control its state
     /// Returns nil if there was no uplod in progress for thr given file
-    public func findStartedUpload(ofFile url: URL) -> MuxUpload? {
+    public func findStartedUpload(ofFile url: URL) -> DirectUpload? {
         for upload in uploadsByID.values.map(\.upload) {
             if upload.videoFile == url {
                 return upload
@@ -65,18 +65,18 @@ public final class UploadManager {
     /// Returns all uploads currently-managed uploads.
     /// Uploads are managed while in-progress or compelted.
     ///  Uploads become un-managed when canceled, or if the process dies after they complete
-    public func allManagedUploads() -> [MuxUpload] {
+    public func allManagedUploads() -> [DirectUpload] {
         // Sort upload list for consistent ordering
         return Array(uploadsByID.values.map(\.upload))
     }
     
     /// Attempts to resume an upload that was previously paused or interrupted by process death
     ///  If no upload was found in the cache, this method returns null without taking any action
-    public func resumeUpload(ofFile: URL) async -> MuxUpload? {
+    public func resumeUpload(ofFile: URL) async -> DirectUpload? {
         let fileUploader = await uploadActor.getUpload(ofFileAt: ofFile)
         if let nonNilUploader = fileUploader {
             nonNilUploader.addDelegate(withToken: UUID().uuidString, uploaderDelegate)
-            return MuxUpload(wrapping: nonNilUploader, uploadManager: self)
+            return DirectUpload(wrapping: nonNilUploader, uploadManager: self)
         } else {
             return nil
         }
@@ -84,7 +84,7 @@ public final class UploadManager {
     
     /// Attempts to resume an upload that was previously paused or interrupted by process death
     ///  If no upload was found in the cache, this method returns null without taking any action
-    public func resumeUpload(ofFile: URL, completion: @escaping (MuxUpload) -> Void) {
+    public func resumeUpload(ofFile: URL, completion: @escaping (DirectUpload) -> Void) {
         Task.detached {
             let upload = await self.resumeUpload(ofFile: ofFile)
             if let nonNilUpload = upload {
@@ -132,7 +132,7 @@ public final class UploadManager {
         )?.fileWorker
     }
 
-    internal func registerUpload(_ upload: MuxUpload) {
+    internal func registerUpload(_ upload: DirectUpload) {
 
         guard let fileWorker = upload.fileWorker else {
             // Only started uploads, aka uploads with a file
@@ -194,7 +194,7 @@ public final class UploadManager {
 /// A delegate that handles changes to the list of active uploads
 public protocol UploadsUpdatedDelegate: AnyObject {
     /// Called when the global list of uploads changes. This happens whenever a new upload is started, or an existing one completes or fails
-    func uploadListUpdated(with list: [MuxUpload])
+    func uploadListUpdated(with list: [DirectUpload])
 }
 
 

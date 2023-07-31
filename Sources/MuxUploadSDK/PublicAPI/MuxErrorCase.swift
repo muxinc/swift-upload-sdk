@@ -7,7 +7,7 @@
 
 import Foundation
 
-/// Represents the possible error cases from a ``MuxUpload``
+/// Represents the possible error cases from a ``DirectUpload``
 public enum MuxErrorCase : Int {
     /// The cause of the error is not known
     case unknown = -1

@@ -40,7 +40,7 @@ struct UploadProgressView: View {
         }
     }
     
-    private func uploadStatus(uploadState: AppUploadState) -> MuxUpload.Status? {
+    private func uploadStatus(uploadState: AppUploadState) -> DirectUpload.Status? {
         switch uploadState {
         case .done(let success): return success.finalState
         case .uploading(let status): return status
@@ -48,7 +48,7 @@ struct UploadProgressView: View {
         }
     }
     
-    private func dataRateTxt(status: MuxUpload.Status?) -> String {
+    private func dataRateTxt(status: DirectUpload.Status?) -> String {
         guard let status = status, let progress = status.progress else {
             return ""
         }
@@ -69,7 +69,7 @@ struct UploadProgressView: View {
         }
     }
     
-    private func elapsedBytesOfTotal(status: MuxUpload.Status) -> String {
+    private func elapsedBytesOfTotal(status: DirectUpload.Status) -> String {
         guard let progress = status.progress else {
             return "unknown"
         }

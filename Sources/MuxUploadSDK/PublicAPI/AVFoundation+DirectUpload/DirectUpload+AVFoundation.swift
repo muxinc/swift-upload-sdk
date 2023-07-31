@@ -1,13 +1,13 @@
 //
-//  MuxUpload+AVFoundation.swift
+//  DirectUpload+AVFoundation.swift
 //
 
 import AVFoundation
 import Foundation
 
-extension MuxUpload {
+extension DirectUpload {
 
-    /// Initializes a MuxUpload from an ``AVAsset``
+    /// Initializes a DirectUpload from an ``AVAsset``
     ///
     /// - Parameters:
     ///    - uploadURL: the URL of your direct upload, see

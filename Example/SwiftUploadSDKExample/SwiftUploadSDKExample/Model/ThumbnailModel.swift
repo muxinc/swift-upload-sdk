@@ -48,13 +48,13 @@ class ThumbnailModel: ObservableObject {
     }
     
     private let asset: AVAsset
-    private let upload: MuxUpload
+    private let upload: DirectUpload
     private var thumbnailGenerator: AVAssetImageGenerator?
     
     @Published var thumbnail: CGImage?
-    @Published var uploadProgress: MuxUpload.TransportStatus?
+    @Published var uploadProgress: DirectUpload.TransportStatus?
     
-    init(asset: AVAsset, upload: MuxUpload) {
+    init(asset: AVAsset, upload: DirectUpload) {
         self.asset = asset
         self.upload = upload
         
