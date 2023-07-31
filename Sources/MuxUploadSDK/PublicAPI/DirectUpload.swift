@@ -198,7 +198,7 @@ public final class DirectUpload {
      */
     public struct UploadError : Error {
         public let lastStatus: TransportStatus?
-        public let code: MuxErrorCase
+        public let code: Kind
         public let message: String
         public let reason: Error?
 
@@ -749,7 +749,7 @@ extension DirectUpload.UploadError {
         lastStatus: DirectUpload.TransportStatus
     ) {
         self.lastStatus = lastStatus
-        self.code = MuxErrorCase.unknown
+        self.code = .unknown
         self.message = ""
         self.reason = nil
     }
@@ -791,7 +791,7 @@ extension Error {
         if (error.asCancellationError()) != nil {
             return DirectUpload.UploadError(
                 lastStatus: lastSeenUploadStatus,
-                code: MuxErrorCase.cancelled,
+                code: .cancelled,
                 message: "Cancelled by user",
                 reason: self
             )
@@ -799,14 +799,14 @@ extension Error {
             if let realCause = error.asHttpError() {
                 return DirectUpload.UploadError(
                     lastStatus: lastSeenUploadStatus,
-                    code: MuxErrorCase.http,
+                    code: .http,
                     message: "Http Failed: \(realCause.statusCode): \(realCause.statusMsg)",
                     reason: self
                 )
             } else {
                 return DirectUpload.UploadError(
                     lastStatus: lastSeenUploadStatus,
-                    code: MuxErrorCase.connection,
+                    code: .connection,
                     message: "Connection error",
                     reason: self
                 )
@@ -818,13 +818,13 @@ extension Error {
             switch realError {
             case .fileHandle(_): return DirectUpload.UploadError(
                 lastStatus: lastSeenUploadStatus,
-                code: MuxErrorCase.file,
+                code: .file,
                 message: "Couldn't read file for upload",
                 reason: self
             )
             case .invalidState(let msg): return DirectUpload.UploadError(
                 lastStatus: lastSeenUploadStatus,
-                code: MuxErrorCase.unknown,
+                code: .unknown,
                 message: "Internal error: \(msg)",
                 reason: nil
             )
