@@ -25,7 +25,7 @@ struct UploadInfo : Codable {
     /**
      Options selected for the upload
      */
-    var options: UploadOptions
+    var options: DirectUploadOptions
 }
 
 extension UploadInfo: Equatable { }

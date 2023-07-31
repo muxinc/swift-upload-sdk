@@ -64,7 +64,7 @@ class ChunkedFileUploader {
         case .paused(_):
             beginUpload()
         default:
-            MuxUploadSDK.logger?.info("start() ignored in state \(String(describing: self.currentState))")
+            SDKLogger.logger?.info("start() ignored in state \(String(describing: self.currentState))")
         }
     }
 
@@ -74,7 +74,7 @@ class ChunkedFileUploader {
         case .paused(_):
             beginUpload(duration: duration)
         default:
-            MuxUploadSDK.logger?.info("start() ignored in state \(String(describing: self.currentState))")
+            SDKLogger.logger?.info("start() ignored in state \(String(describing: self.currentState))")
         }
     }
     
@@ -154,12 +154,12 @@ class ChunkedFileUploader {
     ) {
         file.close()
         if error is CancellationError {
-            MuxUploadSDK.logger?.debug("Task finished due to cancellation in state \(String(describing: self.currentState))")
+            SDKLogger.logger?.debug("Task finished due to cancellation in state \(String(describing: self.currentState))")
             if case let .uploading(update) = self.currentState {
                 self.currentState = .paused(update)
             }
         } else {
-            MuxUploadSDK.logger?.debug("Task finished due to error in state \(String(describing: self.currentState))")
+            SDKLogger.logger?.debug("Task finished due to error in state \(String(describing: self.currentState))")
             let uploadError = InternalUploaderError(reason: error, lastByte: lastReadCount)
 
             let lastUpdate: Update?
@@ -231,12 +231,12 @@ class ChunkedFileUploader {
             } catch {
                 file.close()
                 if error is CancellationError {
-                    MuxUploadSDK.logger?.debug("Task finished due to cancellation in state \(String(describing: self.currentState))")
+                    SDKLogger.logger?.debug("Task finished due to cancellation in state \(String(describing: self.currentState))")
                     if case let .uploading(update) = self.currentState {
                         self.currentState = .paused(update)
                     }
                 } else {
-                    MuxUploadSDK.logger?.debug("Task finished due to error in state \(String(describing: self.currentState))")
+                    SDKLogger.logger?.debug("Task finished due to error in state \(String(describing: self.currentState))")
                     let uploadError = InternalUploaderError(reason: error, lastByte: lastReadCount)
 
                     let lastUpdate: Update?
@@ -456,10 +456,10 @@ fileprivate actor Worker {
             }
             
             let chunkResult = try await chunkWorker.getTask().value
-            MuxUploadSDK.logger?.info("Completed Chunk:\n \(String(describing: chunkResult))")
+            SDKLogger.logger?.info("Completed Chunk:\n \(String(describing: chunkResult))")
         } while (readBytes == uploadInfo.options.transport.chunkSizeInBytes)
 
-        MuxUploadSDK.logger?.info("Finished uploading file: \(self.inputFileURL.relativeString)")
+        SDKLogger.logger?.info("Finished uploading file: \(self.inputFileURL.relativeString)")
 
         let finalState = ChunkedFileUploader.Update(
             progress: overallProgress,

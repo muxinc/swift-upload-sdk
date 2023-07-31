@@ -11,7 +11,7 @@ class UploadInputStandardizer {
     func standardize(
         id: String,
         sourceAsset: AVAsset,
-        maximumResolution: UploadOptions.InputStandardization.MaximumResolution,
+        maximumResolution: DirectUploadOptions.InputStandardization.MaximumResolution,
         outputURL: URL,
         completion: @escaping (AVAsset, AVAsset?, Error?) -> ()
     ) {

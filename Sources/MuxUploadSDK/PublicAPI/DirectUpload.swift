@@ -1,5 +1,5 @@
 //
-//  MuxUpload.swift
+//  DirectUpload.swift
 //  Mux Upload SDK
 //
 //  Created by Emily Dixon on 2/7/23.
@@ -8,7 +8,7 @@
 import AVFoundation
 import Foundation
 
-public typealias UploadResult = Result<MuxUpload.Success, MuxUpload.UploadError>
+public typealias DirectUploadResult = Result<DirectUpload.SuccessDetails, DirectUploadError>
 
 ///
 /// Uploads a media asset to Mux using a previously-created
@@ -20,8 +20,8 @@ public typealias UploadResult = Result<MuxUpload.Success, MuxUpload.UploadError>
 ///
 /// For example:
 /// ```swift
-/// let upload = MuxUpload(
-///   uploadURL: myMuxUploadURL,
+/// let upload = DirectUpload(
+///   uploadURL: myDirectUploadURL,
 ///   videoFileURL: myVideoFileURL,
 /// )
 ///
@@ -48,7 +48,7 @@ public typealias UploadResult = Result<MuxUpload.Success, MuxUpload.UploadError>
 /// Uploads created by this SDK are globally managed by default, and can be resumed after failures or even after process death. For more information on
 /// this topic, see ``UploadManager``
 ///
-public final class MuxUpload {
+public final class DirectUpload {
 
     var input: UploadInput {
         didSet {
@@ -74,7 +74,7 @@ public final class MuxUpload {
     public enum InputStatus {
         /// Upload initialized and not yet started
         case ready(AVAsset)
-        /// Upload started by a call to ``MuxUpload.start(forceRestart:)``
+        /// Upload started by a call to ``DirectUpload.start(forceRestart:)``
         case started(AVAsset)
         /// Upload is being prepared for transport to the
         /// server. If input standardization was requested,
@@ -83,15 +83,14 @@ public final class MuxUpload {
         case preparing(AVAsset)
         /// SDK is waiting for confirmation to continue the
         /// upload despite being unable to standardize input
-        case awaitingUploadConfirmation(AVAsset)
+        case awaitingConfirmation(AVAsset)
         /// Transport of upload inputs is in progress
-        case uploadInProgress(AVAsset, TransportStatus)
+        case transportInProgress(AVAsset, TransportStatus)
         /// Upload has been paused
-        case uploadPaused(AVAsset, TransportStatus)
-        /// Upload has succeeded
-        case uploadSucceeded(AVAsset, MuxUpload.Success)
-        /// Upload has failed
-        case uploadFailed(AVAsset, MuxUpload.UploadError)
+        case paused(AVAsset, TransportStatus)
+        /// Direct upload has succeeded and all inputs
+        /// transported or upload failed with a fatal error
+        case finished(AVAsset, DirectUploadResult)
     }
 
     /// Current status of the upload input as it goes through
@@ -111,28 +110,28 @@ public final class MuxUpload {
         case .standardizationFailed(let sourceAsset, _):
             return InputStatus.preparing(sourceAsset)
         case .awaitingUploadConfirmation(let uploadInfo):
-            return InputStatus.awaitingUploadConfirmation(
+            return InputStatus.awaitingConfirmation(
                 uploadInfo.sourceAsset()
             )
         case .uploadInProgress(let uploadInfo, let transportStatus):
-            return InputStatus.uploadInProgress(
+            return InputStatus.transportInProgress(
                 uploadInfo.sourceAsset(),
                 transportStatus
             )
         case .uploadPaused(let uploadInfo, let transportStatus):
-            return InputStatus.uploadPaused(
+            return InputStatus.paused(
                 uploadInfo.sourceAsset(),
                 transportStatus
             )
         case .uploadSucceeded(let uploadInfo, let success):
-            return InputStatus.uploadSucceeded(
+            return InputStatus.finished(
                 uploadInfo.sourceAsset(),
-                success
+                .success(success)
             )
         case .uploadFailed(let uploadInfo, let error):
-            return InputStatus.uploadFailed(
+            return InputStatus.finished(
                 uploadInfo.sourceAsset(),
-                error
+                .failure(error)
             )
         }
     }
@@ -163,7 +162,7 @@ public final class MuxUpload {
     var id: String {
         uploadInfo.id
     }
-    private let uploadManager: UploadManager
+    private let uploadManager: DirectUploadManager
     private let inputInspector: UploadInputInspector
     private let inputStandardizer: UploadInputStandardizer = UploadInputStandardizer()
     
@@ -193,24 +192,7 @@ public final class MuxUpload {
         public let isPaused: Bool
     }
 
-    /**
-     An fatal error that ocurred during the upload process. The last-known state of the upload is available, as well as the Error that stopped the upload
-     */
-    public struct UploadError : Error {
-        public let lastStatus: TransportStatus?
-        public let code: MuxErrorCase
-        public let message: String
-        public let reason: Error?
-
-        var localizedDescription: String {
-            get {
-                return "Error \(code): \(message). Caused by:\n\t\(String(describing: reason))"
-            }
-        }
-
-    }
-
-    /// Initializes a MuxUpload from a local file URL with
+    /// Initializes a DirectUpload from a local file URL with
     /// the given configuration
     /// - Parameters:
     ///    - uploadURL: the URL of your direct upload, see
@@ -220,7 +202,7 @@ public final class MuxUpload {
     ///     - chunkSize: the size of chunks when uploading,
     ///     at least 8M is recommended
     ///     - retriesPerChunk: number of retry attempts for
-    ///     a failed chunk upload request
+    ///     a failed chunk request
     ///     - inputStandardization: enable or disable input
     ///     standardization by the SDK locally
     ///     - eventTracking: options to opt out of event
@@ -231,8 +213,8 @@ public final class MuxUpload {
         videoFileURL: URL,
         chunkSize: Int = 8 * 1024 * 1024, // Google recommends at least 8M
         retriesPerChunk: Int = 3,
-        inputStandardization: UploadOptions.InputStandardization = .default,
-        eventTracking: UploadOptions.EventTracking = .default
+        inputStandardization: DirectUploadOptions.InputStandardization = .default,
+        eventTracking: DirectUploadOptions.EventTracking = .default
     ) {
         let asset = AVAsset(url: videoFileURL)
         self.init(
@@ -241,9 +223,9 @@ public final class MuxUpload {
                 info: UploadInfo(
                     id: UUID().uuidString,
                     uploadURL: uploadURL,
-                    options: UploadOptions(
+                    options: DirectUploadOptions(
                         inputStandardization: inputStandardization,
-                        transport: UploadOptions.Transport(
+                        transport: DirectUploadOptions.Transport(
                             chunkSizeInBytes: chunkSize,
                             retryLimitPerChunk: retriesPerChunk
                         ),
@@ -256,7 +238,7 @@ public final class MuxUpload {
         )
     }
 
-    /// Initializes a MuxUpload from a local file URL
+    /// Initializes a DirectUpload from a local file URL
     ///
     /// - Parameters:
     ///    - uploadURL: the URL of your direct upload, see
@@ -269,7 +251,7 @@ public final class MuxUpload {
     public convenience init(
         uploadURL: URL,
         inputFileURL: URL,
-        options: UploadOptions = .default
+        options: DirectUploadOptions = .default
     ) {
         let asset = AVAsset(
             url: inputFileURL
@@ -291,7 +273,7 @@ public final class MuxUpload {
     init(
         input: UploadInput,
         manage: Bool = true,
-        uploadManager: UploadManager,
+        uploadManager: DirectUploadManager,
         inputInspector: AVFoundationUploadInputInspector = .shared
     ) {
         self.input = input
@@ -304,7 +286,7 @@ public final class MuxUpload {
     init(
         input: UploadInput,
         manage: Bool = true,
-        uploadManager: UploadManager,
+        uploadManager: DirectUploadManager,
         inputInspector: UploadInputInspector
     ) {
         self.input = input
@@ -316,7 +298,7 @@ public final class MuxUpload {
 
     internal convenience init(
         wrapping uploader: ChunkedFileUploader,
-        uploadManager: UploadManager
+        uploadManager: DirectUploadManager
     ) {
         self.init(
             input: UploadInput(
@@ -359,7 +341,7 @@ public final class MuxUpload {
      */
     public var progressHandler: StateHandler?
 
-    public struct Success : Sendable, Hashable {
+    public struct SuccessDetails : Sendable, Hashable {
         public let finalState: TransportStatus
     }
 
@@ -373,7 +355,7 @@ public final class MuxUpload {
     /**
      Handles the final result of this upload in your app
      */
-    public typealias ResultHandler = (Result<Success, UploadError>) -> Void
+    public typealias ResultHandler = (DirectUploadResult) -> Void
 
     /**
      If set will be notified when this upload is successfully
@@ -385,7 +367,7 @@ public final class MuxUpload {
      True if this upload is currently in progress and not paused
      */
     public var inProgress: Bool {
-        if case InputStatus.uploadInProgress = inputStatus {
+        if case InputStatus.transportInProgress = inputStatus {
             return true
         } else {
             return false
@@ -396,9 +378,7 @@ public final class MuxUpload {
      True if this upload was completed
      */
     public var complete: Bool {
-        if case InputStatus.uploadSucceeded = inputStatus {
-            return true
-        } else if case InputStatus.uploadFailed = inputStatus {
+        if case InputStatus.finished = inputStatus {
             return true
         } else {
             return false
@@ -435,7 +415,7 @@ public final class MuxUpload {
             )
         }
         if fileWorker != nil && !forceRestart {
-            MuxUploadSDK.logger?.warning("start() called but upload is already in progress")
+            SDKLogger.logger?.warning("start() called but upload is already in progress")
             fileWorker?.addDelegate(
                 withToken: id,
                 InternalUploaderDelegate {
@@ -687,27 +667,28 @@ public final class MuxUpload {
                 startTime: result.startTime,
                 isPaused: false
             )
-            let successDetails = MuxUpload.Success(finalState: transportStatus)
+            let successDetails = DirectUpload.SuccessDetails(finalState: transportStatus)
             input.processUploadSuccess(transportStatus: transportStatus)
-            resultHandler?(Result<Success, UploadError>.success(successDetails))
+            resultHandler?(Result<SuccessDetails, DirectUploadError>.success(successDetails))
             fileWorker?.removeDelegate(withToken: id)
             fileWorker = nil
         }
         case .failure(let error): do {
-            let parsedError = error.parseAsUploadError(
+            let parsedError = parseAsUploadError(
                 lastSeenUploadStatus: input.transportStatus ?? TransportStatus(
                     progress: nil,
                     updatedTime: Date().timeIntervalSince1970,
                     startTime: 0,
                     isPaused: false
-                )
+                ),
+                error: error
             )
             input.processUploadFailure(error: parsedError)
-            if case .cancelled = parsedError.code {
-                // This differs from what MuxUpload does
+            if case .cancelled = parsedError.kind {
+                // This differs from what DirectUpload does
                 // when cancelled with an external API call
-                MuxUploadSDK.logger?.info("task canceled")
-                let canceledStatus = MuxUpload.TransportStatus(
+                SDKLogger.logger?.info("task canceled")
+                let canceledStatus = DirectUpload.TransportStatus(
                     progress: input.transportStatus?.progress,
                     updatedTime: input.transportStatus?.updatedTime ?? Date().timeIntervalSince1970,
                     startTime: input.transportStatus?.startTime ?? Date().timeIntervalSince1970,
@@ -744,12 +725,12 @@ public final class MuxUpload {
     }
 }
 
-extension MuxUpload.UploadError {
+extension DirectUploadError {
     internal init(
-        lastStatus: MuxUpload.TransportStatus
+        lastStatus: DirectUpload.TransportStatus
     ) {
         self.lastStatus = lastStatus
-        self.code = MuxErrorCase.unknown
+        self.kind = .unknown
         self.message = ""
         self.reason = nil
     }
@@ -769,70 +750,103 @@ fileprivate class InternalUploaderDelegate : ChunkedFileUploaderDelegate {
     }
 }
 
-extension MuxUpload.UploadError: Equatable {
-    public static func == (lhs: MuxUpload.UploadError, rhs: MuxUpload.UploadError) -> Bool {
+extension DirectUploadError: Equatable {
+    public static func == (lhs: DirectUploadError, rhs: DirectUploadError) -> Bool {
         return lhs.message == rhs.message &&
                 lhs.lastStatus == rhs.lastStatus &&
-                lhs.code == rhs.code &&
+                lhs.kind == rhs.kind &&
                 lhs.reason?.localizedDescription == rhs.reason?.localizedDescription
     }
 }
 
-public extension Error {
-    func asMuxUploadError() -> MuxUpload.UploadError? {
-        return self as? MuxUpload.UploadError
-    }
-}
-
-extension Error {
+extension DirectUpload {
     /// Parses Errors thrown by this SDK, wrapping the internal error types in a public error
-    func parseAsUploadError(lastSeenUploadStatus: MuxUpload.TransportStatus) -> MuxUpload.UploadError {
-        let error = self
+    func parseAsUploadError(
+        lastSeenUploadStatus: DirectUpload.TransportStatus,
+        error: Error
+    ) -> DirectUploadError {
         if (error.asCancellationError()) != nil {
-            return MuxUpload.UploadError(
+            return DirectUploadError(
                 lastStatus: lastSeenUploadStatus,
-                code: MuxErrorCase.cancelled,
+                kind: .cancelled,
                 message: "Cancelled by user",
-                reason: self
+                reason: error
             )
         } else if (error.asChunkWorkerError()) != nil {
             if let realCause = error.asHttpError() {
-                return MuxUpload.UploadError(
+                return DirectUploadError(
                     lastStatus: lastSeenUploadStatus,
-                    code: MuxErrorCase.http,
+                    kind: .http,
                     message: "Http Failed: \(realCause.statusCode): \(realCause.statusMsg)",
-                    reason: self
+                    reason: error
                 )
             } else {
-                return MuxUpload.UploadError(
+                return DirectUploadError(
                     lastStatus: lastSeenUploadStatus,
-                    code: MuxErrorCase.connection,
+                    kind: .connection,
                     message: "Connection error",
-                    reason: self
+                    reason: error
                 )
             }
         } else if let realError = error.asInternalUploaderError() {
-            // All UploaderError does is wrap ChunkedFile and ChunkWorker errors
-            return realError.reason.parseAsUploadError(lastSeenUploadStatus: lastSeenUploadStatus)
+            // All DirectUploadError does is wrap ChunkedFile
+            // and ChunkWorker errors
+            return DirectUploadError(
+                lastStatus: lastSeenUploadStatus,
+                kind: .unknown,
+                message: "Unknown Internal Error",
+                reason: realError
+            )
         } else if let realError = error.asChunkedFileError() {
             switch realError {
-            case .fileHandle(_): return MuxUpload.UploadError(
+            case .fileHandle(_): return DirectUploadError(
                 lastStatus: lastSeenUploadStatus,
-                code: MuxErrorCase.file,
+                kind: .file,
                 message: "Couldn't read file for upload",
-                reason: self
+                reason: error
             )
-            case .invalidState(let msg): return MuxUpload.UploadError(
+            case .invalidState(let msg): return DirectUploadError(
                 lastStatus: lastSeenUploadStatus,
-                code: MuxErrorCase.unknown,
+                kind: .unknown,
                 message: "Internal error: \(msg)",
                 reason: nil
             )
             }
         } else {
-            return MuxUpload.UploadError(
+            return DirectUploadError(
                 lastStatus: lastSeenUploadStatus
             )
         }
     }
+}
+
+/**
+ An fatal error that ocurred during the upload process. The last-known state of the upload is available, as well as the Error that stopped the upload
+ */
+public struct DirectUploadError : Error {
+    /// Represents the possible error cases from a ``DirectUpload``
+    public enum Kind : Int {
+        /// The cause of the error is not known
+        case unknown = -1
+        /// The direct upload was cancelled
+        case cancelled = 0
+        /// The input file could not be read or processed
+        case file = 1
+        /// The direct upload could not be completed due to an HTTP error
+        case http = 2
+        /// The direct upload could not be completed due to a connection error
+        case connection = 3
+    }
+
+    public let lastStatus: DirectUpload.TransportStatus?
+    public let kind: Kind
+    public let message: String
+    public let reason: Error?
+
+    var localizedDescription: String {
+        get {
+            return "Error \(kind): \(message). Caused by:\n\t\(String(describing: reason))"
+        }
+    }
+
 }

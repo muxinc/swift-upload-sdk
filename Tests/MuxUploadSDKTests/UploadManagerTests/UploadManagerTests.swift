@@ -8,10 +8,10 @@ import XCTest
 
 @testable import MuxUploadSDK
 
-extension UploadOptions {
+extension DirectUploadOptions {
 
-    static var inputStandardizationSkipped: UploadOptions {
-        UploadOptions(
+    static var inputStandardizationSkipped: DirectUploadOptions {
+        DirectUploadOptions(
             inputStandardization: .skipped
         )
     }
@@ -22,7 +22,7 @@ class UploadManagerTests: XCTestCase {
 
     func testUploadManagerURLDeduplication() throws {
 
-        let uploadManager = UploadManager()
+        let uploadManager = DirectUploadManager()
 
         let uploadURL = try XCTUnwrap(
             URL(string: "https://www.example.com/upload")
@@ -32,7 +32,7 @@ class UploadManagerTests: XCTestCase {
             URL(string: "file://path/to/dummy/file/")
         )
 
-        let upload = MuxUpload(
+        let upload = DirectUpload(
             input: UploadInput(
                 asset: AVAsset(url: videoInputURL),
                 info: UploadInfo(
@@ -43,7 +43,7 @@ class UploadManagerTests: XCTestCase {
             uploadManager: uploadManager
         )
 
-        let duplicateUpload = MuxUpload(
+        let duplicateUpload = DirectUpload(
             input: UploadInput(
                 asset: AVAsset(url: videoInputURL),
                 info: UploadInfo(
@@ -58,7 +58,7 @@ class UploadManagerTests: XCTestCase {
         duplicateUpload.start(forceRestart: false)
 
         XCTAssertEqual(
-            uploadManager.allManagedUploads().count,
+            uploadManager.allManagedDirectUploads().count,
             1,
             "There should only be one active upload for a given URL"
         )

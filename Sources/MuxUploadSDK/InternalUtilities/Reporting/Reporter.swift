@@ -92,7 +92,7 @@ extension Reporter {
     func reportUploadSuccess(
         inputDuration: Double,
         inputSize: UInt64,
-        options: UploadOptions,
+        options: DirectUploadOptions,
         uploadEndTime: Date,
         uploadStartTime: Date,
         uploadURL: URL
@@ -133,7 +133,7 @@ extension Reporter {
         errorDescription: String,
         inputDuration: Double,
         inputSize: UInt64,
-        options: UploadOptions,
+        options: DirectUploadOptions,
         uploadEndTime: Date,
         uploadStartTime: Date,
         uploadURL: URL
@@ -173,7 +173,7 @@ extension Reporter {
     func reportUploadInputStandardizationSuccess(
         inputDuration: Double,
         inputSize: UInt64,
-        options: UploadOptions,
+        options: DirectUploadOptions,
         nonStandardInputReasons: [UploadInputFormatInspectionResult.NonstandardInputReason],
         standardizationEndTime: Date,
         standardizationStartTime: Date,
@@ -216,7 +216,7 @@ extension Reporter {
         inputDuration: Double,
         inputSize: UInt64,
         nonStandardInputReasons: [UploadInputFormatInspectionResult.NonstandardInputReason],
-        options: UploadOptions,
+        options: DirectUploadOptions,
         standardizationEndTime: Date,
         standardizationStartTime: Date,
         uploadCanceled: Bool,

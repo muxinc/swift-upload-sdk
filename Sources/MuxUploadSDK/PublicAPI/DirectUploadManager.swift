@@ -1,5 +1,5 @@
 //
-//  UploadManager.swift
+//  DirectUploadManager.swift
 //  Manages large file uploads in a global context for access by many UI elements
 //
 //  Created by Emily Dixon on 3/8/23.
@@ -10,9 +10,9 @@ import Foundation
 /// Manages uploads in-progress by the Mux Upload SDK. Uploads are managed globally by default and can be started, paused,
 /// or cancelled from anywhere in your app.
 ///
-/// This class is used to find and resume uploads previously-created via ``MuxUpload``. Upload tasks created by ``MuxUpload``
-/// are, by defauly globally managed. If your ``MuxUpload`` is managed, you can get a new handle to it anywhere by  using
-/// ``findStartedUpload(ofFile:)`` or ``allManagedUploads()``
+/// This class is used to find and resume uploads previously-created via ``DirectUpload``. Upload tasks created by ``DirectUpload``
+/// are, by defauly globally managed. If your ``DirectUpload`` is managed, you can get a new handle to it anywhere by  using
+/// ``startedDirectUpload(ofFile:)`` or ``allManagedDirectUploads()``
 ///
 /// ## Handling failure, backgrounding, and process death
 /// Managed uploads can be resumed where they left off after process death, and can be accessed anywhere in your
@@ -21,17 +21,17 @@ import Foundation
 ///
 /// ```swift
 /// // Call during app init
-/// UploadManager.resumeAllUploads()
-/// let restartedUploads = UploadManager.allManagedUploads()
+/// DirectUploadManager.shared.resumeAllDirectUploads()
+/// let restartedUploads = DirectUploadManager.shared.allManagedDirectUploads()
 /// // ... do something with the restrted uploads, like subscribing to progress updates for instance
 /// ```
 ///
-public final class UploadManager {
+public final class DirectUploadManager {
 
     private struct UploadStorage: Equatable, Hashable {
-        let upload: MuxUpload
+        let upload: DirectUpload
 
-        static func == (lhs: UploadManager.UploadStorage, rhs: UploadManager.UploadStorage) -> Bool {
+        static func == (lhs: DirectUploadManager.UploadStorage, rhs: DirectUploadManager.UploadStorage) -> Bool {
             ObjectIdentifier(
                 lhs.upload
             ) == ObjectIdentifier(
@@ -45,14 +45,14 @@ public final class UploadManager {
     }
     
     private var uploadsByID: [String : UploadStorage] = [:]
-    private var uploadsUpdateDelegatesByToken: [ObjectIdentifier : any UploadsUpdatedDelegate] = [:]
+    private var uploadsUpdateDelegatesByToken: [ObjectIdentifier : any DirectUploadManagerDelegate] = [:]
     private let uploadActor = UploadCacheActor()
     private lazy var uploaderDelegate: FileUploaderDelegate = FileUploaderDelegate(manager: self)
     
-    /// Finds an upload already in-progress and returns a new ``MuxUpload`` that can be observed
+    /// Finds an upload already in-progress and returns a new ``DirectUpload`` that can be observed
     /// to track and control its state
     /// Returns nil if there was no uplod in progress for thr given file
-    public func findStartedUpload(ofFile url: URL) -> MuxUpload? {
+    public func startedDirectUpload(ofFile url: URL) -> DirectUpload? {
         for upload in uploadsByID.values.map(\.upload) {
             if upload.videoFile == url {
                 return upload
@@ -65,18 +65,18 @@ public final class UploadManager {
     /// Returns all uploads currently-managed uploads.
     /// Uploads are managed while in-progress or compelted.
     ///  Uploads become un-managed when canceled, or if the process dies after they complete
-    public func allManagedUploads() -> [MuxUpload] {
+    public func allManagedDirectUploads() -> [DirectUpload] {
         // Sort upload list for consistent ordering
         return Array(uploadsByID.values.map(\.upload))
     }
     
     /// Attempts to resume an upload that was previously paused or interrupted by process death
     ///  If no upload was found in the cache, this method returns null without taking any action
-    public func resumeUpload(ofFile: URL) async -> MuxUpload? {
-        let fileUploader = await uploadActor.getUpload(ofFileAt: ofFile)
+    public func resumeDirectUpload(ofFile url: URL) async -> DirectUpload? {
+        let fileUploader = await uploadActor.getUpload(ofFileAt: url)
         if let nonNilUploader = fileUploader {
             nonNilUploader.addDelegate(withToken: UUID().uuidString, uploaderDelegate)
-            return MuxUpload(wrapping: nonNilUploader, uploadManager: self)
+            return DirectUpload(wrapping: nonNilUploader, uploadManager: self)
         } else {
             return nil
         }
@@ -84,9 +84,9 @@ public final class UploadManager {
     
     /// Attempts to resume an upload that was previously paused or interrupted by process death
     ///  If no upload was found in the cache, this method returns null without taking any action
-    public func resumeUpload(ofFile: URL, completion: @escaping (MuxUpload) -> Void) {
+    public func resumeDirectUpload(ofFile url: URL, completion: @escaping (DirectUpload) -> Void) {
         Task.detached {
-            let upload = await self.resumeUpload(ofFile: ofFile)
+            let upload = await self.resumeDirectUpload(ofFile: url)
             if let nonNilUpload = upload {
                 await MainActor.run { completion(nonNilUpload) }
             }
@@ -95,7 +95,7 @@ public final class UploadManager {
     
     /// Resumes all upload that were paused or interrupted
     /// It can be useful to call this during app initialization to resume uploads that have been killed by the process dying
-    public func resumeAllUploads() {
+    public func resumeAllDirectUploads() {
         Task.detached { [self] in
             for upload in await uploadActor.getAllUploads() {
                 upload.addDelegate(withToken: UUID().uuidString, uploaderDelegate)
@@ -103,13 +103,13 @@ public final class UploadManager {
         }
     }
     
-    /// Adds an ``UploadsUpdatedDelegate`` You can add as many of these as you like
-    public func addUploadsUpdatedDelegate<Delegate: UploadsUpdatedDelegate>(_ delegate: Delegate) {
+    /// Adds an ``DirectUploadManagerDelegate`` You can add as many of these as you like
+    public func addDelegate<Delegate: DirectUploadManagerDelegate>(_ delegate: Delegate) {
         uploadsUpdateDelegatesByToken[ObjectIdentifier(delegate)] = delegate
     }
     
-    /// Removes an ``UploadsUpdatedDelegate``
-    public func removeUploadsUpdatedDelegate<Delegate: UploadsUpdatedDelegate>(_ delegate: Delegate) {
+    /// Removes an ``DirectUploadManagerDelegate``
+    public func removeDelegate<Delegate: DirectUploadManagerDelegate>(_ delegate: Delegate) {
         uploadsUpdateDelegatesByToken.removeValue(forKey: ObjectIdentifier(delegate))
     }
     
@@ -127,18 +127,18 @@ public final class UploadManager {
     internal func findChunkedFileUploader(
         inputFileURL: URL
     ) -> ChunkedFileUploader? {
-        findStartedUpload(
+        startedDirectUpload(
             ofFile: inputFileURL
         )?.fileWorker
     }
 
-    internal func registerUpload(_ upload: MuxUpload) {
+    internal func registerUpload(_ upload: DirectUpload) {
 
         guard let fileWorker = upload.fileWorker else {
             // Only started uploads, aka uploads with a file
             // worker can be registered.
             // TODO: Should this throw?
-            MuxUploadSDK.logger?.debug("registerUpload() called for an unstarted upload")
+            SDKLogger.logger?.debug("registerUpload() called for an unstarted upload")
             return
         }
 
@@ -158,21 +158,21 @@ public final class UploadManager {
         Task.detached {
             await MainActor.run {
                 let delegates = self.uploadsUpdateDelegatesByToken.values
-                let allManagedUploads = self.allManagedUploads()
+                let allManagedUploads = self.allManagedDirectUploads()
 
                 for delegate in delegates {
-                    delegate.uploadListUpdated(with: allManagedUploads)
+                    delegate.didUpdate(managedDirectUploads: allManagedUploads)
                 }
             }
         }
     }
     
     /// The shared instance of this object that should be used
-    public static let shared = UploadManager()
+    public static let shared = DirectUploadManager()
     internal init() { }
     
     private struct FileUploaderDelegate : ChunkedFileUploaderDelegate {
-        let manager: UploadManager
+        let manager: DirectUploadManager
         
         func chunkedFileUploader(_ uploader: ChunkedFileUploader, stateUpdated state: ChunkedFileUploader.InternalUploadState) {
             Task.detached {
@@ -192,9 +192,9 @@ public final class UploadManager {
 }
 
 /// A delegate that handles changes to the list of active uploads
-public protocol UploadsUpdatedDelegate: AnyObject {
+public protocol DirectUploadManagerDelegate: AnyObject {
     /// Called when the global list of uploads changes. This happens whenever a new upload is started, or an existing one completes or fails
-    func uploadListUpdated(with list: [MuxUpload])
+    func didUpdate(managedDirectUploads: [DirectUpload])
 }
 
 
