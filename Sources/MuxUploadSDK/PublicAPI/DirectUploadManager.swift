@@ -45,7 +45,7 @@ public final class DirectUploadManager {
     }
     
     private var uploadsByID: [String : UploadStorage] = [:]
-    private var uploadsUpdateDelegatesByToken: [ObjectIdentifier : any UploadsUpdatedDelegate] = [:]
+    private var uploadsUpdateDelegatesByToken: [ObjectIdentifier : any DirectUploadManagerDelegate] = [:]
     private let uploadActor = UploadCacheActor()
     private lazy var uploaderDelegate: FileUploaderDelegate = FileUploaderDelegate(manager: self)
     
@@ -103,13 +103,13 @@ public final class DirectUploadManager {
         }
     }
     
-    /// Adds an ``UploadsUpdatedDelegate`` You can add as many of these as you like
-    public func addUploadsUpdatedDelegate<Delegate: UploadsUpdatedDelegate>(_ delegate: Delegate) {
+    /// Adds an ``DirectUploadManagerDelegate`` You can add as many of these as you like
+    public func addDelegate<Delegate: DirectUploadManagerDelegate>(_ delegate: Delegate) {
         uploadsUpdateDelegatesByToken[ObjectIdentifier(delegate)] = delegate
     }
     
-    /// Removes an ``UploadsUpdatedDelegate``
-    public func removeUploadsUpdatedDelegate<Delegate: UploadsUpdatedDelegate>(_ delegate: Delegate) {
+    /// Removes an ``DirectUploadManagerDelegate``
+    public func removeDelegate<Delegate: DirectUploadManagerDelegate>(_ delegate: Delegate) {
         uploadsUpdateDelegatesByToken.removeValue(forKey: ObjectIdentifier(delegate))
     }
     
@@ -192,7 +192,7 @@ public final class DirectUploadManager {
 }
 
 /// A delegate that handles changes to the list of active uploads
-public protocol UploadsUpdatedDelegate: AnyObject {
+public protocol DirectUploadManagerDelegate: AnyObject {
     /// Called when the global list of uploads changes. This happens whenever a new upload is started, or an existing one completes or fails
     func uploadListUpdated(with list: [DirectUpload])
 }

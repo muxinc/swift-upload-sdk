@@ -43,7 +43,7 @@ class UploadListModel : ObservableObject {
     @Published var lastKnownUploads: [DirectUpload] = Array()
 }
 
-fileprivate class Delegate: UploadsUpdatedDelegate {
+fileprivate class Delegate: DirectUploadManagerDelegate {
     let handler: ([DirectUpload]) -> Void
     
     func uploadListUpdated(with list: [DirectUpload]) {
