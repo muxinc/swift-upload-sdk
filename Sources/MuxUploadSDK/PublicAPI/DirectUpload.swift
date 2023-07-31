@@ -201,13 +201,13 @@ public final class DirectUpload {
         public enum Kind : Int {
             /// The cause of the error is not known
             case unknown = -1
-            /// The upload was cancelled
+            /// The direct upload was cancelled
             case cancelled = 0
             /// The input file could not be read or processed
             case file = 1
-            /// The upload could not be completed due to an HTTP error
+            /// The direct upload could not be completed due to an HTTP error
             case http = 2
-            /// The upload could not be completed due to a connection error
+            /// The direct upload could not be completed due to a connection error
             case connection = 3
         }
 
@@ -234,7 +234,7 @@ public final class DirectUpload {
     ///     - chunkSize: the size of chunks when uploading,
     ///     at least 8M is recommended
     ///     - retriesPerChunk: number of retry attempts for
-    ///     a failed chunk upload request
+    ///     a failed chunk request
     ///     - inputStandardization: enable or disable input
     ///     standardization by the SDK locally
     ///     - eventTracking: options to opt out of event
