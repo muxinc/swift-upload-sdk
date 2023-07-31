@@ -24,7 +24,7 @@ struct UploadInput {
         case uploadInProgress(UploadInfo, DirectUpload.TransportStatus)
         case uploadPaused(UploadInfo, DirectUpload.TransportStatus)
         case uploadSucceeded(UploadInfo, DirectUpload.Success)
-        case uploadFailed(UploadInfo, DirectUpload.UploadError)
+        case uploadFailed(UploadInfo, DirectUploadError)
     }
 
     var status: Status
@@ -141,7 +141,7 @@ extension UploadInput {
         }
     }
 
-    mutating func processUploadFailure(error: DirectUpload.UploadError) {
+    mutating func processUploadFailure(error: DirectUploadError) {
         status = .uploadFailed(uploadInfo, error)
     }
 

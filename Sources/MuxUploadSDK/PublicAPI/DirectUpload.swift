@@ -8,7 +8,7 @@
 import AVFoundation
 import Foundation
 
-public typealias UploadResult = Result<DirectUpload.Success, DirectUpload.UploadError>
+public typealias UploadResult = Result<DirectUpload.Success, DirectUploadError>
 
 ///
 /// Uploads a media asset to Mux using a previously-created
@@ -91,7 +91,7 @@ public final class DirectUpload {
         /// Upload has succeeded
         case uploadSucceeded(AVAsset, DirectUpload.Success)
         /// Upload has failed
-        case uploadFailed(AVAsset, DirectUpload.UploadError)
+        case uploadFailed(AVAsset, DirectUploadError)
     }
 
     /// Current status of the upload input as it goes through
@@ -191,37 +191,6 @@ public final class DirectUpload {
          Indicates if the upload has been paused
          */
         public let isPaused: Bool
-    }
-
-    /**
-     An fatal error that ocurred during the upload process. The last-known state of the upload is available, as well as the Error that stopped the upload
-     */
-    public struct UploadError : Error {
-        /// Represents the possible error cases from a ``DirectUpload``
-        public enum Kind : Int {
-            /// The cause of the error is not known
-            case unknown = -1
-            /// The direct upload was cancelled
-            case cancelled = 0
-            /// The input file could not be read or processed
-            case file = 1
-            /// The direct upload could not be completed due to an HTTP error
-            case http = 2
-            /// The direct upload could not be completed due to a connection error
-            case connection = 3
-        }
-
-        public let lastStatus: TransportStatus?
-        public let kind: Kind
-        public let message: String
-        public let reason: Error?
-
-        var localizedDescription: String {
-            get {
-                return "Error \(kind): \(message). Caused by:\n\t\(String(describing: reason))"
-            }
-        }
-
     }
 
     /// Initializes a DirectUpload from a local file URL with
@@ -387,7 +356,7 @@ public final class DirectUpload {
     /**
      Handles the final result of this upload in your app
      */
-    public typealias ResultHandler = (Result<Success, UploadError>) -> Void
+    public typealias ResultHandler = (Result<Success, DirectUploadError>) -> Void
 
     /**
      If set will be notified when this upload is successfully
@@ -703,18 +672,19 @@ public final class DirectUpload {
             )
             let successDetails = DirectUpload.Success(finalState: transportStatus)
             input.processUploadSuccess(transportStatus: transportStatus)
-            resultHandler?(Result<Success, UploadError>.success(successDetails))
+            resultHandler?(Result<Success, DirectUploadError>.success(successDetails))
             fileWorker?.removeDelegate(withToken: id)
             fileWorker = nil
         }
         case .failure(let error): do {
-            let parsedError = error.parseAsUploadError(
+            let parsedError = parseAsUploadError(
                 lastSeenUploadStatus: input.transportStatus ?? TransportStatus(
                     progress: nil,
                     updatedTime: Date().timeIntervalSince1970,
                     startTime: 0,
                     isPaused: false
-                )
+                ),
+                error: error
             )
             input.processUploadFailure(error: parsedError)
             if case .cancelled = parsedError.kind {
@@ -758,7 +728,7 @@ public final class DirectUpload {
     }
 }
 
-extension DirectUpload.UploadError {
+extension DirectUploadError {
     internal init(
         lastStatus: DirectUpload.TransportStatus
     ) {
@@ -783,8 +753,8 @@ fileprivate class InternalUploaderDelegate : ChunkedFileUploaderDelegate {
     }
 }
 
-extension DirectUpload.UploadError: Equatable {
-    public static func == (lhs: DirectUpload.UploadError, rhs: DirectUpload.UploadError) -> Bool {
+extension DirectUploadError: Equatable {
+    public static func == (lhs: DirectUploadError, rhs: DirectUploadError) -> Bool {
         return lhs.message == rhs.message &&
                 lhs.lastStatus == rhs.lastStatus &&
                 lhs.kind == rhs.kind &&
@@ -792,45 +762,53 @@ extension DirectUpload.UploadError: Equatable {
     }
 }
 
-extension Error {
+extension DirectUpload {
     /// Parses Errors thrown by this SDK, wrapping the internal error types in a public error
-    func parseAsUploadError(lastSeenUploadStatus: DirectUpload.TransportStatus) -> DirectUpload.UploadError {
-        let error = self
+    func parseAsUploadError(
+        lastSeenUploadStatus: DirectUpload.TransportStatus,
+        error: Error
+    ) -> DirectUploadError {
         if (error.asCancellationError()) != nil {
-            return DirectUpload.UploadError(
+            return DirectUploadError(
                 lastStatus: lastSeenUploadStatus,
                 kind: .cancelled,
                 message: "Cancelled by user",
-                reason: self
+                reason: error
             )
         } else if (error.asChunkWorkerError()) != nil {
             if let realCause = error.asHttpError() {
-                return DirectUpload.UploadError(
+                return DirectUploadError(
                     lastStatus: lastSeenUploadStatus,
                     kind: .http,
                     message: "Http Failed: \(realCause.statusCode): \(realCause.statusMsg)",
-                    reason: self
+                    reason: error
                 )
             } else {
-                return DirectUpload.UploadError(
+                return DirectUploadError(
                     lastStatus: lastSeenUploadStatus,
                     kind: .connection,
                     message: "Connection error",
-                    reason: self
+                    reason: error
                 )
             }
         } else if let realError = error.asInternalUploaderError() {
-            // All UploaderError does is wrap ChunkedFile and ChunkWorker errors
-            return realError.reason.parseAsUploadError(lastSeenUploadStatus: lastSeenUploadStatus)
+            // All DirectUploadError does is wrap ChunkedFile
+            // and ChunkWorker errors
+            return DirectUploadError(
+                lastStatus: lastSeenUploadStatus,
+                kind: .unknown,
+                message: "Unknown Internal Error",
+                reason: realError
+            )
         } else if let realError = error.asChunkedFileError() {
             switch realError {
-            case .fileHandle(_): return DirectUpload.UploadError(
+            case .fileHandle(_): return DirectUploadError(
                 lastStatus: lastSeenUploadStatus,
                 kind: .file,
                 message: "Couldn't read file for upload",
-                reason: self
+                reason: error
             )
-            case .invalidState(let msg): return DirectUpload.UploadError(
+            case .invalidState(let msg): return DirectUploadError(
                 lastStatus: lastSeenUploadStatus,
                 kind: .unknown,
                 message: "Internal error: \(msg)",
@@ -838,9 +816,40 @@ extension Error {
             )
             }
         } else {
-            return DirectUpload.UploadError(
+            return DirectUploadError(
                 lastStatus: lastSeenUploadStatus
             )
         }
     }
+}
+
+/**
+ An fatal error that ocurred during the upload process. The last-known state of the upload is available, as well as the Error that stopped the upload
+ */
+public struct DirectUploadError : Error {
+    /// Represents the possible error cases from a ``DirectUpload``
+    public enum Kind : Int {
+        /// The cause of the error is not known
+        case unknown = -1
+        /// The direct upload was cancelled
+        case cancelled = 0
+        /// The input file could not be read or processed
+        case file = 1
+        /// The direct upload could not be completed due to an HTTP error
+        case http = 2
+        /// The direct upload could not be completed due to a connection error
+        case connection = 3
+    }
+
+    public let lastStatus: DirectUpload.TransportStatus?
+    public let kind: Kind
+    public let message: String
+    public let reason: Error?
+
+    var localizedDescription: String {
+        get {
+            return "Error \(kind): \(message). Caused by:\n\t\(String(describing: reason))"
+        }
+    }
+
 }
