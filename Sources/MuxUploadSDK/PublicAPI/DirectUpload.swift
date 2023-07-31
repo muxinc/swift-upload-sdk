@@ -778,12 +778,6 @@ extension DirectUpload.UploadError: Equatable {
     }
 }
 
-public extension Error {
-    func asMuxUploadError() -> DirectUpload.UploadError? {
-        return self as? DirectUpload.UploadError
-    }
-}
-
 extension Error {
     /// Parses Errors thrown by this SDK, wrapping the internal error types in a public error
     func parseAsUploadError(lastSeenUploadStatus: DirectUpload.TransportStatus) -> DirectUpload.UploadError {
