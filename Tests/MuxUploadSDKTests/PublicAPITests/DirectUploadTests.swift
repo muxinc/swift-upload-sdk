@@ -1,5 +1,5 @@
 //
-//  MuxUploadTests.swift
+//  DirectUploadTests.swift
 //
 
 import AVFoundation
@@ -7,7 +7,7 @@ import Foundation
 import XCTest
 @testable import MuxUploadSDK
 
-class MuxUploadTest: XCTestCase {
+class DirectUploadTests: XCTestCase {
 
     func testInitializationInputStatus() throws {
         let upload = DirectUpload(
