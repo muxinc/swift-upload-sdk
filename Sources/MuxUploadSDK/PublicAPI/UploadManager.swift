@@ -138,7 +138,7 @@ public final class UploadManager {
             // Only started uploads, aka uploads with a file
             // worker can be registered.
             // TODO: Should this throw?
-            MuxUploadSDK.logger?.debug("registerUpload() called for an unstarted upload")
+            SDKLogger.logger?.debug("registerUpload() called for an unstarted upload")
             return
         }
 

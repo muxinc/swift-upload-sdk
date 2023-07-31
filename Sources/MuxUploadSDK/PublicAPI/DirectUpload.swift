@@ -435,7 +435,7 @@ public final class DirectUpload {
             )
         }
         if fileWorker != nil && !forceRestart {
-            MuxUploadSDK.logger?.warning("start() called but upload is already in progress")
+            SDKLogger.logger?.warning("start() called but upload is already in progress")
             fileWorker?.addDelegate(
                 withToken: id,
                 InternalUploaderDelegate {
@@ -706,7 +706,7 @@ public final class DirectUpload {
             if case .cancelled = parsedError.code {
                 // This differs from what DirectUpload does
                 // when cancelled with an external API call
-                MuxUploadSDK.logger?.info("task canceled")
+                SDKLogger.logger?.info("task canceled")
                 let canceledStatus = DirectUpload.TransportStatus(
                     progress: input.transportStatus?.progress,
                     updatedTime: input.transportStatus?.updatedTime ?? Date().timeIntervalSince1970,
