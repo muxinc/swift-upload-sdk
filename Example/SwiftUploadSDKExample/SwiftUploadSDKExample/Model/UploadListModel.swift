@@ -45,9 +45,9 @@ class UploadListModel : ObservableObject {
 
 fileprivate class Delegate: DirectUploadManagerDelegate {
     let handler: ([DirectUpload]) -> Void
-    
-    func uploadListUpdated(with list: [DirectUpload]) {
-        handler(list)
+
+    func didUpdate(managedDirectUploads: [DirectUpload]) {
+        handler(managedDirectUploads)
     }
     
     init(handler: @escaping ([DirectUpload]) -> Void) {

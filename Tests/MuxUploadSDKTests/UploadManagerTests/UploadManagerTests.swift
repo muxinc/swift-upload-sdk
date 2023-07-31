@@ -58,7 +58,7 @@ class UploadManagerTests: XCTestCase {
         duplicateUpload.start(forceRestart: false)
 
         XCTAssertEqual(
-            uploadManager.allManagedUploads().count,
+            uploadManager.allManagedDirectUploads().count,
             1,
             "There should only be one active upload for a given URL"
         )

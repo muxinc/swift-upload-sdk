@@ -12,7 +12,7 @@ import Foundation
 ///
 /// This class is used to find and resume uploads previously-created via ``DirectUpload``. Upload tasks created by ``DirectUpload``
 /// are, by defauly globally managed. If your ``DirectUpload`` is managed, you can get a new handle to it anywhere by  using
-/// ``findStartedUpload(ofFile:)`` or ``allManagedUploads()``
+/// ``startedDirectUpload(ofFile:)`` or ``allManagedDirectUploads()``
 ///
 /// ## Handling failure, backgrounding, and process death
 /// Managed uploads can be resumed where they left off after process death, and can be accessed anywhere in your
@@ -21,9 +21,9 @@ import Foundation
 ///
 /// ```swift
 /// // Call during app init
-/// DirectUploadManager.resumeAllUploads()
-/// let restartedUploads = DirectUploadManager.allManagedUploads()
-/// // ... do something with the restrted uploads, like subscribing to progress updates for instance
+/// DirectUploadManager.shared.resumeAllDirectUploads()
+/// let restartedUploads = DirectUploadManager.shared.allManagedDirectUploads()
+/// // ... do something with the restarted uploads, like subscribing to progress updates for instance
 /// ```
 ///
 public final class DirectUploadManager {
@@ -52,7 +52,7 @@ public final class DirectUploadManager {
     /// Finds an upload already in-progress and returns a new ``DirectUpload`` that can be observed
     /// to track and control its state
     /// Returns nil if there was no uplod in progress for thr given file
-    public func findStartedUpload(ofFile url: URL) -> DirectUpload? {
+    public func startedDirectUpload(ofFile url: URL) -> DirectUpload? {
         for upload in uploadsByID.values.map(\.upload) {
             if upload.videoFile == url {
                 return upload
@@ -65,15 +65,15 @@ public final class DirectUploadManager {
     /// Returns all uploads currently-managed uploads.
     /// Uploads are managed while in-progress or compelted.
     ///  Uploads become un-managed when canceled, or if the process dies after they complete
-    public func allManagedUploads() -> [DirectUpload] {
+    public func allManagedDirectUploads() -> [DirectUpload] {
         // Sort upload list for consistent ordering
         return Array(uploadsByID.values.map(\.upload))
     }
     
     /// Attempts to resume an upload that was previously paused or interrupted by process death
     ///  If no upload was found in the cache, this method returns null without taking any action
-    public func resumeUpload(ofFile: URL) async -> DirectUpload? {
-        let fileUploader = await uploadActor.getUpload(ofFileAt: ofFile)
+    public func resumeDirectUpload(ofFile url: URL) async -> DirectUpload? {
+        let fileUploader = await uploadActor.getUpload(ofFileAt: url)
         if let nonNilUploader = fileUploader {
             nonNilUploader.addDelegate(withToken: UUID().uuidString, uploaderDelegate)
             return DirectUpload(wrapping: nonNilUploader, uploadManager: self)
@@ -84,9 +84,9 @@ public final class DirectUploadManager {
     
     /// Attempts to resume an upload that was previously paused or interrupted by process death
     ///  If no upload was found in the cache, this method returns null without taking any action
-    public func resumeUpload(ofFile: URL, completion: @escaping (DirectUpload) -> Void) {
+    public func resumeDirectUpload(ofFile url: URL, completion: @escaping (DirectUpload) -> Void) {
         Task.detached {
-            let upload = await self.resumeUpload(ofFile: ofFile)
+            let upload = await self.resumeDirectUpload(ofFile: url)
             if let nonNilUpload = upload {
                 await MainActor.run { completion(nonNilUpload) }
             }
@@ -95,7 +95,7 @@ public final class DirectUploadManager {
     
     /// Resumes all upload that were paused or interrupted
     /// It can be useful to call this during app initialization to resume uploads that have been killed by the process dying
-    public func resumeAllUploads() {
+    public func resumeAllDirectUploads() {
         Task.detached { [self] in
             for upload in await uploadActor.getAllUploads() {
                 upload.addDelegate(withToken: UUID().uuidString, uploaderDelegate)
@@ -127,7 +127,7 @@ public final class DirectUploadManager {
     internal func findChunkedFileUploader(
         inputFileURL: URL
     ) -> ChunkedFileUploader? {
-        findStartedUpload(
+        startedDirectUpload(
             ofFile: inputFileURL
         )?.fileWorker
     }
@@ -158,10 +158,10 @@ public final class DirectUploadManager {
         Task.detached {
             await MainActor.run {
                 let delegates = self.uploadsUpdateDelegatesByToken.values
-                let allManagedUploads = self.allManagedUploads()
+                let allManagedUploads = self.allManagedDirectUploads()
 
                 for delegate in delegates {
-                    delegate.uploadListUpdated(with: allManagedUploads)
+                    delegate.didUpdate(managedDirectUploads: allManagedUploads)
                 }
             }
         }
@@ -194,7 +194,7 @@ public final class DirectUploadManager {
 /// A delegate that handles changes to the list of active uploads
 public protocol DirectUploadManagerDelegate: AnyObject {
     /// Called when the global list of uploads changes. This happens whenever a new upload is started, or an existing one completes or fails
-    func uploadListUpdated(with list: [DirectUpload])
+    func didUpdate(managedDirectUploads: [DirectUpload])
 }
 
 
