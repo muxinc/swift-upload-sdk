@@ -67,7 +67,7 @@ class DirectUploadTests: XCTestCase {
                 preparingStatusExpectation.fulfill()
             }
 
-            if case DirectUpload.InputStatus.uploadInProgress = inputStatus {
+            if case DirectUpload.InputStatus.transportInProgress = inputStatus {
                 uploadInProgressExpecation.fulfill()
             }
         }
@@ -103,7 +103,7 @@ class DirectUploadTests: XCTestCase {
                 preparingStatusExpectation.fulfill()
             }
 
-            if case DirectUpload.InputStatus.uploadInProgress = inputStatus {
+            if case DirectUpload.InputStatus.transportInProgress = inputStatus {
                 uploadInProgressExpecation.fulfill()
             }
         }

@@ -83,11 +83,11 @@ public final class DirectUpload {
         case preparing(AVAsset)
         /// SDK is waiting for confirmation to continue the
         /// upload despite being unable to standardize input
-        case awaitingUploadConfirmation(AVAsset)
+        case awaitingConfirmation(AVAsset)
         /// Transport of upload inputs is in progress
-        case uploadInProgress(AVAsset, TransportStatus)
+        case transportInProgress(AVAsset, TransportStatus)
         /// Upload has been paused
-        case uploadPaused(AVAsset, TransportStatus)
+        case paused(AVAsset, TransportStatus)
         /// Direct upload has succeeded and all inputs
         /// transported or upload failed with a fatal error
         case finished(AVAsset, DirectUploadResult)
@@ -110,16 +110,16 @@ public final class DirectUpload {
         case .standardizationFailed(let sourceAsset, _):
             return InputStatus.preparing(sourceAsset)
         case .awaitingUploadConfirmation(let uploadInfo):
-            return InputStatus.awaitingUploadConfirmation(
+            return InputStatus.awaitingConfirmation(
                 uploadInfo.sourceAsset()
             )
         case .uploadInProgress(let uploadInfo, let transportStatus):
-            return InputStatus.uploadInProgress(
+            return InputStatus.transportInProgress(
                 uploadInfo.sourceAsset(),
                 transportStatus
             )
         case .uploadPaused(let uploadInfo, let transportStatus):
-            return InputStatus.uploadPaused(
+            return InputStatus.paused(
                 uploadInfo.sourceAsset(),
                 transportStatus
             )
@@ -367,7 +367,7 @@ public final class DirectUpload {
      True if this upload is currently in progress and not paused
      */
     public var inProgress: Bool {
-        if case InputStatus.uploadInProgress = inputStatus {
+        if case InputStatus.transportInProgress = inputStatus {
             return true
         } else {
             return false
