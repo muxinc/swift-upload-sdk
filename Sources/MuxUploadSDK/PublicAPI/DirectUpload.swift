@@ -197,6 +197,20 @@ public final class DirectUpload {
      An fatal error that ocurred during the upload process. The last-known state of the upload is available, as well as the Error that stopped the upload
      */
     public struct UploadError : Error {
+        /// Represents the possible error cases from a ``DirectUpload``
+        public enum Kind : Int {
+            /// The cause of the error is not known
+            case unknown = -1
+            /// The upload was cancelled
+            case cancelled = 0
+            /// The input file could not be read or processed
+            case file = 1
+            /// The upload could not be completed due to an HTTP error
+            case http = 2
+            /// The upload could not be completed due to a connection error
+            case connection = 3
+        }
+
         public let lastStatus: TransportStatus?
         public let kind: Kind
         public let message: String
