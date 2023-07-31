@@ -8,7 +8,7 @@
 import AVFoundation
 import Foundation
 
-public typealias UploadResult = Result<DirectUpload.Success, DirectUploadError>
+public typealias DirectUploadResult = Result<DirectUpload.Success, DirectUploadError>
 
 ///
 /// Uploads a media asset to Mux using a previously-created
@@ -356,7 +356,7 @@ public final class DirectUpload {
     /**
      Handles the final result of this upload in your app
      */
-    public typealias ResultHandler = (Result<Success, DirectUploadError>) -> Void
+    public typealias ResultHandler = (DirectUploadResult) -> Void
 
     /**
      If set will be notified when this upload is successfully
