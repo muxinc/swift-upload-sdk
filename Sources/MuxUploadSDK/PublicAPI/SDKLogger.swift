@@ -1,5 +1,5 @@
 //
-//  MuxUploadSDK.swift
+//  SDKLogger.swift
 //
 //
 //  Created by AJ Barinov on 4/8/22.
@@ -11,21 +11,21 @@ import OSLog
 ///
 /// Metadata and logging for this SDK
 ///
-public enum MuxUploadSDK {
+public enum SDKLogger {
 }
 
-public extension MuxUploadSDK {
+public extension SDKLogger {
     
     /// The `Logger` being used to log events from this SDK
-    static var logger: Logger? = nil
+    static var logger: os.Logger? = nil
     
     /// Enables logging by adding a `Logger` with `subsystem: "Mux"` and `category: "Upload"`
     static func enableDefaultLogging() {
-        logger = Logger(subsystem: "Mux", category: "MuxUpload")
+        logger = os.Logger(subsystem: "Mux", category: "MuxUpload")
     }
     
     /// Uses the specified `Logger` to log events from this SDK
-    static func useLogger(logger: Logger) {
+    static func useLogger(logger: os.Logger) {
         self.logger = logger
     }
 

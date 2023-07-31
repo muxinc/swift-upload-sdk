@@ -39,7 +39,7 @@ class ChunkedFile {
     /// Reads the next chunk from the file, advancing the file for the next read
     ///  This method does synchronous I/O, so call it in the background
     func readNextChunk() -> Result<FileChunk, Error> {
-        MuxUploadSDK.logger?.info("--readNextChunk(): called")
+        SDKLogger.logger?.info("--readNextChunk(): called")
         do {
             guard fileHandle != nil else {
                 return Result.failure(ChunkedFileError.invalidState("readNextChunk() called but the file was not open"))
@@ -62,7 +62,7 @@ class ChunkedFile {
                     fileHandle: fileHandle,
                     fileURL: fileURL
                 )
-                MuxUploadSDK.logger?.info("Opened file with len \(String(describing: fileSize)) at path \(fileURL.path)")
+                SDKLogger.logger?.info("Opened file with len \(String(describing: fileSize)) at path \(fileURL.path)")
             } catch {
                 throw ChunkedFileError.fileHandle(error)
             }
@@ -75,7 +75,7 @@ class ChunkedFile {
         do {
             try fileHandle?.close()
         } catch {
-            MuxUploadSDK.logger?.warning("Swallowed error closing file: \(error.localizedDescription)")
+            SDKLogger.logger?.warning("Swallowed error closing file: \(error.localizedDescription)")
         }
         state = nil
     }
@@ -87,7 +87,7 @@ class ChunkedFile {
     }
     
     private func doReadNextChunk() throws -> FileChunk {
-        MuxUploadSDK.logger?.info("--doReadNextChunk")
+        SDKLogger.logger?.info("--doReadNextChunk")
         guard let fileHandle = fileHandle, let fileURL = fileURL else {
             throw ChunkedFileError.invalidState("doReadNextChunk called without file handle. Did you call open()?")
         }

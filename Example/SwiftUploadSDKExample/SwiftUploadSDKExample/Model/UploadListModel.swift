@@ -12,7 +12,7 @@ import MuxUploadSDK
 class UploadListModel : ObservableObject {
     
     init() {
-        UploadManager.shared.addUploadsUpdatedDelegate(
+        DirectUploadManager.shared.addDelegate(
             Delegate(
                 handler: { uploads in
 
@@ -40,17 +40,17 @@ class UploadListModel : ObservableObject {
         )
     }
     
-    @Published var lastKnownUploads: [MuxUpload] = Array()
+    @Published var lastKnownUploads: [DirectUpload] = Array()
 }
 
-fileprivate class Delegate: UploadsUpdatedDelegate {
-    let handler: ([MuxUpload]) -> Void
-    
-    func uploadListUpdated(with list: [MuxUpload]) {
-        handler(list)
+fileprivate class Delegate: DirectUploadManagerDelegate {
+    let handler: ([DirectUpload]) -> Void
+
+    func didUpdate(managedDirectUploads: [DirectUpload]) {
+        handler(managedDirectUploads)
     }
     
-    init(handler: @escaping ([MuxUpload]) -> Void) {
+    init(handler: @escaping ([DirectUpload]) -> Void) {
         self.handler = handler
     }
 }

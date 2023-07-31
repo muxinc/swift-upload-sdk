@@ -69,7 +69,7 @@ class ChunkWorker {
                     let resp = try await chunkActor.upload()
                     
                     let httpResponse = resp as! HTTPURLResponse
-                    MuxUploadSDK.logger?.info("ChunkWorker: Upload chunk with response: \(String(describing: httpResponse.statusCode))")
+                    SDKLogger.logger?.info("ChunkWorker: Upload chunk with response: \(String(describing: httpResponse.statusCode))")
                     switch repsonseValidator.validate(statusCode: httpResponse.statusCode) {
                     case .error: do {
                         // Throw and break out if the request can't be retried
@@ -92,7 +92,7 @@ class ChunkWorker {
                     }
                     } // switch responseValidator.validate()
                 } catch {
-                    MuxUploadSDK.logger?.error("Failed to upload a chunk with error: \(error.localizedDescription)")
+                    SDKLogger.logger?.error("Failed to upload a chunk with error: \(error.localizedDescription)")
                     retries += 1
                     requestError = error
                 }

@@ -41,8 +41,8 @@ class UploadCreationModel : ObservableObject {
         }
     }
     
-    @discardableResult func startUpload(preparedMedia: PreparedUpload, forceRestart: Bool) -> MuxUpload {
-        let upload = MuxUpload(
+    @discardableResult func startUpload(preparedMedia: PreparedUpload, forceRestart: Bool) -> DirectUpload {
+        let upload = DirectUpload(
             uploadURL: preparedMedia.remoteURL,
             videoFileURL: preparedMedia.localVideoFile
         )

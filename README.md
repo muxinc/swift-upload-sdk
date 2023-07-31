@@ -38,7 +38,7 @@ import MuxUploadSDK
 let directUploadURL: URL = /* Fetch the direct upload URL created before */
 let videoInputURL: URL = /* File URL to your video file. See Test App for how to retrieve a video from PhotosKit */
 
-let upload = MuxUpload(
+let upload = DirectUpload(
     uploadURL: directUploadURL,
     inputFileURL: videoInputURL,
 )

@@ -1,5 +1,5 @@
 //
-//  MuxUploadTests.swift
+//  DirectUploadTests.swift
 //
 
 import AVFoundation
@@ -7,22 +7,22 @@ import Foundation
 import XCTest
 @testable import MuxUploadSDK
 
-class MuxUploadTest: XCTestCase {
+class DirectUploadTests: XCTestCase {
 
     func testInitializationInputStatus() throws {
-        let upload = MuxUpload(
+        let upload = DirectUpload(
             uploadURL: URL(string: "https://www.example.com/upload")!,
             inputFileURL: URL(string: "file://var/mobile/Containers/Data/Application/Documents/myvideo.mp4")!
         )
 
-        guard case MuxUpload.InputStatus.ready(_) = upload.inputStatus else {
+        guard case DirectUpload.InputStatus.ready(_) = upload.inputStatus else {
             XCTFail("Expected initial input status to be ready")
             return
         }
     }
 
     func testStartStatusUpdate() throws {
-        let upload = MuxUpload(
+        let upload = DirectUpload(
             uploadURL: URL(string: "https://www.example.com/upload")!,
             inputFileURL: URL(string: "file://var/mobile/Containers/Data/Application/Documents/myvideo.mp4")!
         )
@@ -32,7 +32,7 @@ class MuxUploadTest: XCTestCase {
         )
 
         upload.inputStatusHandler = { inputStatus in
-            if case MuxUpload.InputStatus.started = inputStatus {
+            if case DirectUpload.InputStatus.started = inputStatus {
                 ex.fulfill()
             }
         }
@@ -48,9 +48,9 @@ class MuxUploadTest: XCTestCase {
     func testInputInspectionSuccess() throws {
         let input = try UploadInput.mockReadyInput()
 
-        let upload = MuxUpload(
+        let upload = DirectUpload(
             input: input,
-            uploadManager: UploadManager(),
+            uploadManager: DirectUploadManager(),
             inputInspector: MockUploadInputInspector.alwaysStandard
         )
 
@@ -63,11 +63,11 @@ class MuxUploadTest: XCTestCase {
         )
 
         upload.inputStatusHandler = { inputStatus in
-            if case MuxUpload.InputStatus.preparing = inputStatus {
+            if case DirectUpload.InputStatus.preparing = inputStatus {
                 preparingStatusExpectation.fulfill()
             }
 
-            if case MuxUpload.InputStatus.uploadInProgress = inputStatus {
+            if case DirectUpload.InputStatus.transportInProgress = inputStatus {
                 uploadInProgressExpecation.fulfill()
             }
         }
@@ -84,9 +84,9 @@ class MuxUploadTest: XCTestCase {
     func testInputInspectionFailure() throws {
         let input = try UploadInput.mockReadyInput()
 
-        let upload = MuxUpload(
+        let upload = DirectUpload(
             input: input,
-            uploadManager: UploadManager(),
+            uploadManager: DirectUploadManager(),
             inputInspector: MockUploadInputInspector.alwaysFailing
         )
 
@@ -99,11 +99,11 @@ class MuxUploadTest: XCTestCase {
         )
 
         upload.inputStatusHandler = { inputStatus in
-            if case MuxUpload.InputStatus.preparing = inputStatus {
+            if case DirectUpload.InputStatus.preparing = inputStatus {
                 preparingStatusExpectation.fulfill()
             }
 
-            if case MuxUpload.InputStatus.uploadInProgress = inputStatus {
+            if case DirectUpload.InputStatus.transportInProgress = inputStatus {
                 uploadInProgressExpecation.fulfill()
             }
         }
