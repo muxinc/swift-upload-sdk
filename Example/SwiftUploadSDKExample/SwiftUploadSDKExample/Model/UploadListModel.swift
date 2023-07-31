@@ -12,7 +12,7 @@ import MuxUploadSDK
 class UploadListModel : ObservableObject {
     
     init() {
-        DirectUploadManager.shared.addUploadsUpdatedDelegate(
+        DirectUploadManager.shared.addDelegate(
             Delegate(
                 handler: { uploads in
 
