@@ -198,13 +198,13 @@ public final class DirectUpload {
      */
     public struct UploadError : Error {
         public let lastStatus: TransportStatus?
-        public let code: Kind
+        public let kind: Kind
         public let message: String
         public let reason: Error?
 
         var localizedDescription: String {
             get {
-                return "Error \(code): \(message). Caused by:\n\t\(String(describing: reason))"
+                return "Error \(kind): \(message). Caused by:\n\t\(String(describing: reason))"
             }
         }
 
@@ -703,7 +703,7 @@ public final class DirectUpload {
                 )
             )
             input.processUploadFailure(error: parsedError)
-            if case .cancelled = parsedError.code {
+            if case .cancelled = parsedError.kind {
                 // This differs from what DirectUpload does
                 // when cancelled with an external API call
                 SDKLogger.logger?.info("task canceled")
@@ -749,7 +749,7 @@ extension DirectUpload.UploadError {
         lastStatus: DirectUpload.TransportStatus
     ) {
         self.lastStatus = lastStatus
-        self.code = .unknown
+        self.kind = .unknown
         self.message = ""
         self.reason = nil
     }
@@ -773,7 +773,7 @@ extension DirectUpload.UploadError: Equatable {
     public static func == (lhs: DirectUpload.UploadError, rhs: DirectUpload.UploadError) -> Bool {
         return lhs.message == rhs.message &&
                 lhs.lastStatus == rhs.lastStatus &&
-                lhs.code == rhs.code &&
+                lhs.kind == rhs.kind &&
                 lhs.reason?.localizedDescription == rhs.reason?.localizedDescription
     }
 }
@@ -791,7 +791,7 @@ extension Error {
         if (error.asCancellationError()) != nil {
             return DirectUpload.UploadError(
                 lastStatus: lastSeenUploadStatus,
-                code: .cancelled,
+                kind: .cancelled,
                 message: "Cancelled by user",
                 reason: self
             )
@@ -799,14 +799,14 @@ extension Error {
             if let realCause = error.asHttpError() {
                 return DirectUpload.UploadError(
                     lastStatus: lastSeenUploadStatus,
-                    code: .http,
+                    kind: .http,
                     message: "Http Failed: \(realCause.statusCode): \(realCause.statusMsg)",
                     reason: self
                 )
             } else {
                 return DirectUpload.UploadError(
                     lastStatus: lastSeenUploadStatus,
-                    code: .connection,
+                    kind: .connection,
                     message: "Connection error",
                     reason: self
                 )
@@ -818,13 +818,13 @@ extension Error {
             switch realError {
             case .fileHandle(_): return DirectUpload.UploadError(
                 lastStatus: lastSeenUploadStatus,
-                code: .file,
+                kind: .file,
                 message: "Couldn't read file for upload",
                 reason: self
             )
             case .invalidState(let msg): return DirectUpload.UploadError(
                 lastStatus: lastSeenUploadStatus,
-                code: .unknown,
+                kind: .unknown,
                 message: "Internal error: \(msg)",
                 reason: nil
             )
