@@ -8,7 +8,7 @@
 import AVFoundation
 import Foundation
 
-public typealias DirectUploadResult = Result<DirectUpload.Success, DirectUploadError>
+public typealias DirectUploadResult = Result<DirectUpload.SuccessDetails, DirectUploadError>
 
 ///
 /// Uploads a media asset to Mux using a previously-created
@@ -341,7 +341,7 @@ public final class DirectUpload {
      */
     public var progressHandler: StateHandler?
 
-    public struct Success : Sendable, Hashable {
+    public struct SuccessDetails : Sendable, Hashable {
         public let finalState: TransportStatus
     }
 
@@ -667,9 +667,9 @@ public final class DirectUpload {
                 startTime: result.startTime,
                 isPaused: false
             )
-            let successDetails = DirectUpload.Success(finalState: transportStatus)
+            let successDetails = DirectUpload.SuccessDetails(finalState: transportStatus)
             input.processUploadSuccess(transportStatus: transportStatus)
-            resultHandler?(Result<Success, DirectUploadError>.success(successDetails))
+            resultHandler?(Result<SuccessDetails, DirectUploadError>.success(successDetails))
             fileWorker?.removeDelegate(withToken: id)
             fileWorker = nil
         }

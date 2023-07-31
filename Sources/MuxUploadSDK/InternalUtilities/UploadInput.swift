@@ -23,7 +23,7 @@ struct UploadInput {
         case awaitingUploadConfirmation(UploadInfo)
         case uploadInProgress(UploadInfo, DirectUpload.TransportStatus)
         case uploadPaused(UploadInfo, DirectUpload.TransportStatus)
-        case uploadSucceeded(UploadInfo, DirectUpload.Success)
+        case uploadSucceeded(UploadInfo, DirectUpload.SuccessDetails)
         case uploadFailed(UploadInfo, DirectUploadError)
     }
 
@@ -135,7 +135,7 @@ extension UploadInput {
         transportStatus: DirectUpload.TransportStatus
     ) {
         if case UploadInput.Status.uploadInProgress(let info, _) = status {
-            status = .uploadSucceeded(info, DirectUpload.Success(finalState: transportStatus))
+            status = .uploadSucceeded(info, DirectUpload.SuccessDetails(finalState: transportStatus))
         } else {
             return
         }
