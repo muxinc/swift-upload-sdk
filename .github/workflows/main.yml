@@ -24,9 +24,6 @@ jobs:
           xcodebuild-scheme: MuxUploadSDK
           xcodebuild-destination: generic/platform=iOS
           transform-for-static-hosting: true
-      - name: Fix index
-        run: |
-          echo "<script>window.location.href += \"documentation/muxuploadsdk\"</script>" > docs/index.html;
       - uses: actions/upload-pages-artifact@v1
         with:
           path: docs
