@@ -8,6 +8,6 @@ output_path="docs/"
 sed -e "s/__BASE__/${base_url}/g" \
     -e "s/__SLUG__/${repository_name}/g" \
     -e "s/__TARGET__/${target_name}/g" \
-    "docc-files/index.html.template" > ${output_path}/index.html
+    "scripts/docc-files/index.html.template" > ${output_path}/index.html
 
 cat ${output_path}/index.html
