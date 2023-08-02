@@ -6,6 +6,6 @@
 <link rel="canonical" href="/__SLUG__/documentation/__TARGET__/"/>
 <title>Redirecting...</title>
 If you are not redirected automatically, follow
-<a href="__BASE__/__SLUG__/documentation/__TARGET__/">
+<a href="https://__HOST__/__SLUG__/documentation/__TARGET__/">
   this link
 </a>.
