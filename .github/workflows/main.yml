@@ -24,6 +24,7 @@ jobs:
           xcodebuild-scheme: MuxUploadSDK
           xcodebuild-destination: generic/platform=iOS
           transform-for-static-hosting: true
+          hosting-base-path: swift-upload-sdk
       - uses: actions/upload-pages-artifact@v1
         with:
           path: docs
