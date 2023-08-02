@@ -1,7 +1,7 @@
 name: Docc Static Site Deployment
 on:
   push:
-    branches: ["main", "ajlb/docc-github-action"]
+    branches: ["main"]
 permissions:
   contents: read
   pages: write
