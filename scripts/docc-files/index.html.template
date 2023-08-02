@@ -4,7 +4,3 @@
 <title>Redirecting to __SLUG__ homepage</title>
 <meta http-equiv="refresh" content="0; URL=/__SLUG__/documentation/__TARGET__/">
 <link rel="canonical" href="/__SLUG__/documentation/__TARGET__/"/>
-If you are not redirected automatically, follow
-<a href="https://__HOST__/__SLUG__/documentation/__TARGET__/">
-  this link
-</a>.

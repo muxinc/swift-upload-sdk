@@ -1,7 +1,7 @@
 name: Docc Static Site Deployment
 on:
   push:
-    branches: ["main"]
+    branches: ["main", "ajlb/docc-github-action"]
 permissions:
   contents: read
   pages: write
@@ -26,7 +26,7 @@ jobs:
           transform-for-static-hosting: true
           hosting-base-path: swift-upload-sdk
       - name: Post Process Docc Archive
-        run: ./scripts/post-process-docc-archive-for-github-pages.sh
+        run: ./scripts/post-process-docc-archive-for-github-pages.sh swift-upload-sdk muxuploadsdk
       - uses: actions/upload-pages-artifact@v1
         with:
           path: docs
