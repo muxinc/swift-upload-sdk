@@ -3,7 +3,7 @@
 host="muxinc.github.io"
 repository_name="swift-upload-sdk"
 target_name="muxuploadsdk"
-output_path="docs/"
+output_path="docs"
 
 sed -e "s/__HOST__/${host}/g" \
     -e "s/__SLUG__/${repository_name}/g" \
