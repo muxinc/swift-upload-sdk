@@ -1,0 +1,11 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<!-- This file is intended to replace the automatically generated index.html so it redirects to the "real" homepage for swift-upload-sdk docs -->
+<title>Redirecting to __SLUG__ homepage</title>
+<meta http-equiv="refresh" content="0; URL=/__SLUG__/documentation/__TARGET__/">
+<link rel="canonical" href="/__SLUG__/documentation/__TARGET__/"/>
+<title>Redirecting...</title>
+If you are not redirected automatically, follow
+<a href="__BASE__/__SLUG__/documentation/__TARGET__/">
+  this link
+</a>.
