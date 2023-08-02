@@ -25,6 +25,8 @@ jobs:
           xcodebuild-destination: generic/platform=iOS
           transform-for-static-hosting: true
           hosting-base-path: swift-upload-sdk
+      - name: Add Redirect from Root
+        run: ./scripts/post-process-docc-for-github-pages.sh
       - uses: actions/upload-pages-artifact@v1
         with:
           path: docs
