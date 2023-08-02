@@ -9,6 +9,8 @@ To use this SDK, you'll need to add it as a dependency using either Swift Packag
 ## Documentation
 API documentation available [here](https://muxinc.github.io/swift-upload-sdk/documentation/muxuploadsdk/).
 
+A getting started guide can be found [here](https://docs.mux.com/guides/video/upload-video-directly-from-ios-or-ipados).
+
 ### Server-Side: Create a Direct Upload
 
 If you haven't yet done so, you must create an [access token](https://docs.mux.com/guides/system/make-api-requests#http-basic-auth) to complete these steps.
