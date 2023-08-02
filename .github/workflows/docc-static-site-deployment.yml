@@ -1,4 +1,4 @@
-name: CI
+name: Docc Static Site Deployment
 on:
   push:
     branches: ["main", "ajlb/docc-github-action"]
@@ -25,8 +25,8 @@ jobs:
           xcodebuild-destination: generic/platform=iOS
           transform-for-static-hosting: true
           hosting-base-path: swift-upload-sdk
-      - name: Add Redirect from Root
-        run: ./scripts/post-process-docc-for-github-pages.sh
+      - name: Post Process Docc Archive
+        run: ./scripts/post-process-docc-archive-for-github-pages.sh
       - uses: actions/upload-pages-artifact@v1
         with:
           path: docs

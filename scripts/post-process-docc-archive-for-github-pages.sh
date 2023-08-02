@@ -16,9 +16,6 @@ echo "▸ Rewrote ${output_path}/index.html to:"
 
 cat ${output_path}/index.html
 
-echo "Copy theme settings to static archive"
+echo "▸ Copy theme settings to static archive"
 
 cp scripts/docc-files/theme-settings.json docs
-
-cat $output_path/theme-settings.json
-
