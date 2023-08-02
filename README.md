@@ -7,8 +7,6 @@ Each video is uploaded to an authenticated [upload URL created by a trusted back
 To use this SDK, you'll need to add it as a dependency using either Swift Package Manager or Cocoapods.
 
 ## Documentation
-API documentation available [here](https://muxinc.github.io/swift-upload-sdk/documentation/muxuploadsdk/).
-
 A getting started guide can be found [here](https://docs.mux.com/guides/video/upload-video-directly-from-ios-or-ipados).
 
 ### Server-Side: Create a Direct Upload
