@@ -29,7 +29,11 @@ fileprivate func inferredPlatformName() -> String {
     } else if modelName.contains("iphone") {
         return "iOS"
     } else {
+        #if targetEnvironment(simulator)
+        return "Simulator"
+        #else
         return "Unknown"
+        #endif
     }
 }
 
