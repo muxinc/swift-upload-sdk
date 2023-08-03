@@ -1,7 +1,7 @@
 Pod::Spec.new do |s|
   s.name             = 'Mux-Upload-SDK'
   s.module_name      = 'MuxUploadSDK'
-  s.version          = '0.3.1'
+  s.version          = '0.5.1'
   s.summary          = 'Upload video to Mux.'
   s.description      = 'A library for uploading video to Mux. Similar to UpChunk, but for iOS.'
 
