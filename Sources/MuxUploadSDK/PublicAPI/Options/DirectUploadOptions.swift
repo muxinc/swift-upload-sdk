@@ -211,11 +211,11 @@ public struct DirectUploadOptions {
     /// Initializes options that dictate how the direct upload
     /// is carried out by the SDK
     /// - Parameters:
-    ///     - inputStandardization: options to enable or
-    ///     disable standardizing the format of the direct
-    ///     upload inputs, it is requested by default. To
-    ///     prevent the SDK from making any changes to the
-    ///     format of the input use ``DirectUploadOptions.InputStandardization.skipped``
+    ///     - inputStandardization: options related to input
+    ///     standardization. Input standardization is requested
+    ///     by default.
+    ///     To skip input standardization pass in
+    ///     ``DirectUploadOptions.InputStandardization.skipped``.
     ///     - transport: options for transporting the
     ///     direct upload input to Mux
     ///     - eventTracking: event tracking options for the
@@ -235,13 +235,11 @@ public struct DirectUploadOptions {
     /// - Parameters:
     ///     - eventTracking: event tracking options for the
     ///     direct upload
-    ///     - inputStandardization: options to enable or
-    ///     disable standardizing the format of the direct
-    ///     upload inputs. True by default.
-    ///     To prevent the SDK from making any changes to the
-    ///     upload inputs. True by default.
-    ///     To prevent the SDK from making any changes to the
-    ///     format of the input use ``DirectUploadOptions.InputStandardization.skipped``
+    ///     - inputStandardization: options related to input
+    ///     standardization. Input standardization is requested
+    ///     by default.
+    ///     To skip input standardization pass in
+    ///     ``DirectUploadOptions.InputStandardization.skipped``.
     ///     - chunkSize: The size of each file chunk sent by
     ///     the SDK during an upload. Defaults to 8MB.
     ///     - retryLimitPerChunk: number of retry attempts
@@ -265,12 +263,11 @@ public struct DirectUploadOptions {
     /// - Parameters:
     ///     - eventTracking: event tracking options for the
     ///     direct upload
-    ///     - inputStandardization: options to enable or
-    ///     disable standardizing the format of the direct
-    ///     upload inputs. True by default.
-    ///     To prevent the SDK from making any changes to the
-    ///     upload inputs. True by default.
-    ///     format of the input use ``DirectUploadOptions.InputStandardization.skipped``
+    ///     - inputStandardization: options related to input
+    ///     standardization. Input standardization is requested
+    ///     by default.
+    ///     To skip input standardization pass in
+    ///     ``DirectUploadOptions.InputStandardization.skipped``.
     ///     - chunkSizeInBytes: The size of each file chunk
     ///     in bytes sent by the SDK during an upload.
     ///     Defaults to 8MB.
