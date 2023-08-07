@@ -35,7 +35,25 @@ public struct DirectUploadOptions {
 
         /// Initializes options for upload chunk transport
         /// over the network
-        ///
+        /// - Parameters:
+        ///     - chunkSize: the size of each file chunk sent
+        ///     by the SDK during an upload.
+        ///     Defaults to 8MB.
+        ///     - retryLimitPerChunk: number of retry attempts
+        ///     if the chunk request fails, default value is 3
+        public init(
+            chunkSize: Measurement<UnitInformationStorage> = .defaultDirectUploadChunkSize,
+            retryLimitPerChunk: Int = 3
+        ) {
+            self.chunkSizeInBytes = Int(
+                abs(chunkSize.converted(to: .bytes).value)
+                    .rounded(.down)
+            )
+            self.retryLimitPerChunk = retryLimitPerChunk
+        }
+
+        /// Initializes options for upload chunk transport
+        /// over the network
         /// - Parameters:
         ///     - chunkSizeInBytes: the size of each file chunk in
         ///     bytes the SDK sends when uploading, default
@@ -190,6 +208,8 @@ public struct DirectUploadOptions {
 
     // MARK: Direct Upload Options Initializers
 
+    /// Initializes options that dictate how the direct upload
+    /// is carried out by the SDK
     /// - Parameters:
     ///     - inputStandardization: options to enable or
     ///     disable standardizing the format of the direct
@@ -210,13 +230,8 @@ public struct DirectUploadOptions {
         self.eventTracking = eventTracking
     }
 
-    /// - Parameters:
-    ///     - eventTracking: event tracking options for the
-    ///     direct upload
-    ///     - inputStandardization: options to enable or
-    ///     disable standardizing the format of the direct
-    ///     upload inputs, it is requested by default. To
-    ///     prevent the SDK from making any changes to the
+    /// Initializes options that dictate how the direct upload
+    /// is carried out by the SDK
     /// - Parameters:
     ///     - eventTracking: event tracking options for the
     ///     direct upload
@@ -224,12 +239,43 @@ public struct DirectUploadOptions {
     ///     disable standardizing the format of the direct
     ///     upload inputs. True by default.
     ///     To prevent the SDK from making any changes to the
+    ///     upload inputs. True by default.
+    ///     To prevent the SDK from making any changes to the
+    ///     format of the input use ``DirectUploadOptions.InputStandardization.skipped``
+    ///     - chunkSize: The size of each file chunk sent by
+    ///     the SDK during an upload. Defaults to 8MB.
+    ///     - retryLimitPerChunk: number of retry attempts
+    ///     if the chunk request fails. Defaults to 3.
+    public init(
+        eventTracking: EventTracking = .default,
+        inputStandardization: InputStandardization = .default,
+        chunkSize: Measurement<UnitInformationStorage> = .defaultDirectUploadChunkSize,
+        retryLimitPerChunk: Int = 3
+    ) {
+        self.eventTracking = eventTracking
+        self.inputStandardization = inputStandardization
+        self.transport = Transport(
+            chunkSize: chunkSize,
+            retryLimitPerChunk: retryLimitPerChunk
+        )
+    }
+
+    /// Initializes options that dictate how the direct upload
+    /// is carried out by the SDK
+    /// - Parameters:
+    ///     - eventTracking: event tracking options for the
+    ///     direct upload
+    ///     - inputStandardization: options to enable or
+    ///     disable standardizing the format of the direct
+    ///     upload inputs. True by default.
+    ///     To prevent the SDK from making any changes to the
+    ///     upload inputs. True by default.
     ///     format of the input use ``DirectUploadOptions.InputStandardization.skipped``
     ///     - chunkSizeInBytes: The size of each file chunk
     ///     in bytes sent by the SDK during an upload.
     ///     Defaults to 8MB.
     ///     - retryLimitPerChunk: number of retry attempts
-    ///     if the chunk request fails, default value is 3
+    ///     if the chunk request fails. Defaults to 3.
     public init(
         eventTracking: EventTracking = .default,
         inputStandardization: InputStandardization = .default,
@@ -247,6 +293,16 @@ public struct DirectUploadOptions {
 }
 
 // MARK: - Extensions
+
+extension Measurement where UnitType == UnitInformationStorage {
+    /// Default direct upload chunk size
+    public static var defaultDirectUploadChunkSize: Self {
+        Measurement(
+            value: 8,
+            unit: .megabytes
+        )
+    }
+}
 
 extension DirectUploadOptions.InputStandardization.MaximumResolution: CustomStringConvertible {
     public var description: String {
