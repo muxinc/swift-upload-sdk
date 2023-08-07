@@ -7,6 +7,7 @@
 
 import Foundation
 
+/// Version information about the SDK
 public struct Version {
   /// Major version.
   public static let major = 0
