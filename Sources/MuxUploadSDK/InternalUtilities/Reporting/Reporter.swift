@@ -147,7 +147,7 @@ extension Reporter {
             platformName: platformName,
             platformVersion: platformVersion,
             regionCode: regionCode,
-            sdkVersion: Version.versionString,
+            sdkVersion: SemanticVersion.versionString,
             uploadStartTime: uploadStartTime,
             uploadEndTime: uploadEndTime,
             uploadURL: uploadURL
@@ -188,7 +188,7 @@ extension Reporter {
             platformName: platformName,
             platformVersion: platformVersion,
             regionCode: regionCode,
-            sdkVersion: Version.versionString,
+            sdkVersion: SemanticVersion.versionString,
             uploadStartTime: uploadStartTime,
             uploadEndTime: uploadEndTime,
             uploadURL: url
@@ -229,7 +229,7 @@ extension Reporter {
             platformName: platformName,
             platformVersion: platformVersion,
             regionCode: regionCode,
-            sdkVersion: Version.versionString,
+            sdkVersion: SemanticVersion.versionString,
             standardizationStartTime: standardizationStartTime,
             standardizationEndTime: standardizationEndTime,
             uploadURL: uploadURL
@@ -273,7 +273,7 @@ extension Reporter {
             platformName: platformName,
             platformVersion: platformVersion,
             regionCode: regionCode,
-            sdkVersion: Version.versionString,
+            sdkVersion: SemanticVersion.versionString,
             standardizationStartTime: standardizationStartTime,
             standardizationEndTime: standardizationEndTime,
             uploadCanceled: uploadCanceled,
