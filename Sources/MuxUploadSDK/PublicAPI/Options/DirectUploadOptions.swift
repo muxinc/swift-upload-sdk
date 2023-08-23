@@ -11,8 +11,9 @@ public struct DirectUploadOptions {
 
     // MARK: - Transport Options
 
-    /// Options to adjust ``DirectUpload`` chunk transport
-    /// over the network.
+    /// Options for tuning network transport of direct upload
+    /// chunks to Mux. Using the ``default`` is recommended
+    /// for most applications.
     public struct Transport {
 
         /// The size of each file chunk in bytes sent by the
@@ -33,14 +34,15 @@ public struct DirectUploadOptions {
             )
         }
 
-        /// Initializes options for upload chunk transport
+        /// Initializes options for transport of upload chunks
         /// over the network
         /// - Parameters:
         ///     - chunkSize: the size of each file chunk sent
         ///     by the SDK during an upload.
         ///     Defaults to 8MB.
-        ///     - retryLimitPerChunk: number of retry attempts
-        ///     if the chunk request fails, default value is 3
+        ///     - retryLimitPerChunk: number of times a failed
+        ///     chunk request is retried. Default limit is
+        ///     3 retries.
         public init(
             chunkSize: Measurement<UnitInformationStorage> = .defaultDirectUploadChunkSize,
             retryLimitPerChunk: Int = 3
@@ -52,14 +54,15 @@ public struct DirectUploadOptions {
             self.retryLimitPerChunk = retryLimitPerChunk
         }
 
-        /// Initializes options for upload chunk transport
+        /// Initializes options for transport of upload chunks
         /// over the network
         /// - Parameters:
-        ///     - chunkSizeInBytes: the size of each file chunk in
-        ///     bytes the SDK sends when uploading, default
-        ///     value is 8MB
-        ///     - retryLimitPerChunk: number of retry attempts
-        ///     if the chunk request fails, default value is 3
+        ///     - chunkSizeInBytes: the size of each file
+        ///     chunk in bytes the SDK uploads in a single
+        ///     request. Default chunk size is 8MB.
+        ///     - retryLimitPerChunk: number of times a failed
+        ///     chunk request is retried. Default limit is
+        ///     3 retries.
         public init(
             chunkSizeInBytes: Int = 8 * 1024 * 1024,
             retryLimitPerChunk: Int = 3
@@ -69,7 +72,7 @@ public struct DirectUploadOptions {
         }
     }
 
-    /// Transport options for the direct upload
+    /// Network transport options for direct upload chunks
     public var transport: Transport
 
     // MARK: - Input Standardization Options
