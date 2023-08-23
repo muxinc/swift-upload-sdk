@@ -12,7 +12,7 @@ public struct SemanticVersion {
     /// Major version component.
     public static let major = 0
     /// Minor version component.
-    public static let minor = 6
+    public static let minor = 7
     /// Patch version component.
     public static let patch = 0
 
