@@ -41,10 +41,10 @@ jobs:
           devdocs_bucket: upload-swift
           sdk_semantic_version: ${{ steps.version.outputs.version_name }}
         run: |
-          .github/workflows/scripts/create-docc-archive.sh
+          ./scripts/create-docc-archive.sh
       - name: Update the docs AWS bucket
         run: |
-          .github/workflows/scripts/upload-to-dev-docs.sh upload-swift ${{ steps.version.outputs.version_name }}
+          ./scripts/upload-to-dev-docs.sh upload-swift ${{ steps.version.outputs.version_name }}
       - name: Update the devdocs site
         run: |
           echo "${{ secrets.DOCS_REPO_PAT }}" | gh auth login --with-token

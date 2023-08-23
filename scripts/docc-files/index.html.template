@@ -1,0 +1,6 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<!-- This file is intended to replace the automatically generated index.html so it redirects to the "real" homepage for __SLUG__ docs -->
+<title>Redirecting to __SLUG__ homepage</title>
+<meta http-equiv="refresh" content="0; URL=/__SLUG__/documentation/__TARGET__/">
+<link rel="canonical" href="/__SLUG__/documentation/__TARGET__/"/>
