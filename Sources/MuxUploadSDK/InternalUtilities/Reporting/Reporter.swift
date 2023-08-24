@@ -23,7 +23,7 @@ fileprivate func posixModelName() -> String {
 }
 
 fileprivate func inferredPlatformName() -> String {
-    let modelName = posixModelName()
+    let modelName = posixModelName().lowercased()
     if modelName.contains("ipad") {
         return "iPadOS"
     } else if modelName.contains("iphone") {
