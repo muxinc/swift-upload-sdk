@@ -6,7 +6,36 @@
 //
 
 import Foundation
-import UIKit
+
+fileprivate func processInfoOperationSystemVersion() -> String {
+    let version = ProcessInfo().operatingSystemVersion
+    return "\(version.majorVersion).\(version.minorVersion).\(version.patchVersion)"
+}
+
+fileprivate func posixModelName() -> String {
+    var systemName = utsname()
+    uname(&systemName)
+    return withUnsafePointer(to: &systemName.machine) {
+        $0.withMemoryRebound(to: CChar.self, capacity: 1) {
+            ptr in String.init(validatingUTF8: ptr)
+        }
+    } ?? "Unknown"
+}
+
+fileprivate func inferredPlatformName() -> String {
+    let modelName = posixModelName().lowercased()
+    if modelName.contains("ipad") {
+        return "iPadOS"
+    } else if modelName.contains("iphone") {
+        return "iOS"
+    } else {
+        #if targetEnvironment(simulator)
+        return "Simulator"
+        #else
+        return "Unknown"
+        #endif
+    }
+}
 
 class Reporter: NSObject {
 
@@ -28,9 +57,11 @@ class Reporter: NSObject {
     var locale: Locale {
         Locale.current
     }
-    var device: UIDevice {
-        UIDevice.current
-    }
+
+    let model: String
+    let platformName: String
+    let platformVersion: String
+
     var regionCode: String? {
         if #available(iOS 16, *) {
             return locale.language.region?.identifier
@@ -51,6 +82,10 @@ class Reporter: NSObject {
         self.url = URL(
             string: "https://mobile.muxanalytics.com"
         )!
+
+        self.model = posixModelName()
+        self.platformName = inferredPlatformName()
+        self.platformVersion = processInfoOperationSystemVersion()
 
         super.init()
 
@@ -105,14 +140,14 @@ extension Reporter {
         let data = UploadSucceededEvent.Data(
             appName: Bundle.main.appName,
             appVersion: Bundle.main.appVersion,
-            deviceModel: device.model,
+            deviceModel: model,
             inputDuration: inputDuration,
             inputSize: inputSize,
             inputStandardizationRequested: options.inputStandardization.isRequested,
-            platformName: device.systemName,
-            platformVersion: device.systemVersion,
+            platformName: platformName,
+            platformVersion: platformVersion,
             regionCode: regionCode,
-            sdkVersion: Version.versionString,
+            sdkVersion: SemanticVersion.versionString,
             uploadStartTime: uploadStartTime,
             uploadEndTime: uploadEndTime,
             uploadURL: uploadURL
@@ -145,15 +180,15 @@ extension Reporter {
         let data = UploadFailedEvent.Data(
             appName: Bundle.main.appName,
             appVersion: Bundle.main.appVersion,
-            deviceModel: device.model,
+            deviceModel: model,
             errorDescription: errorDescription,
             inputDuration: inputDuration,
             inputSize: inputSize,
             inputStandardizationRequested: options.inputStandardization.isRequested,
-            platformName: device.systemName,
-            platformVersion: device.systemVersion,
+            platformName: platformName,
+            platformVersion: platformVersion,
             regionCode: regionCode,
-            sdkVersion: Version.versionString,
+            sdkVersion: SemanticVersion.versionString,
             uploadStartTime: uploadStartTime,
             uploadEndTime: uploadEndTime,
             uploadURL: url
@@ -186,15 +221,15 @@ extension Reporter {
         let data = InputStandardizationSucceededEvent.Data(
             appName: Bundle.main.appName,
             appVersion: Bundle.main.appVersion,
-            deviceModel: device.model,
+            deviceModel: model,
             inputDuration: inputDuration,
             inputSize: inputSize,
             maximumResolution: options.inputStandardization.maximumResolution.description,
             nonStandardInputReasons: nonStandardInputReasons.map(\.description),
-            platformName: device.systemName,
-            platformVersion: device.systemVersion,
+            platformName: platformName,
+            platformVersion: platformVersion,
             regionCode: regionCode,
-            sdkVersion: Version.versionString,
+            sdkVersion: SemanticVersion.versionString,
             standardizationStartTime: standardizationStartTime,
             standardizationEndTime: standardizationEndTime,
             uploadURL: uploadURL
@@ -229,16 +264,16 @@ extension Reporter {
         let data = InputStandardizationFailedEvent.Data(
             appName: Bundle.main.appName,
             appVersion: Bundle.main.appVersion,
-            deviceModel: device.model,
+            deviceModel: model,
             errorDescription: errorDescription,
             inputDuration: inputDuration,
             inputSize: inputSize,
             maximumResolution: options.inputStandardization.maximumResolution.description,
             nonStandardInputReasons: nonStandardInputReasons.map(\.description),
-            platformName: device.systemName,
-            platformVersion: device.systemVersion,
+            platformName: platformName,
+            platformVersion: platformVersion,
             regionCode: regionCode,
-            sdkVersion: Version.versionString,
+            sdkVersion: SemanticVersion.versionString,
             standardizationStartTime: standardizationStartTime,
             standardizationEndTime: standardizationEndTime,
             uploadCanceled: uploadCanceled,

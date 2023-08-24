@@ -8,6 +8,8 @@
 import AVFoundation
 import Foundation
 
+/// Indicates whether a finished upload failed due to an error
+/// or succeeded along with details
 public typealias DirectUploadResult = Result<DirectUpload.SuccessDetails, DirectUploadError>
 
 ///
@@ -341,6 +343,9 @@ public final class DirectUpload {
      */
     public var progressHandler: StateHandler?
 
+    /**
+     Details about a ``DirectUpload`` after it successfully finished
+     */
     public struct SuccessDetails : Sendable, Hashable {
         public let finalState: TransportStatus
     }
