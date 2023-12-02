@@ -9,7 +9,12 @@ import XCTest
 
 class ReporterTests: XCTestCase {
 
-    enum ExpectedJSONStrings {
+    /// There was a change in JSONEncoder behavior between
+    /// iOS 16 and 17 that affected precision when encoding
+    /// floats. It's immaterial in terms of data but does
+    /// require slightly different expected values when
+    /// testing.
+    enum ExpectedJSONStringsiOS16AndBelow {
         static let inputStandardizationFailed = #"{"data":{"app_name":"AcmeApp","app_version":"3.2.1","device_model":"iPad","error_description":"foo","input_duration":3.1400000000000001,"input_size":1500000,"maximum_resolution":"default","non_standard_input_reasons":[],"platform_name":"iPadOS","platform_version":"15.0.0","sdk_version":"0.4.1","standardization_end_time":"2023-07-07T03:43:58Z","standardization_start_time":"2023-07-07T03:38:58Z","upload_canceled":false,"upload_url":"https:\/\/www.example.com"},"session_id":"xyz789","type":"upload_input_standardization_failed","version":"1"}"#
 
         static let inputStandardizationSucceeded = #"{"data":{"app_name":"AcmeApp","app_version":"3.2.1","device_model":"iPad","input_duration":3.1400000000000001,"input_size":1500000,"maximum_resolution":"default","non_standard_input_reasons":[],"platform_name":"iPadOS","platform_version":"15.0.0","sdk_version":"0.4.1","standardization_end_time":"2023-07-07T03:43:58Z","standardization_start_time":"2023-07-07T03:38:58Z","upload_url":"https:\/\/www.example.com"},"session_id":"jkl567","type":"upload_input_standardization_succeeded","version":"1"}"#
@@ -17,6 +22,16 @@ class ReporterTests: XCTestCase {
         static let uploadFailed = #"{"data":{"app_name":"AcmeApp","app_version":"3.2.1","device_model":"iPad","error_description":"foo","input_duration":3.1400000000000001,"input_size":1500000,"input_standardization_requested":false,"platform_name":"iPadOS","platform_version":"16.2.0","region_code":"US","sdk_version":"0.3.0","upload_end_time":"2023-07-07T04:12:48Z","upload_start_time":"2023-07-07T04:12:18Z","upload_url":"https:\/\/www.example.com"},"session_id":"abc123","type":"upload_failed","version":"1"}"#
 
         static let uploadSucceeded = #"{"data":{"app_name":"AcmeApp","app_version":"3.2.1","device_model":"iPad","input_duration":3.1400000000000001,"input_size":1500000,"input_standardization_requested":true,"platform_name":"iPadOS","platform_version":"16.2.0","region_code":"US","sdk_version":"0.3.0","upload_end_time":"2023-07-07T04:12:48Z","upload_start_time":"2023-07-07T04:12:18Z","upload_url":"https:\/\/www.example.com"},"session_id":"abc123","type":"upload_succeeded","version":"1"}"#
+    }
+
+    enum ExpectedJSONStringsiOS17 {
+        static let inputStandardizationFailed = #"{"data":{"app_name":"AcmeApp","app_version":"3.2.1","device_model":"iPad","error_description":"foo","input_duration":3.14,"input_size":1500000,"maximum_resolution":"default","non_standard_input_reasons":[],"platform_name":"iPadOS","platform_version":"15.0.0","sdk_version":"0.4.1","standardization_end_time":"2023-07-07T03:43:58Z","standardization_start_time":"2023-07-07T03:38:58Z","upload_canceled":false,"upload_url":"https:\/\/www.example.com"},"session_id":"xyz789","type":"upload_input_standardization_failed","version":"1"}"#
+
+        static let inputStandardizationSucceeded = #"{"data":{"app_name":"AcmeApp","app_version":"3.2.1","device_model":"iPad","input_duration":3.14,"input_size":1500000,"maximum_resolution":"default","non_standard_input_reasons":[],"platform_name":"iPadOS","platform_version":"15.0.0","sdk_version":"0.4.1","standardization_end_time":"2023-07-07T03:43:58Z","standardization_start_time":"2023-07-07T03:38:58Z","upload_url":"https:\/\/www.example.com"},"session_id":"jkl567","type":"upload_input_standardization_succeeded","version":"1"}"#
+
+        static let uploadFailed = #"{"data":{"app_name":"AcmeApp","app_version":"3.2.1","device_model":"iPad","error_description":"foo","input_duration":3.14,"input_size":1500000,"input_standardization_requested":false,"platform_name":"iPadOS","platform_version":"16.2.0","region_code":"US","sdk_version":"0.3.0","upload_end_time":"2023-07-07T04:12:48Z","upload_start_time":"2023-07-07T04:12:18Z","upload_url":"https:\/\/www.example.com"},"session_id":"abc123","type":"upload_failed","version":"1"}"#
+
+        static let uploadSucceeded = #"{"data":{"app_name":"AcmeApp","app_version":"3.2.1","device_model":"iPad","input_duration":3.14,"input_size":1500000,"input_standardization_requested":true,"platform_name":"iPadOS","platform_version":"16.2.0","region_code":"US","sdk_version":"0.3.0","upload_end_time":"2023-07-07T04:12:48Z","upload_start_time":"2023-07-07T04:12:18Z","upload_url":"https:\/\/www.example.com"},"session_id":"abc123","type":"upload_succeeded","version":"1"}"#
     }
 
     var jsonEncoder = Reporter().jsonEncoder
@@ -52,10 +67,18 @@ class ReporterTests: XCTestCase {
             )
         )
 
-        XCTAssertEqual(
-            json,
-            ExpectedJSONStrings.inputStandardizationFailed
-        )
+        if #available(iOS 17, *) {
+            XCTAssertEqual(
+                json,
+                ExpectedJSONStringsiOS17.inputStandardizationFailed
+            )
+        } else {
+            XCTAssertEqual(
+                json,
+                ExpectedJSONStringsiOS16AndBelow.inputStandardizationFailed
+            )
+        }
+
     }
 
     func testInputStandardizationSucceededEventSerialization() throws {
@@ -87,10 +110,17 @@ class ReporterTests: XCTestCase {
             )
         )
 
-        XCTAssertEqual(
-            json,
-            ExpectedJSONStrings.inputStandardizationSucceeded
-        )
+        if #available(iOS 17, *) {
+            XCTAssertEqual(
+                json,
+                ExpectedJSONStringsiOS17.inputStandardizationSucceeded
+            )
+        } else {
+            XCTAssertEqual(
+                json,
+                ExpectedJSONStringsiOS16AndBelow.inputStandardizationSucceeded
+            )
+        }
     }
 
     func testUploadFailedEventSerialization() throws {
@@ -123,10 +153,17 @@ class ReporterTests: XCTestCase {
             )
         )
 
-        XCTAssertEqual(
-            json,
-            ExpectedJSONStrings.uploadFailed
-        )
+        if #available(iOS 17, *) {
+            XCTAssertEqual(
+                json,
+                ExpectedJSONStringsiOS17.uploadFailed
+            )
+        } else {
+            XCTAssertEqual(
+                json,
+                ExpectedJSONStringsiOS16AndBelow.uploadFailed
+            )
+        }
     }
 
     func testUploadSucceededEventSerialization() throws {
@@ -159,10 +196,17 @@ class ReporterTests: XCTestCase {
             )
         )
 
-        XCTAssertEqual(
-            json,
-            ExpectedJSONStrings.uploadSucceeded
-        )
+        if #available(iOS 17, *) {
+            XCTAssertEqual(
+                json,
+                ExpectedJSONStringsiOS17.uploadSucceeded
+            )
+        } else {
+            XCTAssertEqual(
+                json,
+                ExpectedJSONStringsiOS16AndBelow.uploadSucceeded
+            )
+        }
     }
 
 }
