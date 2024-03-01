@@ -26,6 +26,11 @@
 		19822A772A4CA69700CFA822 /* UploadCTA.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19822A662A4CA69700CFA822 /* UploadCTA.swift */; };
 		19822A792A4CA69700CFA822 /* ImagePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19822A682A4CA69700CFA822 /* ImagePicker.swift */; };
 		19DCD95B2A4CA567001FBBF6 /* MuxUploadSDK in Frameworks */ = {isa = PBXBuildFile; productRef = 19DCD95A2A4CA567001FBBF6 /* MuxUploadSDK */; };
+		F38876CA2B86DBEB00B82A86 /* MemoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F38876C92B86DBEB00B82A86 /* MemoryTests.swift */; };
+		F38876D22B86DCFB00B82A86 /* MuxUploadSDK in Frameworks */ = {isa = PBXBuildFile; productRef = F38876D12B86DCFB00B82A86 /* MuxUploadSDK */; };
+		F38876D72B86DD4A00B82A86 /* FakeBackend.swift in Sources */ = {isa = PBXBuildFile; fileRef = F38876D52B86DD4A00B82A86 /* FakeBackend.swift */; };
+		F38876D82B86DD4A00B82A86 /* EnvironmentVariables.swift in Sources */ = {isa = PBXBuildFile; fileRef = F38876D62B86DD4A00B82A86 /* EnvironmentVariables.swift */; };
+		F3DB262A2B8F792D0000C39B /* five_min.mov in Resources */ = {isa = PBXBuildFile; fileRef = F3DB26282B8F5D430000C39B /* five_min.mov */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -35,6 +40,13 @@
 			proxyType = 1;
 			remoteGlobalIDString = 358E3C7629A92167005261CB;
 			remoteInfo = "Test App";
+		};
+		F38876CB2B86DBEB00B82A86 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 358E3C6F29A92167005261CB /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 358E3C7629A92167005261CB;
+			remoteInfo = SwiftUploadSDKExample;
 		};
 /* End PBXContainerItemProxy section */
 
@@ -60,6 +72,11 @@
 		19DCD9592A4CA546001FBBF6 /* swift-upload-sdk */ = {isa = PBXFileReference; lastKnownFileType = wrapper; name = "swift-upload-sdk"; path = ../..; sourceTree = "<group>"; };
 		358E3C7729A92167005261CB /* SwiftUploadSDKExample.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SwiftUploadSDKExample.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		358E3C9129A92168005261CB /* SwiftUploadSDKExampleTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SwiftUploadSDKExampleTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		F38876C72B86DBEB00B82A86 /* SwiftUploadSDKExampleUnitTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SwiftUploadSDKExampleUnitTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		F38876C92B86DBEB00B82A86 /* MemoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryTests.swift; sourceTree = "<group>"; };
+		F38876D52B86DD4A00B82A86 /* FakeBackend.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = FakeBackend.swift; sourceTree = "<group>"; };
+		F38876D62B86DD4A00B82A86 /* EnvironmentVariables.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = EnvironmentVariables.swift; sourceTree = "<group>"; };
+		F3DB26282B8F5D430000C39B /* five_min.mov */ = {isa = PBXFileReference; lastKnownFileType = video.quicktime; name = five_min.mov; path = "../../Tests/MuxUploadSDKTests/Upload Tests/five_min.mov"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -75,6 +92,14 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F38876C42B86DBEB00B82A86 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F38876D22B86DCFB00B82A86 /* MuxUploadSDK in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -172,9 +197,11 @@
 		358E3C6E29A92167005261CB = {
 			isa = PBXGroup;
 			children = (
+				F3DB26282B8F5D430000C39B /* five_min.mov */,
 				358E3CC329A9221F005261CB /* Packages */,
 				19822A502A4CA69700CFA822 /* SwiftUploadSDKExample */,
 				19822A7A2A4CA6A300CFA822 /* SwiftUploadSDKExampleTests */,
+				F38876C82B86DBEB00B82A86 /* SwiftUploadSDKExampleUnitTests */,
 				358E3C7829A92167005261CB /* Products */,
 				358E3CC529A9223B005261CB /* Frameworks */,
 			);
@@ -185,6 +212,7 @@
 			children = (
 				358E3C7729A92167005261CB /* SwiftUploadSDKExample.app */,
 				358E3C9129A92168005261CB /* SwiftUploadSDKExampleTests.xctest */,
+				F38876C72B86DBEB00B82A86 /* SwiftUploadSDKExampleUnitTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -202,6 +230,25 @@
 			children = (
 			);
 			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		F38876C82B86DBEB00B82A86 /* SwiftUploadSDKExampleUnitTests */ = {
+			isa = PBXGroup;
+			children = (
+				F38876D42B86DD4A00B82A86 /* Helpers */,
+				F38876C92B86DBEB00B82A86 /* MemoryTests.swift */,
+			);
+			path = SwiftUploadSDKExampleUnitTests;
+			sourceTree = "<group>";
+		};
+		F38876D42B86DD4A00B82A86 /* Helpers */ = {
+			isa = PBXGroup;
+			children = (
+				F38876D52B86DD4A00B82A86 /* FakeBackend.swift */,
+				F38876D62B86DD4A00B82A86 /* EnvironmentVariables.swift */,
+			);
+			name = Helpers;
+			path = ../../../Tests/MuxUploadSDKTests/Helpers;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -245,6 +292,27 @@
 			productReference = 358E3C9129A92168005261CB /* SwiftUploadSDKExampleTests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
+		F38876C62B86DBEB00B82A86 /* SwiftUploadSDKExampleUnitTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F38876CD2B86DBEB00B82A86 /* Build configuration list for PBXNativeTarget "SwiftUploadSDKExampleUnitTests" */;
+			buildPhases = (
+				F38876C32B86DBEB00B82A86 /* Sources */,
+				F38876C42B86DBEB00B82A86 /* Frameworks */,
+				F38876C52B86DBEB00B82A86 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				F38876CC2B86DBEB00B82A86 /* PBXTargetDependency */,
+			);
+			name = SwiftUploadSDKExampleUnitTests;
+			packageProductDependencies = (
+				F38876D12B86DCFB00B82A86 /* MuxUploadSDK */,
+			);
+			productName = SwiftUploadSDKExampleUnitTests;
+			productReference = F38876C72B86DBEB00B82A86 /* SwiftUploadSDKExampleUnitTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -252,7 +320,7 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
-				LastSwiftUpdateCheck = 1420;
+				LastSwiftUpdateCheck = 1500;
 				LastUpgradeCheck = 1420;
 				TargetAttributes = {
 					358E3C7629A92167005261CB = {
@@ -260,6 +328,10 @@
 					};
 					358E3C9029A92168005261CB = {
 						CreatedOnToolsVersion = 14.2;
+						TestTargetID = 358E3C7629A92167005261CB;
+					};
+					F38876C62B86DBEB00B82A86 = {
+						CreatedOnToolsVersion = 15.0.1;
 						TestTargetID = 358E3C7629A92167005261CB;
 					};
 				};
@@ -273,12 +345,16 @@
 				Base,
 			);
 			mainGroup = 358E3C6E29A92167005261CB;
+			packageReferences = (
+				F38876D02B86DCFB00B82A86 /* XCRemoteSwiftPackageReference "swift-upload-sdk" */,
+			);
 			productRefGroup = 358E3C7829A92167005261CB /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
 				358E3C7629A92167005261CB /* SwiftUploadSDKExample */,
 				358E3C9029A92168005261CB /* SwiftUploadSDKExampleTests */,
+				F38876C62B86DBEB00B82A86 /* SwiftUploadSDKExampleUnitTests */,
 			);
 		};
 /* End PBXProject section */
@@ -298,6 +374,14 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F38876C52B86DBEB00B82A86 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F3DB262A2B8F792D0000C39B /* five_min.mov in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -333,6 +417,16 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		F38876C32B86DBEB00B82A86 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F38876CA2B86DBEB00B82A86 /* MemoryTests.swift in Sources */,
+				F38876D72B86DD4A00B82A86 /* FakeBackend.swift in Sources */,
+				F38876D82B86DD4A00B82A86 /* EnvironmentVariables.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -340,6 +434,11 @@
 			isa = PBXTargetDependency;
 			target = 358E3C7629A92167005261CB /* SwiftUploadSDKExample */;
 			targetProxy = 358E3C9229A92168005261CB /* PBXContainerItemProxy */;
+		};
+		F38876CC2B86DBEB00B82A86 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 358E3C7629A92167005261CB /* SwiftUploadSDKExample */;
+			targetProxy = F38876CB2B86DBEB00B82A86 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -466,7 +565,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"SwiftUploadSDKExample/Preview Content\"";
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = XX95P4Y787;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "This app uploads photos from your camera roll";
@@ -498,7 +597,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"SwiftUploadSDKExample/Preview Content\"";
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = XX95P4Y787;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "This app uploads photos from your camera roll";
@@ -528,10 +627,11 @@
 				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = XX95P4Y787;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.mux.video.upload.Test-AppUITests";
+				"PRODUCT_BUNDLE_IDENTIFIER[sdk=iphoneos*]" = "com.mux.video-uploader";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
@@ -546,15 +646,63 @@
 				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = XX95P4Y787;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.mux.video.upload.Test-AppUITests";
+				"PRODUCT_BUNDLE_IDENTIFIER[sdk=iphoneos*]" = "com.mux.video-uploader";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_TARGET_NAME = SwiftUploadSDKExample;
+			};
+			name = Release;
+		};
+		F38876CE2B86DBEB00B82A86 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = XX95P4Y787;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.mux.spaces.sdk.SwiftUploadSDKExampleUnitTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/SwiftUploadSDKExample.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/SwiftUploadSDKExample";
+			};
+			name = Debug;
+		};
+		F38876CF2B86DBEB00B82A86 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = XX95P4Y787;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.mux.spaces.sdk.SwiftUploadSDKExampleUnitTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/SwiftUploadSDKExample.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/SwiftUploadSDKExample";
 			};
 			name = Release;
 		};
@@ -588,11 +736,36 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
+		F38876CD2B86DBEB00B82A86 /* Build configuration list for PBXNativeTarget "SwiftUploadSDKExampleUnitTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F38876CE2B86DBEB00B82A86 /* Debug */,
+				F38876CF2B86DBEB00B82A86 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		F38876D02B86DCFB00B82A86 /* XCRemoteSwiftPackageReference "swift-upload-sdk" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/muxinc/swift-upload-sdk";
+			requirement = {
+				branch = main;
+				kind = branch;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
 		19DCD95A2A4CA567001FBBF6 /* MuxUploadSDK */ = {
 			isa = XCSwiftPackageProductDependency;
+			productName = MuxUploadSDK;
+		};
+		F38876D12B86DCFB00B82A86 /* MuxUploadSDK */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = F38876D02B86DCFB00B82A86 /* XCRemoteSwiftPackageReference "swift-upload-sdk" */;
 			productName = MuxUploadSDK;
 		};
 /* End XCSwiftPackageProductDependency section */

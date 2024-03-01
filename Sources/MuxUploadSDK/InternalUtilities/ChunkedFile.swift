@@ -91,8 +91,12 @@ class ChunkedFile {
         guard let fileHandle = fileHandle, let fileURL = fileURL else {
             throw ChunkedFileError.invalidState("doReadNextChunk called without file handle. Did you call open()?")
         }
-        let data = try fileHandle.read(upToCount: chunkSize)
-
+        var data : Data?
+        try autoreleasepool {
+            data = try fileHandle.read(upToCount: chunkSize)
+        }
+//        let data = try fileHandle.read(upToCount: chunkSize)
+        
         let fileSize = try fileManager.fileSizeOfItem(
             atPath: fileURL.path
         )
