@@ -95,7 +95,6 @@ class ChunkedFile {
         try autoreleasepool {
             data = try fileHandle.read(upToCount: chunkSize)
         }
-//        let data = try fileHandle.read(upToCount: chunkSize)
         
         let fileSize = try fileManager.fileSizeOfItem(
             atPath: fileURL.path
