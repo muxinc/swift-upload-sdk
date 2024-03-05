@@ -7,7 +7,8 @@ let package = Package(
     name: "MuxUploadSDK",
     defaultLocalization: "en",
     platforms: [
-        .iOS(.v14)
+        .iOS(.v14),
+        .macOS(.v13)
     ],
     
     products: [
