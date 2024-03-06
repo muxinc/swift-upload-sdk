@@ -449,11 +449,9 @@ fileprivate actor Worker {
             
             let wideChunkSize = Int64(chunk.size())
             let chunkProgress = Progress(totalUnitCount: wideChunkSize)
-            //overallProgress.addChild(chunkProgress, withPendingUnitCount: wideChunkSize)
             
             let chunkWorker = ChunkWorker(
                 uploadURL: uploadInfo.uploadURL,
-                fileChunk: chunk,
                 chunkProgress: chunkProgress,
                 maxRetries: uploadInfo.options.transport.retryLimitPerChunk
             )
@@ -470,7 +468,9 @@ fileprivate actor Worker {
             // Problem is in line bellow, task will retain the reference to a chunk read from file and will
             // not release it until the for loop is exited, we need to find a way to implicitly release task memory
             // withouth breaking the for loop.
-            let chunkResult = try await chunkWorker.getTask().value
+            let chunkResult = try await chunkWorker.makeUploadTaskIfNeeded(
+                chunk: chunk
+            ).value
             SDKLogger.logger?.info("Completed Chunk:\n \(String(describing: chunkResult))")
         } while (readBytes == uploadInfo.options.transport.chunkSizeInBytes)
 
