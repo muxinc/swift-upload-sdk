@@ -431,8 +431,20 @@ fileprivate actor Worker {
         var readBytes: Int
         repeat {
             try Task.checkCancellation()
-            
-            let chunk = try chunkedFile.readNextChunk().get()
+
+            guard case let Result.success(chunk) = chunkedFile.readNextChunk() else {
+                // TODO: report error accurately
+                throw ChunkWorker.ChunkWorkerError.init(
+                    lastSeenProgress: ChunkWorker.Update(
+                        progress: overallProgress,
+                        bytesSinceLastUpdate: 0,
+                        chunkStartTime: Date().timeIntervalSince1970,
+                        eventTime: Date().timeIntervalSince1970
+                    ), 
+                    reason: nil
+                )
+            }
+
             readBytes = chunk.size()
             
             let wideChunkSize = Int64(chunk.size())
