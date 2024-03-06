@@ -8,8 +8,7 @@
 import XCTest
 @testable import MuxUploadSDK
 
-final class ChunkWorker: XCTestCase {
-
+class ChunkWorkerTests: XCTestCase {
     func testResponseValidatorRetryCodes() throws {
         let validator = ChunkResponseValidator()
         for code in ChunkResponseValidator.retryableHTTPStatusCodes {
