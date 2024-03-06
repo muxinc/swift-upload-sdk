@@ -46,7 +46,7 @@ class ChunkedFile {
             }
 
             guard let fileURL = fileURL else {
-                throw ChunkedFileError.invalidState("Missing file url.")
+                return Result.failure(ChunkedFileError.invalidState("Missing file url."))
             }
             var data : Data?
             try autoreleasepool {
