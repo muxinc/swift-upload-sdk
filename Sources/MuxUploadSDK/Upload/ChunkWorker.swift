@@ -7,12 +7,13 @@
 
 import Foundation
 
-/// Uploads a single chunk. Starts an internal Task on creation, which you can get with ``getTask``
-///  This class takes care of retries and backoff on a per-chunk basis
-///  This class provides no thread safety to the outside world
+/// Uploads a single chunk. Starts an internal Task on creation, 
+/// which can be accessed with ``makeUploadTaskIfNeeded``.
+///
+/// This class takes care of retries and backoff on a per-chunk basis
+/// This class provides no thread safety to the outside world
 class ChunkWorker {
     let uploadURL: URL
-    let chunk: FileChunk
     let maxRetries: Int
     let chunkProgress: Progress
     
@@ -33,11 +34,12 @@ class ChunkWorker {
         self.progressDelegate = delegatePair
     }
     
-    func getTask() -> Task<Success, Error> {
-
+    func makeUploadTaskIfNeeded(
+        chunk: FileChunk
+    ) -> Task<Success, Error> {
         guard let uploadTask else {
             chunkStartTime = Date().timeIntervalSince1970
-            let uploadTask = makeUploadTask()
+            let uploadTask = makeUploadTask(chunk: chunk)
             self.uploadTask = uploadTask
             return uploadTask
         }
@@ -51,12 +53,14 @@ class ChunkWorker {
         }
     }
     
-    private func makeUploadTask() -> Task<Success, Error> {
+    private func makeUploadTask(
+        chunk: FileChunk
+    ) -> Task<Success, Error> {
         return Task { [self] in
             var retries = 0
             var requestError: Error?
             let repsonseValidator = ChunkResponseValidator()
-    
+
             repeat {
                 do {
                     let chunkActor = ChunkActor(
@@ -145,21 +149,25 @@ class ChunkWorker {
     struct Success : Sendable {
         let finalState: Update
         let tries: Int
-        // TODO: Also AF Response
     }
     
-    convenience init(uploadInfo: UploadInfo, fileChunk: FileChunk, chunkProgress: Progress) {
+    convenience init(
+        uploadInfo: UploadInfo,
+        chunkProgress: Progress
+    ) {
         self.init(
             uploadURL: uploadInfo.uploadURL,
-            fileChunk: fileChunk,
             chunkProgress: chunkProgress,
             maxRetries: uploadInfo.options.transport.retryLimitPerChunk
         )
     }
     
-    init(uploadURL: URL, fileChunk: FileChunk, chunkProgress: Progress, maxRetries: Int) {
+    init(
+        uploadURL: URL,
+        chunkProgress: Progress,
+        maxRetries: Int
+    ) {
         self.uploadURL = uploadURL
-        self.chunk = fileChunk
         self.maxRetries = maxRetries
         self.chunkProgress = chunkProgress
     }
