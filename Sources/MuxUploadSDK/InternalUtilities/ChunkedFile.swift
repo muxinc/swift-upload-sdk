@@ -41,10 +41,47 @@ class ChunkedFile {
     func readNextChunk() -> Result<FileChunk, Error> {
         SDKLogger.logger?.info("--readNextChunk(): called")
         do {
-            guard fileHandle != nil else {
+            guard let fileHandle else {
                 return Result.failure(ChunkedFileError.invalidState("readNextChunk() called but the file was not open"))
             }
-            return try Result.success(doReadNextChunk())
+
+            guard let fileURL = fileURL else {
+                throw ChunkedFileError.invalidState("Missing file url.")
+            }
+            var data : Data?
+            try autoreleasepool {
+                data = try fileHandle.read(upToCount: chunkSize)
+            }
+
+            let fileSize = try fileManager.fileSizeOfItem(
+                atPath: fileURL.path
+            )
+
+            guard let data = data else {
+                // Called while already at the end of the file. We read zero bytes, "ending" at the end of the file
+                return .success(
+                    FileChunk(
+                        startByte: fileSize,
+                        endByte: fileSize,
+                        totalFileSize: fileSize,
+                        chunkData: Data(capacity: 0)
+                    )
+                )
+            }
+
+            let chunkLength = data.count
+            let updatedFilePosition = filePos + UInt64(chunkLength)
+
+            let chunk = FileChunk(
+                startByte: self.filePos,
+                endByte: updatedFilePosition,
+                totalFileSize: fileSize,
+                chunkData: data
+            )
+
+            state?.filePosition = updatedFilePosition
+
+            return .success(chunk)
         } catch {
             return Result.failure(ChunkedFileError.fileHandle(error))
         }
@@ -84,40 +121,6 @@ class ChunkedFile {
         // Worst case: we start from the begining and there's a few very quick chunk successes
         try fileHandle?.seek(toOffset: byte)
         state?.filePosition = byte
-    }
-    
-    private func doReadNextChunk() throws -> FileChunk {
-        SDKLogger.logger?.info("--doReadNextChunk")
-        guard let fileHandle = fileHandle, let fileURL = fileURL else {
-            throw ChunkedFileError.invalidState("doReadNextChunk called without file handle. Did you call open()?")
-        }
-        var data : Data?
-        try autoreleasepool {
-            data = try fileHandle.read(upToCount: chunkSize)
-        }
-        
-        let fileSize = try fileManager.fileSizeOfItem(
-            atPath: fileURL.path
-        )
-        
-        guard let data = data else {
-            // Called while already at the end of the file. We read zero bytes, "ending" at the end of the file
-            return FileChunk(startByte: fileSize, endByte: fileSize, totalFileSize: fileSize, chunkData: Data(capacity: 0))
-        }
-        
-        let nsData = NSData(data: data)
-        let readLen = nsData.length
-        let newFilePos = filePos + UInt64(readLen)
-        let chunk = FileChunk(
-            startByte: self.filePos,
-            endByte: newFilePos,
-            totalFileSize: fileSize,
-            chunkData: data
-        )
-        
-        state?.filePosition = newFilePos
-        
-        return chunk
     }
     
     /// Creates a ``ChunkedFile`` that wraps the file given by the URL. The file will be opened after  calling ``openFile()``
