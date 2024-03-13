@@ -171,7 +171,7 @@ struct FileChunk {
     /// Exclusive
     let endByte: UInt64
     let totalFileSize: UInt64
-    let chunkData: Data
+    var chunkData: Data
     
     func size() -> Int {
         return Int(endByte - startByte) // This is safe for any reasonable chunk size

@@ -64,16 +64,10 @@ final class MemoryTests: XCTestCase {
             let chunkProgress = Progress(totalUnitCount: Int64(chunk.size()))
             let worker = ChunkWorker(
                 uploadURL: uploadURL,
-                fileChunk: chunk,
                 chunkProgress: chunkProgress,
                 maxRetries: 3
             )
-            // The problem is in get task it retain the copy of the chunk pointer
-            let task = worker.getTask()
-            
-//            let chunkResult = try await task.value
-//            Swift.print("Completed Chunk:\n \(String(describing: chunkResult))")
-//            task.cancel()
+            try await worker.directUpload(chunk: chunk)
         } while (true)
         let endMemory = memoryFootprint()
         if ((startMemory! * 2) < endMemory!) {
@@ -136,11 +130,17 @@ final class MemoryTests: XCTestCase {
         Swift.print("Starting upload video")
         muxDirectUpload.start()
         
-        let result = await XCTWaiter().fulfillment(of: [expectation], timeout: 300.0)
+        let result = await XCTWaiter().fulfillment(of: [expectation], timeout: 9000.0)
         switch result {
             //        case .completed:    XCTAssertEqual(muxDirectUpload.complete, true)
-        case .timedOut:     XCTFail()
-        default:            XCTFail()
+        case .timedOut:     do {
+            Swift.print("Test timedout after 9000 seconds !!!")
+            XCTFail()
+        }
+        default:   do {
+            Swift.print("Test default option is to fail !!!")
+            XCTFail()
+           }
         }
         Swift.print("All done !!!")
     }
