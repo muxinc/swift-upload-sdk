@@ -25,6 +25,7 @@
 		19822A762A4CA69700CFA822 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19822A642A4CA69700CFA822 /* ContentView.swift */; };
 		19822A772A4CA69700CFA822 /* UploadCTA.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19822A662A4CA69700CFA822 /* UploadCTA.swift */; };
 		19822A792A4CA69700CFA822 /* ImagePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19822A682A4CA69700CFA822 /* ImagePicker.swift */; };
+		1991ADBB2BA442A400C3DF5E /* MemoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1991ADBA2BA442A400C3DF5E /* MemoryTests.swift */; };
 		19DCD95B2A4CA567001FBBF6 /* MuxUploadSDK in Frameworks */ = {isa = PBXBuildFile; productRef = 19DCD95A2A4CA567001FBBF6 /* MuxUploadSDK */; };
 /* End PBXBuildFile section */
 
@@ -57,6 +58,7 @@
 		19822A682A4CA69700CFA822 /* ImagePicker.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ImagePicker.swift; sourceTree = "<group>"; };
 		19822A7B2A4CA6A300CFA822 /* SwiftUploadSDKExampleUITests.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SwiftUploadSDKExampleUITests.swift; sourceTree = "<group>"; };
 		19822A7C2A4CA6A300CFA822 /* SwiftUploadSDKExampleLaunchTests.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SwiftUploadSDKExampleLaunchTests.swift; sourceTree = "<group>"; };
+		1991ADBA2BA442A400C3DF5E /* MemoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryTests.swift; sourceTree = "<group>"; };
 		19DCD9592A4CA546001FBBF6 /* swift-upload-sdk */ = {isa = PBXFileReference; lastKnownFileType = wrapper; name = "swift-upload-sdk"; path = ../..; sourceTree = "<group>"; };
 		358E3C7729A92167005261CB /* SwiftUploadSDKExample.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SwiftUploadSDKExample.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		358E3C9129A92168005261CB /* SwiftUploadSDKExampleTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SwiftUploadSDKExampleTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -165,6 +167,7 @@
 			children = (
 				19822A7B2A4CA6A300CFA822 /* SwiftUploadSDKExampleUITests.swift */,
 				19822A7C2A4CA6A300CFA822 /* SwiftUploadSDKExampleLaunchTests.swift */,
+				1991ADBA2BA442A400C3DF5E /* MemoryTests.swift */,
 			);
 			path = SwiftUploadSDKExampleTests;
 			sourceTree = "<group>";
@@ -328,6 +331,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				1991ADBB2BA442A400C3DF5E /* MemoryTests.swift in Sources */,
 				191C59C52A69C9AC00D3AF05 /* SwiftUploadSDKExampleLaunchTests.swift in Sources */,
 				191C59C42A69C9A900D3AF05 /* SwiftUploadSDKExampleUITests.swift in Sources */,
 			);
