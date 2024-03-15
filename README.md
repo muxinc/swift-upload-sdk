@@ -3,8 +3,12 @@ This SDK makes it easy to upload videos for ingest to Mux from an iOS or iPadOS 
 
 Each video is uploaded to an authenticated [upload URL created by a trusted backend server request to the Mux Video API](https://docs.mux.com/guides/video/upload-files-directly). **Do not include the secret API credentials to create an authenticated upload URL in your application.**
 
+This SDK is currently in public beta. If you encounter any issues please let us know by filing an issue.
+
 ## Usage
 To use this SDK, you'll need to add it as a dependency using either Swift Package Manager or Cocoapods.
+
+The Upload SDK is supported on iOS 14 and iPadOS 14, or higher. macOS is not supported at this time.
 
 ## Documentation
 A getting started guide can be found [here](https://docs.mux.com/guides/video/upload-video-directly-from-ios-or-ipados).

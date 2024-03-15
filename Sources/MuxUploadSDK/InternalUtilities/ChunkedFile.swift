@@ -41,10 +41,47 @@ class ChunkedFile {
     func readNextChunk() -> Result<FileChunk, Error> {
         SDKLogger.logger?.info("--readNextChunk(): called")
         do {
-            guard fileHandle != nil else {
+            guard let fileHandle else {
                 return Result.failure(ChunkedFileError.invalidState("readNextChunk() called but the file was not open"))
             }
-            return try Result.success(doReadNextChunk())
+
+            guard let fileURL = fileURL else {
+                return Result.failure(ChunkedFileError.invalidState("Missing file url."))
+            }
+            var data : Data?
+            try autoreleasepool {
+                data = try fileHandle.read(upToCount: chunkSize)
+            }
+
+            let fileSize = try fileManager.fileSizeOfItem(
+                atPath: fileURL.path
+            )
+
+            guard let data = data else {
+                // Called while already at the end of the file. We read zero bytes, "ending" at the end of the file
+                return .success(
+                    FileChunk(
+                        startByte: fileSize,
+                        endByte: fileSize,
+                        totalFileSize: fileSize,
+                        chunkData: Data(capacity: 0)
+                    )
+                )
+            }
+
+            let chunkLength = data.count
+            let updatedFilePosition = filePos + UInt64(chunkLength)
+
+            let chunk = FileChunk(
+                startByte: self.filePos,
+                endByte: updatedFilePosition,
+                totalFileSize: fileSize,
+                chunkData: data
+            )
+
+            state?.filePosition = updatedFilePosition
+
+            return .success(chunk)
         } catch {
             return Result.failure(ChunkedFileError.fileHandle(error))
         }
@@ -91,8 +128,11 @@ class ChunkedFile {
         guard let fileHandle = fileHandle, let fileURL = fileURL else {
             throw ChunkedFileError.invalidState("doReadNextChunk called without file handle. Did you call open()?")
         }
-        let data = try fileHandle.read(upToCount: chunkSize)
-
+        var data : Data?
+        try autoreleasepool {
+            data = try fileHandle.read(upToCount: chunkSize)
+        }
+        
         let fileSize = try fileManager.fileSizeOfItem(
             atPath: fileURL.path
         )
@@ -131,7 +171,7 @@ struct FileChunk {
     /// Exclusive
     let endByte: UInt64
     let totalFileSize: UInt64
-    let chunkData: Data
+    var chunkData: Data
     
     func size() -> Int {
         return Int(endByte - startByte) // This is safe for any reasonable chunk size

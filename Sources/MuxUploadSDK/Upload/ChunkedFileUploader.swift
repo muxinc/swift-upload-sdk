@@ -431,17 +431,27 @@ fileprivate actor Worker {
         var readBytes: Int
         repeat {
             try Task.checkCancellation()
-            
-            let chunk = try chunkedFile.readNextChunk().get()
+
+            guard case let Result.success(chunk) = chunkedFile.readNextChunk() else {
+                // TODO: report error accurately
+                throw ChunkWorker.ChunkWorkerError.init(
+                    lastSeenProgress: ChunkWorker.Update(
+                        progress: overallProgress,
+                        bytesSinceLastUpdate: 0,
+                        chunkStartTime: Date().timeIntervalSince1970,
+                        eventTime: Date().timeIntervalSince1970
+                    ), 
+                    reason: nil
+                )
+            }
+
             readBytes = chunk.size()
             
             let wideChunkSize = Int64(chunk.size())
             let chunkProgress = Progress(totalUnitCount: wideChunkSize)
-            //overallProgress.addChild(chunkProgress, withPendingUnitCount: wideChunkSize)
             
             let chunkWorker = ChunkWorker(
                 uploadURL: uploadInfo.uploadURL,
-                fileChunk: chunk,
                 chunkProgress: chunkProgress,
                 maxRetries: uploadInfo.options.transport.retryLimitPerChunk
             )
@@ -455,7 +465,8 @@ fileprivate actor Worker {
                 )
             }
             
-            let chunkResult = try await chunkWorker.getTask().value
+            // Do not use task in a loop it will create an memory consumption issue.
+            let chunkResult = try await chunkWorker.directUpload(chunk: chunk)
             SDKLogger.logger?.info("Completed Chunk:\n \(String(describing: chunkResult))")
         } while (readBytes == uploadInfo.options.transport.chunkSizeInBytes)
 
