@@ -40,6 +40,17 @@
                ReferencedContainer = "container:SwiftUploadSDKExample.xcodeproj">
             </BuildableReference>
          </TestableReference>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "YES">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "F38876C62B86DBEB00B82A86"
+               BuildableName = "SwiftUploadSDKExampleUnitTests.xctest"
+               BlueprintName = "SwiftUploadSDKExampleUnitTests"
+               ReferencedContainer = "container:SwiftUploadSDKExample.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
       </Testables>
    </TestAction>
    <LaunchAction

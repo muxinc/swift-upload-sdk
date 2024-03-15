@@ -7,12 +7,13 @@
 
 import Foundation
 
-/// Uploads a single chunk. Starts an internal Task on creation, which you can get with ``getTask``
-///  This class takes care of retries and backoff on a per-chunk basis
-///  This class provides no thread safety to the outside world
+/// Uploads a single chunk. Starts an internal Task on creation,
+/// which can be accessed with ``makeUploadTaskIfNeeded``.
+///
+/// This class takes care of retries and backoff on a per-chunk basis
+/// This class provides no thread safety to the outside world
 class ChunkWorker {
     let uploadURL: URL
-    let chunk: FileChunk
     let maxRetries: Int
     let chunkProgress: Progress
     
@@ -33,15 +34,16 @@ class ChunkWorker {
         self.progressDelegate = delegatePair
     }
     
-    func getTask() -> Task<Success, Error> {
-
+    func makeUploadTaskIfNeeded(
+        chunk: FileChunk
+    ) -> Task<Success, Error> {
         guard let uploadTask else {
             chunkStartTime = Date().timeIntervalSince1970
-            let uploadTask = makeUploadTask()
+            let uploadTask = makeUploadTask(chunk: chunk)
             self.uploadTask = uploadTask
             return uploadTask
         }
-
+        
         return uploadTask
     }
     
@@ -51,55 +53,62 @@ class ChunkWorker {
         }
     }
     
-    private func makeUploadTask() -> Task<Success, Error> {
-        return Task { [self] in
-            var retries = 0
-            var requestError: Error?
-            let repsonseValidator = ChunkResponseValidator()
-    
-            repeat {
-                do {
-                    let chunkActor = ChunkActor(
-                        uploadURL: uploadURL,
-                        chunk: chunk,
-                        chunkStartTime: Date().timeIntervalSince1970,
-                        urlSession: urlSession
+    func directUpload(
+        chunk: FileChunk
+    ) async throws -> Sendable {
+        var retries = 0
+        var requestError: Error?
+        let repsonseValidator = ChunkResponseValidator()
+        
+        repeat {
+            do {
+                let chunkActor = ChunkActor(
+                    uploadURL: uploadURL,
+                    chunk: chunk,
+                    chunkStartTime: Date().timeIntervalSince1970,
+                    urlSession: urlSession
+                )
+                
+                let resp = try await chunkActor.upload()
+                
+                let httpResponse = resp as! HTTPURLResponse
+                SDKLogger.logger?.info("ChunkWorker: Upload chunk with response: \(String(describing: httpResponse.statusCode))")
+                switch repsonseValidator.validate(statusCode: httpResponse.statusCode) {
+                case .error: do {
+                    // Throw and break out if the request can't be retried
+                    throw HttpError(
+                        statusCode: httpResponse.statusCode,
+                        statusMsg: httpResponse.description
                     )
-                    
-                    let resp = try await chunkActor.upload()
-                    
-                    let httpResponse = resp as! HTTPURLResponse
-                    SDKLogger.logger?.info("ChunkWorker: Upload chunk with response: \(String(describing: httpResponse.statusCode))")
-                    switch repsonseValidator.validate(statusCode: httpResponse.statusCode) {
-                    case .error: do {
-                        // Throw and break out if the request can't be retried
-                        throw HttpError(
-                            statusCode: httpResponse.statusCode,
-                            statusMsg: httpResponse.description
-                        )
-                    }
-                    case .retry: do {
-                        requestError = HttpError(
-                            statusCode: httpResponse.statusCode,
-                            statusMsg: httpResponse.description
-                        )
-                        // Retry if there's still some retries
-                        continue
-                    }
-                    case .proceed: do {
-                        // Chunk was uploaded successfully so we're done
-                        return Success(finalState: lastSeenUpdate, tries: retries + 1)
-                    }
-                    } // switch responseValidator.validate()
-                } catch {
-                    SDKLogger.logger?.error("Failed to upload a chunk with error: \(error.localizedDescription)")
-                    retries += 1
-                    requestError = error
                 }
-            } while(retries < maxRetries)
-            
-            // Out of retries. Notify failure
-            throw ChunkWorkerError(lastSeenProgress: lastSeenUpdate, reason: requestError)
+                case .retry: do {
+                    requestError = HttpError(
+                        statusCode: httpResponse.statusCode,
+                        statusMsg: httpResponse.description
+                    )
+                    // Retry if there's still some retries
+                    continue
+                }
+                case .proceed: do {
+                    // Chunk was uploaded successfully so we're done
+                    return Success(finalState: lastSeenUpdate, tries: retries + 1)
+                }
+                } // switch responseValidator.validate()
+            } catch {
+                SDKLogger.logger?.error("Failed to upload a chunk with error: \(error.localizedDescription)")
+                retries += 1
+                requestError = error
+            }
+        } while(retries < maxRetries)
+        // Out of retries. Notify failure
+        throw ChunkWorkerError(lastSeenProgress: lastSeenUpdate, reason: requestError)
+    }
+    
+    private func makeUploadTask(
+        chunk: FileChunk
+    ) -> Task<Success, Error> {
+        return Task { [self] in
+            return try await self.directUpload(chunk: chunk) as! ChunkWorker.Success
         }
     }
     
@@ -145,21 +154,25 @@ class ChunkWorker {
     struct Success : Sendable {
         let finalState: Update
         let tries: Int
-        // TODO: Also AF Response
     }
     
-    convenience init(uploadInfo: UploadInfo, fileChunk: FileChunk, chunkProgress: Progress) {
+    convenience init(
+        uploadInfo: UploadInfo,
+        chunkProgress: Progress
+    ) {
         self.init(
             uploadURL: uploadInfo.uploadURL,
-            fileChunk: fileChunk,
             chunkProgress: chunkProgress,
             maxRetries: uploadInfo.options.transport.retryLimitPerChunk
         )
     }
     
-    init(uploadURL: URL, fileChunk: FileChunk, chunkProgress: Progress, maxRetries: Int) {
+    init(
+        uploadURL: URL,
+        chunkProgress: Progress,
+        maxRetries: Int
+    ) {
         self.uploadURL = uploadURL
-        self.chunk = fileChunk
         self.maxRetries = maxRetries
         self.chunkProgress = chunkProgress
     }
@@ -181,7 +194,7 @@ fileprivate actor ChunkActor {
         } else {
             endByte = "\(chunk.endByte - 1)"
         }
-
+        
         let contentRangeValue = "bytes \(startByte)-\(endByte)/\(chunk.totalFileSize)"
         var request = URLRequest(url: uploadURL)
         request.httpMethod = "PUT"
