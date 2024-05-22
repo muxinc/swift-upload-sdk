@@ -115,7 +115,7 @@ class AVFoundationUploadInputInspector: UploadInputInspector {
                             formatDescription
                         )
 
-                        if max(videoDimensions.width, videoDimensions.height) > 1920 {
+                        if max(videoDimensions.width, videoDimensions.height) > 3840 {
                             nonStandardReasons.append(.videoResolution)
                         }
 
