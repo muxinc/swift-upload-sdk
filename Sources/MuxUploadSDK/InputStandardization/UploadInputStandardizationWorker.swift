@@ -51,10 +51,16 @@ class UploadInputStandardizationWorker {
         let availableExportPresets = AVAssetExportSession.allExportPresets()
 
         let exportPreset: String
-        if maximumResolution == .preset1280x720 {
-            exportPreset = AVAssetExportPreset1280x720
-        } else {
+
+        switch maximumResolution {
+        case .default:
             exportPreset = AVAssetExportPreset1920x1080
+        case .preset1280x720:
+            exportPreset = AVAssetExportPreset1280x720
+        case .preset1920x1080:
+            exportPreset = AVAssetExportPreset1920x1080
+        case .preset3840x2160:
+            exportPreset = AVAssetExportPreset3840x2160
         }
 
         guard availableExportPresets.contains(where: {
