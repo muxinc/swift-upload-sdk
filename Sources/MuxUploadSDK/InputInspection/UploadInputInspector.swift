@@ -6,11 +6,19 @@ import AVFoundation
 import CoreMedia
 import Foundation
 
+typealias UploadInputInspectionCompletionHandler = (UploadInputFormatInspectionResult?, CMTime, Error?) -> ()
+
 protocol UploadInputInspector {
     func performInspection(
         sourceInput: AVAsset,
-        completionHandler: @escaping (UploadInputFormatInspectionResult) -> ()
+        completionHandler: @escaping UploadInputInspectionCompletionHandler
     )
+}
+
+struct UploadInputInspectionError: Error {
+
+    static let inspectionFailure = UploadInputInspectionError()
+
 }
 
 class AVFoundationUploadInputInspector: UploadInputInspector {
@@ -24,7 +32,7 @@ class AVFoundationUploadInputInspector: UploadInputInspector {
     // methods.
     func performInspection(
         sourceInput: AVAsset,
-        completionHandler: @escaping (UploadInputFormatInspectionResult) -> ()
+        completionHandler: @escaping UploadInputInspectionCompletionHandler
     ) {
         // TODO: Eventually load audio tracks too
         if #available(iOS 15, *) {
@@ -33,7 +41,9 @@ class AVFoundationUploadInputInspector: UploadInputInspector {
             ) { tracks, error in
                 if error != nil {
                     completionHandler(
-                        .inspectionFailure(duration: CMTime.zero)
+                        nil, 
+                        CMTime.zero,
+                        UploadInputInspectionError.inspectionFailure
                     )
                     return
                 }
@@ -69,14 +79,18 @@ class AVFoundationUploadInputInspector: UploadInputInspector {
     func inspect(
         sourceInput: AVAsset,
         tracks: [AVAssetTrack],
-        completionHandler: @escaping (UploadInputFormatInspectionResult) -> ()
+        completionHandler: @escaping UploadInputInspectionCompletionHandler
     ) {
         switch tracks.count {
         case 0:
             // Nothing to inspect, therefore nothing to standardize
             // declare as already standard
             completionHandler(
-                .standard(duration: CMTime.zero)
+                UploadInputFormatInspectionResult(
+                    reasons: []
+                ),
+                CMTime.zero,
+                nil
             )
         case 1:
 
@@ -95,16 +109,18 @@ class AVFoundationUploadInputInspector: UploadInputInspector {
                     ) {
                         guard let formatDescriptions = track.formatDescriptions as? [CMFormatDescription] else {
                             completionHandler(
-                                .inspectionFailure(
-                                    duration: sourceInputDuration
-                                )
+                                nil,
+                                sourceInputDuration,
+                                UploadInputInspectionError.inspectionFailure
                             )
                             return
                         }
 
                         guard let formatDescription = formatDescriptions.first else {
                             completionHandler(
-                                .inspectionFailure(duration: sourceInputDuration)
+                                nil,
+                                sourceInputDuration,
+                                UploadInputInspectionError.inspectionFailure
                             )
                             return
                         }
@@ -134,10 +150,20 @@ class AVFoundationUploadInputInspector: UploadInputInspector {
 
                         if nonStandardReasons.isEmpty {
                             completionHandler(
-                                .standard(duration: sourceInputDuration)
+                                UploadInputFormatInspectionResult(
+                                    reasons: []
+                                ),
+                                sourceInputDuration,
+                                nil
                             )
                         } else {
-                            completionHandler(.nonstandard(reasons: nonStandardReasons, duration: sourceInputDuration))
+                            completionHandler(
+                                UploadInputFormatInspectionResult(
+                                    reasons: []
+                                ),
+                                sourceInputDuration,
+                                nil
+                            )
                         }
 
                     }
@@ -147,7 +173,9 @@ class AVFoundationUploadInputInspector: UploadInputInspector {
             // Inspection fails for multi-video track inputs
             // for the time being
             completionHandler(
-                .inspectionFailure(duration: CMTime.zero)
+                nil,
+                CMTime.zero,
+                UploadInputInspectionError.inspectionFailure
             )
         }
     }

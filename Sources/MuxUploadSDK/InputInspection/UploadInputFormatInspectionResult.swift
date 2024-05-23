@@ -5,8 +5,7 @@
 import AVFoundation
 import Foundation
 
-enum UploadInputFormatInspectionResult {
-
+struct UploadInputFormatInspectionResult {
     enum NonstandardInputReason {
         case videoCodec
         case audioCodec
@@ -21,40 +20,11 @@ enum UploadInputFormatInspectionResult {
         case unsupportedPixelFormat
     }
 
-    case inspectionFailure(duration: CMTime)
-    case standard(duration: CMTime)
-    case nonstandard(
-        reasons: [NonstandardInputReason],
-        duration: CMTime
-    )
+    var reasons: [NonstandardInputReason]
 
-    var isStandard: Bool {
-        if case Self.standard = self {
-            return true
-        } else {
-            return false
-        }
+    var isStandardInput: Bool {
+        reasons.isEmpty
     }
-
-    var sourceInputDuration: CMTime {
-        switch self {
-        case .inspectionFailure(duration: let duration):
-            return duration
-        case .standard(duration: let duration):
-            return duration
-        case .nonstandard(_, duration: let duration):
-            return duration
-        }
-    }
-
-    var nonstandardInputReasons: [NonstandardInputReason]? {
-        if case Self.nonstandard(let nonstandardInputReasons, _) = self {
-            return nonstandardInputReasons
-        } else {
-            return nil
-        }
-    }
-
 }
 
 extension UploadInputFormatInspectionResult.NonstandardInputReason: CustomStringConvertible {
