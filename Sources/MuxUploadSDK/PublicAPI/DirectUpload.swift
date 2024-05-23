@@ -469,7 +469,14 @@ public final class DirectUpload {
 
                 switch (inspectionResult, inspectionError) {
                 case (.none, .none):
-                    break
+                    // Corner case
+                    self.handleInspectionFailure(
+                        inspectionError: UploadInputInspectionError.inspectionFailure,
+                        inputDuration: inputDuration,
+                        inputSize: inputSize,
+                        inputStandardizationStartTime: inputStandardizationStartTime,
+                        videoFile: videoFile
+                    )
                 case (.none, .some(let error)):
                     self.handleInspectionFailure(
                         inspectionError: error,
