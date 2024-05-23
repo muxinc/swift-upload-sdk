@@ -491,12 +491,13 @@ public final class DirectUpload {
                             videoFile: videoFile
                         )
                     } else {
-                        print("""
-                        Detected Nonstandard Reasons
+                        SDKLogger.logger?.debug(
+                            """
+                            Detected Nonstandard Reasons
 
-                        \(dump(result.nonStandardInputReasons, indent: 4))
+                            \(dump(result.nonStandardInputReasons, indent: 4))
 
-                        """
+                            """
                         )
 
                         // TODO: inject Date() for testing purposes
