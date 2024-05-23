@@ -20,10 +20,10 @@ struct UploadInputFormatInspectionResult {
         case unsupportedPixelFormat
     }
 
-    var reasons: [NonstandardInputReason]
+    var nonStandardInputReasons: [NonstandardInputReason]
 
     var isStandardInput: Bool {
-        reasons.isEmpty
+        nonStandardInputReasons.isEmpty
     }
 
     var maximumResolution: DirectUploadOptions.InputStandardization.MaximumResolution

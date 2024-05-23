@@ -494,7 +494,7 @@ public final class DirectUpload {
                         print("""
                         Detected Nonstandard Reasons
 
-                        \(dump(result.reasons, indent: 4))
+                        \(dump(result.nonStandardInputReasons, indent: 4))
 
                         """
                         )
@@ -531,7 +531,7 @@ public final class DirectUpload {
                                     errorDescription: error.localizedDescription,
                                     inputDuration: inputDuration.seconds,
                                     inputSize: inputSize,
-                                    nonStandardInputReasons: result.reasons,
+                                    nonStandardInputReasons: result.nonStandardInputReasons,
                                     options: self.uploadInfo.options,
                                     standardizationEndTime: Date(),
                                     standardizationStartTime: inputStandardizationStartTime,
@@ -553,7 +553,7 @@ public final class DirectUpload {
                                     inputDuration: inputDuration.seconds,
                                     inputSize: inputSize,
                                     options: self.uploadInfo.options,
-                                    nonStandardInputReasons: result.reasons,
+                                    nonStandardInputReasons: result.nonStandardInputReasons,
                                     standardizationEndTime: Date(),
                                     standardizationStartTime: inputStandardizationStartTime,
                                     uploadURL: self.uploadURL

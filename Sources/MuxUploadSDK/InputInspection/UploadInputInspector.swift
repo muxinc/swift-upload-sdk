@@ -92,7 +92,7 @@ class AVFoundationUploadInputInspector: UploadInputInspector {
             // declare as already standard
             completionHandler(
                 UploadInputFormatInspectionResult(
-                    reasons: [],
+                    nonStandardInputReasons: [],
                     maximumResolution: maximumResolution
                 ),
                 CMTime.zero,
@@ -157,7 +157,7 @@ class AVFoundationUploadInputInspector: UploadInputInspector {
                         if nonStandardReasons.isEmpty {
                             completionHandler(
                                 UploadInputFormatInspectionResult(
-                                    reasons: [],
+                                    nonStandardInputReasons: [],
                                     maximumResolution: maximumResolution
                                 ),
                                 sourceInputDuration,
@@ -166,7 +166,7 @@ class AVFoundationUploadInputInspector: UploadInputInspector {
                         } else {
                             completionHandler(
                                 UploadInputFormatInspectionResult(
-                                    reasons: [],
+                                    nonStandardInputReasons: [],
                                     maximumResolution: maximumResolution
                                 ),
                                 sourceInputDuration,
