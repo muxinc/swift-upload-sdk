@@ -25,6 +25,8 @@ struct UploadInputFormatInspectionResult {
     var isStandardInput: Bool {
         reasons.isEmpty
     }
+
+    var maximumResolution: DirectUploadOptions.InputStandardization.MaximumResolution
 }
 
 extension UploadInputFormatInspectionResult.NonstandardInputReason: CustomStringConvertible {

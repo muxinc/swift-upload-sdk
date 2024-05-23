@@ -11,6 +11,7 @@ typealias UploadInputInspectionCompletionHandler = (UploadInputFormatInspectionR
 protocol UploadInputInspector {
     func performInspection(
         sourceInput: AVAsset,
+        maximumResolution: DirectUploadOptions.InputStandardization.MaximumResolution,
         completionHandler: @escaping UploadInputInspectionCompletionHandler
     )
 }
@@ -32,6 +33,7 @@ class AVFoundationUploadInputInspector: UploadInputInspector {
     // methods.
     func performInspection(
         sourceInput: AVAsset,
+        maximumResolution: DirectUploadOptions.InputStandardization.MaximumResolution,
         completionHandler: @escaping UploadInputInspectionCompletionHandler
     ) {
         // TODO: Eventually load audio tracks too
@@ -52,6 +54,7 @@ class AVFoundationUploadInputInspector: UploadInputInspector {
                     self.inspect(
                         sourceInput: sourceInput,
                         tracks: tracks,
+                        maximumResolution: maximumResolution,
                         completionHandler: completionHandler
                     )
                 }
@@ -70,6 +73,7 @@ class AVFoundationUploadInputInspector: UploadInputInspector {
                 self.inspect(
                     sourceInput: sourceInput,
                     tracks: tracks,
+                    maximumResolution: maximumResolution,
                     completionHandler: completionHandler
                 )
             }
@@ -79,6 +83,7 @@ class AVFoundationUploadInputInspector: UploadInputInspector {
     func inspect(
         sourceInput: AVAsset,
         tracks: [AVAssetTrack],
+        maximumResolution: DirectUploadOptions.InputStandardization.MaximumResolution,
         completionHandler: @escaping UploadInputInspectionCompletionHandler
     ) {
         switch tracks.count {
@@ -87,7 +92,8 @@ class AVFoundationUploadInputInspector: UploadInputInspector {
             // declare as already standard
             completionHandler(
                 UploadInputFormatInspectionResult(
-                    reasons: []
+                    reasons: [],
+                    maximumResolution: maximumResolution
                 ),
                 CMTime.zero,
                 nil
@@ -151,7 +157,8 @@ class AVFoundationUploadInputInspector: UploadInputInspector {
                         if nonStandardReasons.isEmpty {
                             completionHandler(
                                 UploadInputFormatInspectionResult(
-                                    reasons: []
+                                    reasons: [],
+                                    maximumResolution: maximumResolution
                                 ),
                                 sourceInputDuration,
                                 nil
@@ -159,7 +166,8 @@ class AVFoundationUploadInputInspector: UploadInputInspector {
                         } else {
                             completionHandler(
                                 UploadInputFormatInspectionResult(
-                                    reasons: []
+                                    reasons: [],
+                                    maximumResolution: maximumResolution
                                 ),
                                 sourceInputDuration,
                                 nil

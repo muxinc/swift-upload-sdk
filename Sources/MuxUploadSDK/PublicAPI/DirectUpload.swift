@@ -462,7 +462,8 @@ public final class DirectUpload {
 
             input.status = .underInspection(input.sourceAsset, uploadInfo)
             inputInspector.performInspection(
-                sourceInput: input.sourceAsset
+                sourceInput: input.sourceAsset, 
+                maximumResolution: uploadInfo.options.inputStandardization.maximumResolution
             ) { inspectionResult, inputDuration, inspectionError in
                 self.inspectionResult = inspectionResult
 
