@@ -507,16 +507,11 @@ public final class DirectUpload {
                             fileURLWithPath: outputFileName,
                             relativeTo: outputDirectory
                         )
-                        let maximumResolution = self.input
-                            .uploadInfo
-                            .options
-                            .inputStandardization
-                            .maximumResolution
 
                         self.inputStandardizer.standardize(
                             id: self.id,
                             sourceAsset: AVAsset(url: videoFile),
-                            maximumResolution: maximumResolution,
+                            maximumResolution: result.maximumResolution,
                             outputURL: outputURL
                         ) { sourceAsset, standardizedAsset, error in
 
