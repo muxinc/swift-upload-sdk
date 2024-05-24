@@ -147,36 +147,27 @@ class AVFoundationUploadInputInspector: UploadInputInspector {
                         }
 
                         let frameRate = track.nominalFrameRate
-                        if frameRate > 120.0 {
-                            nonStandardReasons.append(.videoFrameRate)
-                        }
 
-                        if nonStandardReasons.isEmpty {
-                            completionHandler(
-                                UploadInputFormatInspectionResult(
-                                    nonStandardInputReasons: nonStandardReasons,
-                                    rescalingDetails: UploadInputFormatInspectionResult.RescalingDetails(
-                                        maximumDesiredResolutionPreset: maximumResolution,
-                                        recordedResolution: videoDimensions
-                                    )
-                                ),
-                                sourceInputDuration,
-                                nil
-                            )
+                        if max(videoDimensions.width, videoDimensions.height) > 1920 {
+                            if frameRate > 60.0 {
+                                nonStandardReasons.append(.videoFrameRate)
+                            }
                         } else {
-                            completionHandler(
-                                UploadInputFormatInspectionResult(
-                                    nonStandardInputReasons: [],
-                                    rescalingDetails: UploadInputFormatInspectionResult.RescalingDetails(
-                                        maximumDesiredResolutionPreset: maximumResolution,
-                                        recordedResolution: videoDimensions
-                                    )
-                                ),
-                                sourceInputDuration,
-                                nil
-                            )
+                            if frameRate > 120.0 {
+                                nonStandardReasons.append(.videoFrameRate)
+                            }
                         }
-
+                        completionHandler(
+                            UploadInputFormatInspectionResult(
+                                nonStandardInputReasons: nonStandardReasons,
+                                rescalingDetails: UploadInputFormatInspectionResult.RescalingDetails(
+                                    maximumDesiredResolutionPreset: maximumResolution,
+                                    recordedResolution: videoDimensions
+                                )
+                            ),
+                            sourceInputDuration,
+                            nil
+                        )
                     }
                 }
             }
