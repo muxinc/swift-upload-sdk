@@ -20,13 +20,42 @@ struct UploadInputFormatInspectionResult {
         case unsupportedPixelFormat
     }
 
-    var nonStandardInputReasons: [NonstandardInputReason]
+    var nonStandardInputReasons: [NonstandardInputReason] = []
 
     var isStandardInput: Bool {
         nonStandardInputReasons.isEmpty
     }
 
-    var maximumResolution: DirectUploadOptions.InputStandardization.MaximumResolution
+    struct RescalingDetails {
+        var maximumDesiredResolutionPreset: DirectUploadOptions.InputStandardization.MaximumResolution = .default
+
+        var recordedResolution: CMVideoDimensions = CMVideoDimensions(width: 0, height: 0)
+
+        var needsRescaling: Bool {
+            switch maximumDesiredResolutionPreset {
+            case .default, .preset1920x1080:
+                if max(recordedResolution.width, recordedResolution.height) > 1920 {
+                    return true
+                } else {
+                    return false
+                }
+            case .preset1280x720:
+                if max(recordedResolution.width, recordedResolution.height) > 1280 {
+                    return true
+                } else {
+                    return false
+                }
+            case .preset3840x2160:
+                if max(recordedResolution.width, recordedResolution.height) > 3840 {
+                    return true
+                } else {
+                    return false
+                }
+            }
+        }
+    }
+
+    var rescalingDetails: RescalingDetails = RescalingDetails()
 }
 
 extension UploadInputFormatInspectionResult.NonstandardInputReason: CustomStringConvertible {

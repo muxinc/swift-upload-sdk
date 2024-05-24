@@ -43,7 +43,7 @@ class UploadInputStandardizationWorker {
 
     func standardize(
         sourceAsset: AVAsset,
-        maximumResolution: DirectUploadOptions.InputStandardization.MaximumResolution,
+        rescalingDetails: UploadInputFormatInspectionResult.RescalingDetails,
         outputURL: URL,
         completion: @escaping (AVAsset, AVAsset?, Error?) -> ()
     ) {
@@ -52,7 +52,7 @@ class UploadInputStandardizationWorker {
 
         let exportPreset: String
 
-        switch maximumResolution {
+        switch rescalingDetails.maximumDesiredResolutionPreset {
         case .default:
             exportPreset = AVAssetExportPreset1920x1080
         case .preset1280x720:

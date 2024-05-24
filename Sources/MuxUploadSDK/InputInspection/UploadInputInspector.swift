@@ -91,10 +91,7 @@ class AVFoundationUploadInputInspector: UploadInputInspector {
             // Nothing to inspect, therefore nothing to standardize
             // declare as already standard
             completionHandler(
-                UploadInputFormatInspectionResult(
-                    nonStandardInputReasons: [],
-                    maximumResolution: maximumResolution
-                ),
+                UploadInputFormatInspectionResult(),
                 CMTime.zero,
                 nil
             )
@@ -157,8 +154,11 @@ class AVFoundationUploadInputInspector: UploadInputInspector {
                         if nonStandardReasons.isEmpty {
                             completionHandler(
                                 UploadInputFormatInspectionResult(
-                                    nonStandardInputReasons: [],
-                                    maximumResolution: maximumResolution
+                                    nonStandardInputReasons: nonStandardReasons,
+                                    rescalingDetails: UploadInputFormatInspectionResult.RescalingDetails(
+                                        maximumDesiredResolutionPreset: maximumResolution,
+                                        recordedResolution: videoDimensions
+                                    )
                                 ),
                                 sourceInputDuration,
                                 nil
@@ -167,7 +167,10 @@ class AVFoundationUploadInputInspector: UploadInputInspector {
                             completionHandler(
                                 UploadInputFormatInspectionResult(
                                     nonStandardInputReasons: [],
-                                    maximumResolution: maximumResolution
+                                    rescalingDetails: UploadInputFormatInspectionResult.RescalingDetails(
+                                        maximumDesiredResolutionPreset: maximumResolution,
+                                        recordedResolution: videoDimensions
+                                    )
                                 ),
                                 sourceInputDuration,
                                 nil

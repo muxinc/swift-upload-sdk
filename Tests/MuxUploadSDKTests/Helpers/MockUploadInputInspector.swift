@@ -14,7 +14,7 @@ class MockUploadInputInspector: UploadInputInspector {
     static let alwaysFailing: MockUploadInputInspector = MockUploadInputInspector(
         mockInspectionResult: UploadInputFormatInspectionResult(
             nonStandardInputReasons: [],
-            maximumResolution: .default
+            rescalingDetails: .init()
         ),
         mockInspectionError: UploadInputInspectionError.inspectionFailure
     )
@@ -26,7 +26,7 @@ class MockUploadInputInspector: UploadInputInspector {
     init() {
         self.mockInspectionResult = UploadInputFormatInspectionResult(
             nonStandardInputReasons: [],
-            maximumResolution: .default
+            rescalingDetails: .init()
         )
         self.duration = .zero
     }

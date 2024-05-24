@@ -487,9 +487,59 @@ public final class DirectUpload {
                     )
                 case (.some(let result), .none):
                     if result.isStandardInput {
-                        self.startNetworkTransport(
-                            videoFile: videoFile
-                        )
+
+                        if result.rescalingDetails.needsRescaling {
+                            SDKLogger.logger?.debug(
+                                "Detected Input Needs Rescaling"
+                            )
+
+                            // TODO: inject Date() for testing purposes
+                            let outputFileName = "upload-\(Date().timeIntervalSince1970)"
+
+                            let outputDirectory = FileManager.default.temporaryDirectory
+                            let outputURL = URL(
+                                fileURLWithPath: outputFileName,
+                                relativeTo: outputDirectory
+                            )
+
+                            self.inputStandardizer.standardize(
+                                id: self.id,
+                                sourceAsset: AVAsset(url: videoFile),
+                                rescalingDetails: result.rescalingDetails,
+                                outputURL: outputURL
+                            ) { sourceAsset, standardizedAsset, error in
+
+                                if let error {
+                                    // Request upload confirmation
+                                    // before proceeding. If handler unset,
+                                    // by default do not cancel upload if
+                                    // input standardization fails
+                                    let shouldCancelUpload = self.nonStandardInputHandler?() ?? false
+
+                                    if !shouldCancelUpload {
+                                        self.startNetworkTransport(
+                                            videoFile: videoFile
+                                        )
+                                    } else {
+                                        self.fileWorker?.cancel()
+                                        self.uploadManager.acknowledgeUpload(id: self.id)
+                                        self.input.processUploadCancellation()
+                                    }
+                                } else {
+                                    self.startNetworkTransport(
+                                        videoFile: outputURL,
+                                        duration: inputDuration
+                                    )
+                                }
+
+                                self.inputStandardizer.acknowledgeCompletion(id: self.id)
+                            }
+
+                        } else {
+                            self.startNetworkTransport(
+                                videoFile: videoFile
+                            )
+                        }
                     } else {
                         SDKLogger.logger?.debug(
                             """
@@ -512,7 +562,7 @@ public final class DirectUpload {
                         self.inputStandardizer.standardize(
                             id: self.id,
                             sourceAsset: AVAsset(url: videoFile),
-                            maximumResolution: result.maximumResolution,
+                            rescalingDetails: result.rescalingDetails,
                             outputURL: outputURL
                         ) { sourceAsset, standardizedAsset, error in
 
