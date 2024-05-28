@@ -107,9 +107,12 @@ class AVFoundationUploadInputInspector: UploadInputInspector {
                     track.loadValuesAsynchronously(
                         forKeys: [
                             "formatDescriptions",
-                            "nominalFrameRate"
+                            "nominalFrameRate",
+                            "estimatedDataRate"
                         ]
                     ) {
+                        var nonStandardReasons: [UploadInputFormatInspectionResult.NonstandardInputReason] = []
+
                         guard let formatDescriptions = track.formatDescriptions as? [CMFormatDescription] else {
                             completionHandler(
                                 nil,
@@ -127,8 +130,6 @@ class AVFoundationUploadInputInspector: UploadInputInspector {
                             )
                             return
                         }
-
-                        var nonStandardReasons: [UploadInputFormatInspectionResult.NonstandardInputReason] = []
 
                         let videoDimensions = CMVideoFormatDescriptionGetDimensions(
                             formatDescription
@@ -157,6 +158,19 @@ class AVFoundationUploadInputInspector: UploadInputInspector {
                                 nonStandardReasons.append(.videoFrameRate)
                             }
                         }
+
+                        let estimatedBitrate = track.estimatedDataRate
+
+                        if max(videoDimensions.width, videoDimensions.height) > 1920 {
+                            if estimatedBitrate > 40_000_000 {
+                                nonStandardReasons.append(.videoBitrate)
+                            }
+                        } else {
+                            if estimatedBitrate > 16_000_000 {
+                                nonStandardReasons.append(.videoBitrate)
+                            }
+                        }
+
                         completionHandler(
                             UploadInputFormatInspectionResult(
                                 nonStandardInputReasons: nonStandardReasons,
