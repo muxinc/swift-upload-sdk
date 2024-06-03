@@ -16,7 +16,7 @@ struct ContentView: View {
         NavigationView {
             VStack(spacing: 0) {
                 MuxNavBar()
-                UploadListContainerView()
+                UploadListView()
                 Spacer()
             }
             .background {
