@@ -27,9 +27,7 @@ struct UploadCallToActionLabel: View {
     }
 }
 
-
-
-struct BigUploadCTA_Preview: PreviewProvider {
+struct UploadCallToActionLabel_Preview: PreviewProvider {
     static var previews: some View {
         ZStack {
             WindowBackground.ignoresSafeArea()
