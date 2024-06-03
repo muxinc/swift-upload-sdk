@@ -35,11 +35,6 @@ class UploadListModel : ObservableObject {
                         }
                     }
 
-                    print("SDK Uploads List: \(uploads.count)")
-                    print("Current Example Uploads List: \(self.lastKnownUploads.count)")
-                    print("Updated Example Uploads List: \(lastKnownUploadsToUpdate.count)")
-
-
                     self.lastKnownUploads = lastKnownUploadsToUpdate
                         .sorted(
                             by: { lhs, rhs in
