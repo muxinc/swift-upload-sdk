@@ -462,122 +462,205 @@ public final class DirectUpload {
 
             input.status = .underInspection(input.sourceAsset, uploadInfo)
             inputInspector.performInspection(
-                sourceInput: input.sourceAsset
-            ) { inspectionResult in
+                sourceInput: input.sourceAsset, 
+                maximumResolution: uploadInfo.options.inputStandardization.maximumResolution
+            ) { inspectionResult, inputDuration, inspectionError in
                 self.inspectionResult = inspectionResult
 
-                switch inspectionResult {
-                case .inspectionFailure:
-                    // Request upload confirmation
-                    // before proceeding. If handler unset,
-                    // by default do not cancel upload if
-                    // input standardization fails
-                    let shouldCancelUpload = self.nonStandardInputHandler?() ?? false
-
-                    reporter.reportUploadInputStandardizationFailure(
-                        errorDescription: "Input inspection failure",
-                        inputDuration: inspectionResult.sourceInputDuration.seconds,
+                switch (inspectionResult, inspectionError) {
+                case (.none, .none):
+                    // Corner case
+                    self.handleInspectionFailure(
+                        inspectionError: UploadInputInspectionError.inspectionFailure,
+                        inputDuration: inputDuration,
                         inputSize: inputSize,
-                        nonStandardInputReasons: [],
-                        options: self.uploadInfo.options,
-                        standardizationEndTime: Date(),
-                        standardizationStartTime: inputStandardizationStartTime,
-                        uploadCanceled: shouldCancelUpload,
-                        uploadURL: self.uploadURL
+                        inputStandardizationStartTime: inputStandardizationStartTime,
+                        videoFile: videoFile
                     )
-
-                    if !shouldCancelUpload {
-                        self.startNetworkTransport(
-                            videoFile: videoFile
-                        )
-                    } else {
-                        self.fileWorker?.cancel()
-                        self.uploadManager.acknowledgeUpload(id: self.id)
-                        self.input.processUploadCancellation()
-                    }
-                case .standard:
-                    self.startNetworkTransport(videoFile: videoFile)
-                case .nonstandard(
-                    let reasons, _
-                ):
-                    print("""
-                    Detected Nonstandard Reasons
-
-                    \(dump(reasons, indent: 4))
-
-                    """
+                case (.none, .some(let error)):
+                    self.handleInspectionFailure(
+                        inspectionError: error,
+                        inputDuration: inputDuration,
+                        inputSize: inputSize,
+                        inputStandardizationStartTime: inputStandardizationStartTime,
+                        videoFile: videoFile
                     )
+                case (.some(let result), .none):
+                    if result.isStandardInput {
 
-                    // TODO: inject Date() for testing purposes
-                    let outputFileName = "upload-\(Date().timeIntervalSince1970)"
-
-                    let outputDirectory = FileManager.default.temporaryDirectory
-                    let outputURL = URL(
-                        fileURLWithPath: outputFileName,
-                        relativeTo: outputDirectory
-                    )
-                    let maximumResolution = self.input
-                        .uploadInfo
-                        .options
-                        .inputStandardization
-                        .maximumResolution
-
-                    self.inputStandardizer.standardize(
-                        id: self.id,
-                        sourceAsset: AVAsset(url: videoFile),
-                        maximumResolution: maximumResolution,
-                        outputURL: outputURL
-                    ) { sourceAsset, standardizedAsset, error in
-
-                        if let error {
-                            // Request upload confirmation
-                            // before proceeding. If handler unset,
-                            // by default do not cancel upload if
-                            // input standardization fails
-                            let shouldCancelUpload = self.nonStandardInputHandler?() ?? false
-
-                            reporter.reportUploadInputStandardizationFailure(
-                                errorDescription: error.localizedDescription,
-                                inputDuration: inspectionResult.sourceInputDuration.seconds,
-                                inputSize: inputSize,
-                                nonStandardInputReasons: reasons,
-                                options: self.uploadInfo.options,
-                                standardizationEndTime: Date(),
-                                standardizationStartTime: inputStandardizationStartTime,
-                                uploadCanceled: shouldCancelUpload,
-                                uploadURL: self.uploadURL
+                        if result.rescalingDetails.needsRescaling {
+                            SDKLogger.logger?.debug(
+                                "Detected Input Needs Rescaling"
                             )
 
-                            if !shouldCancelUpload {
-                                self.startNetworkTransport(
-                                    videoFile: videoFile
-                                )
-                            } else {
-                                self.fileWorker?.cancel()
-                                self.uploadManager.acknowledgeUpload(id: self.id)
-                                self.input.processUploadCancellation()
+                            // TODO: inject Date() for testing purposes
+                            let outputFileName = "upload-\(Date().timeIntervalSince1970)"
+
+                            let outputDirectory = FileManager.default.temporaryDirectory
+                            let outputURL = URL(
+                                fileURLWithPath: outputFileName,
+                                relativeTo: outputDirectory
+                            )
+
+                            self.inputStandardizer.standardize(
+                                id: self.id,
+                                sourceAsset: AVAsset(url: videoFile),
+                                rescalingDetails: result.rescalingDetails,
+                                outputURL: outputURL
+                            ) { sourceAsset, standardizedAsset, error in
+
+                                if let error {
+                                    // Request upload confirmation
+                                    // before proceeding. If handler unset,
+                                    // by default do not cancel upload if
+                                    // input standardization fails
+                                    let shouldCancelUpload = self.nonStandardInputHandler?() ?? false
+
+                                    if !shouldCancelUpload {
+                                        self.startNetworkTransport(
+                                            videoFile: videoFile
+                                        )
+                                    } else {
+                                        self.fileWorker?.cancel()
+                                        self.uploadManager.acknowledgeUpload(id: self.id)
+                                        self.input.processUploadCancellation()
+                                    }
+                                } else {
+                                    self.startNetworkTransport(
+                                        videoFile: outputURL,
+                                        duration: inputDuration
+                                    )
+                                }
+
+                                self.inputStandardizer.acknowledgeCompletion(id: self.id)
                             }
-                        } else {
-                            reporter.reportUploadInputStandardizationSuccess(
-                                inputDuration: inspectionResult.sourceInputDuration.seconds,
-                                inputSize: inputSize,
-                                options: self.uploadInfo.options,
-                                nonStandardInputReasons: reasons,
-                                standardizationEndTime: Date(),
-                                standardizationStartTime: inputStandardizationStartTime,
-                                uploadURL: self.uploadURL
-                            )
 
+                        } else {
                             self.startNetworkTransport(
-                                videoFile: outputURL,
-                                duration: inspectionResult.sourceInputDuration
+                                videoFile: videoFile
                             )
                         }
+                    } else {
+                        SDKLogger.logger?.debug(
+                            """
+                            Detected Nonstandard Reasons
 
-                        self.inputStandardizer.acknowledgeCompletion(id: self.id)
+                            \(dump(result.nonStandardInputReasons, indent: 4))
+
+                            """
+                        )
+
+                        // TODO: inject Date() for testing purposes
+                        let outputFileName = "upload-\(Date().timeIntervalSince1970)"
+
+                        let outputDirectory = FileManager.default.temporaryDirectory
+                        let outputURL = URL(
+                            fileURLWithPath: outputFileName,
+                            relativeTo: outputDirectory
+                        )
+
+                        self.inputStandardizer.standardize(
+                            id: self.id,
+                            sourceAsset: AVAsset(url: videoFile),
+                            rescalingDetails: result.rescalingDetails,
+                            outputURL: outputURL
+                        ) { sourceAsset, standardizedAsset, error in
+
+                            if let error {
+                                // Request upload confirmation
+                                // before proceeding. If handler unset,
+                                // by default do not cancel upload if
+                                // input standardization fails
+                                let shouldCancelUpload = self.nonStandardInputHandler?() ?? false
+
+                                reporter.reportUploadInputStandardizationFailure(
+                                    errorDescription: error.localizedDescription,
+                                    inputDuration: inputDuration.seconds,
+                                    inputSize: inputSize,
+                                    nonStandardInputReasons: result.nonStandardInputReasons,
+                                    options: self.uploadInfo.options,
+                                    standardizationEndTime: Date(),
+                                    standardizationStartTime: inputStandardizationStartTime,
+                                    uploadCanceled: shouldCancelUpload,
+                                    uploadURL: self.uploadURL
+                                )
+
+                                if !shouldCancelUpload {
+                                    self.startNetworkTransport(
+                                        videoFile: videoFile
+                                    )
+                                } else {
+                                    self.fileWorker?.cancel()
+                                    self.uploadManager.acknowledgeUpload(id: self.id)
+                                    self.input.processUploadCancellation()
+                                }
+                            } else {
+                                reporter.reportUploadInputStandardizationSuccess(
+                                    inputDuration: inputDuration.seconds,
+                                    inputSize: inputSize,
+                                    options: self.uploadInfo.options,
+                                    nonStandardInputReasons: result.nonStandardInputReasons,
+                                    standardizationEndTime: Date(),
+                                    standardizationStartTime: inputStandardizationStartTime,
+                                    uploadURL: self.uploadURL
+                                )
+
+                                self.startNetworkTransport(
+                                    videoFile: outputURL,
+                                    duration: inputDuration
+                                )
+                            }
+
+                            self.inputStandardizer.acknowledgeCompletion(id: self.id)
+                        }
                     }
+                case (.some(let result), .some(let error)):
+                    self.handleInspectionFailure(
+                        inspectionError: error,
+                        inputDuration: inputDuration,
+                        inputSize: inputSize,
+                        inputStandardizationStartTime: inputStandardizationStartTime,
+                        videoFile: videoFile
+                    )
                 }
             }
+        }
+    }
+
+    func handleInspectionFailure(
+        inspectionError: Error,
+        inputDuration: CMTime,
+        inputSize: UInt64,
+        inputStandardizationStartTime: Date,
+        videoFile: URL
+    ) {
+        let reporter = Reporter.shared
+        // Request upload confirmation
+        // before proceeding. If handler unset,
+        // by default do not cancel upload if
+        // input standardization fails
+        let shouldCancelUpload = self.nonStandardInputHandler?() ?? false
+
+        reporter.reportUploadInputStandardizationFailure(
+            errorDescription: "Input inspection failure",
+            inputDuration: inputDuration.seconds,
+            inputSize: inputSize,
+            nonStandardInputReasons: [],
+            options: self.uploadInfo.options,
+            standardizationEndTime: Date(),
+            standardizationStartTime: inputStandardizationStartTime,
+            uploadCanceled: shouldCancelUpload,
+            uploadURL: self.uploadURL
+        )
+
+        if !shouldCancelUpload {
+            self.startNetworkTransport(
+                videoFile: videoFile
+            )
+        } else {
+            self.fileWorker?.cancel()
+            self.uploadManager.acknowledgeUpload(id: self.id)
+            self.input.processUploadCancellation()
         }
     }
 
