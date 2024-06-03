@@ -40,3 +40,13 @@ struct SelectVideoView: View {
         }
     }
 }
+
+struct SelectVideoView_Previews: PreviewProvider {
+    static var previews: some View {
+        ZStack {
+            WindowBackground.ignoresSafeArea()
+            SelectVideoView()
+        }
+        .environmentObject(UploadCreationModel())
+    }
+}
