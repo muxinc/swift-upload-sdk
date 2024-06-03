@@ -39,7 +39,6 @@ struct UploadListView: View {
 fileprivate struct ListItem: View {
     
     @StateObject var thumbnailModel: ThumbnailModel
-    let upload: DirectUpload
     
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -69,7 +68,7 @@ fileprivate struct ListItem: View {
                     .foregroundColor(Gray30)
                     .background(Gray90.clipShape(RoundedRectangle(cornerRadius: 4.0)))
             }
-            if upload.inProgress {
+            if thumbnailModel.upload.inProgress {
                 HStack() {
                     VStack (alignment: .leading, spacing: 0) {
                         Text("Uploading...")
@@ -148,11 +147,10 @@ fileprivate struct ListItem: View {
     }
     
     init(upload: DirectUpload) {
-        self.upload = upload
         _thumbnailModel = StateObject(
-            wrappedValue: {
-                ThumbnailModel(asset: AVAsset(url: upload.videoFile!), upload: upload)
-            }()
+            wrappedValue: ThumbnailModel(
+                upload: upload
+            )
         )
     }
 }
