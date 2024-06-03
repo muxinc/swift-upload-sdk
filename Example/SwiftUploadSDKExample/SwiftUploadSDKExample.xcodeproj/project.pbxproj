@@ -23,7 +23,7 @@
 		19822A742A4CA69700CFA822 /* UploadListModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19822A622A4CA69700CFA822 /* UploadListModel.swift */; };
 		19822A752A4CA69700CFA822 /* UploadCreationModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19822A632A4CA69700CFA822 /* UploadCreationModel.swift */; };
 		19822A762A4CA69700CFA822 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19822A642A4CA69700CFA822 /* ContentView.swift */; };
-		19822A772A4CA69700CFA822 /* UploadCTA.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19822A662A4CA69700CFA822 /* UploadCTA.swift */; };
+		19822A772A4CA69700CFA822 /* UploadCallToActionLabel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19822A662A4CA69700CFA822 /* UploadCallToActionLabel.swift */; };
 		19822A792A4CA69700CFA822 /* ImagePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19822A682A4CA69700CFA822 /* ImagePicker.swift */; };
 		19DCD95B2A4CA567001FBBF6 /* MuxUploadSDK in Frameworks */ = {isa = PBXBuildFile; productRef = 19DCD95A2A4CA567001FBBF6 /* MuxUploadSDK */; };
 /* End PBXBuildFile section */
@@ -53,7 +53,7 @@
 		19822A622A4CA69700CFA822 /* UploadListModel.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = UploadListModel.swift; sourceTree = "<group>"; };
 		19822A632A4CA69700CFA822 /* UploadCreationModel.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = UploadCreationModel.swift; sourceTree = "<group>"; };
 		19822A642A4CA69700CFA822 /* ContentView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
-		19822A662A4CA69700CFA822 /* UploadCTA.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = UploadCTA.swift; sourceTree = "<group>"; };
+		19822A662A4CA69700CFA822 /* UploadCallToActionLabel.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = UploadCallToActionLabel.swift; sourceTree = "<group>"; };
 		19822A682A4CA69700CFA822 /* ImagePicker.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ImagePicker.swift; sourceTree = "<group>"; };
 		19822A7B2A4CA6A300CFA822 /* SwiftUploadSDKExampleUITests.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SwiftUploadSDKExampleUITests.swift; sourceTree = "<group>"; };
 		19822A7C2A4CA6A300CFA822 /* SwiftUploadSDKExampleLaunchTests.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SwiftUploadSDKExampleLaunchTests.swift; sourceTree = "<group>"; };
@@ -88,10 +88,9 @@
 				19822A572A4CA69700CFA822 /* Fake Server Backend */,
 				19822A592A4CA69700CFA822 /* Assets.xcassets */,
 				19822A5A2A4CA69700CFA822 /* Preview Content */,
-				19822A5C2A4CA69700CFA822 /* Screens */,
+				19822A5C2A4CA69700CFA822 /* Views */,
 				19822A5F2A4CA69700CFA822 /* SwiftUploadSDKExample.swift */,
 				19822A602A4CA69700CFA822 /* Model */,
-				19822A642A4CA69700CFA822 /* ContentView.swift */,
 				19822A652A4CA69700CFA822 /* Widgets */,
 			);
 			path = SwiftUploadSDKExample;
@@ -132,13 +131,16 @@
 			path = "Preview Content";
 			sourceTree = "<group>";
 		};
-		19822A5C2A4CA69700CFA822 /* Screens */ = {
+		19822A5C2A4CA69700CFA822 /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				19822A642A4CA69700CFA822 /* ContentView.swift */,
 				19822A5D2A4CA69700CFA822 /* CreateUploadView.swift */,
 				19822A5E2A4CA69700CFA822 /* UploadListView.swift */,
+				19822A662A4CA69700CFA822 /* UploadCallToActionLabel.swift */,
+				19822A682A4CA69700CFA822 /* ImagePicker.swift */,
 			);
-			path = Screens;
+			path = Views;
 			sourceTree = "<group>";
 		};
 		19822A602A4CA69700CFA822 /* Model */ = {
@@ -154,8 +156,6 @@
 		19822A652A4CA69700CFA822 /* Widgets */ = {
 			isa = PBXGroup;
 			children = (
-				19822A662A4CA69700CFA822 /* UploadCTA.swift */,
-				19822A682A4CA69700CFA822 /* ImagePicker.swift */,
 			);
 			path = Widgets;
 			sourceTree = "<group>";
@@ -320,7 +320,7 @@
 				19822A6D2A4CA69700CFA822 /* FakeBackend.swift in Sources */,
 				19822A712A4CA69700CFA822 /* UploadListView.swift in Sources */,
 				19822A742A4CA69700CFA822 /* UploadListModel.swift in Sources */,
-				19822A772A4CA69700CFA822 /* UploadCTA.swift in Sources */,
+				19822A772A4CA69700CFA822 /* UploadCallToActionLabel.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

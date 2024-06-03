@@ -8,7 +8,7 @@
 import SwiftUI
 import PhotosUI
 
-struct BigUploadCTALabel: View {
+struct UploadCallToActionLabel: View {
     var body: some View {
         ZStack {
             RoundedRectangle(cornerRadius: 4.0)
@@ -33,7 +33,7 @@ struct BigUploadCTA_Preview: PreviewProvider {
     static var previews: some View {
         ZStack {
             WindowBackground.ignoresSafeArea()
-            BigUploadCTALabel()
+            UploadCallToActionLabel()
                 .padding(EdgeInsets(top: 64, leading: 20, bottom: 0, trailing: 20))
         }
         .environmentObject(UploadCreationModel())

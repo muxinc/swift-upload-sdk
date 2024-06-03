@@ -16,28 +16,23 @@ struct CreateUploadView: View {
         ZStack { // Outer window
             Gray100.ignoresSafeArea(.container)
             VStack(spacing: 0) {
-                MuxNavBar(leadingNavButton: .close, title: "Create a New Upload")
-                ScreenContentView()
+                MuxNavBar(
+                    leadingNavButton: .close,
+                    title: "Create a New Upload"
+                )
+                ZStack {
+                    WindowBackground
+                    switch uploadCreationModel.exportState {
+                    case .not_started: EmptyView()
+                    case .preparing: ProcessingView()
+                    case .failure(let error): ErrorView(error: error)
+                    case .ready(let upload): ThumbnailView(preparedMedia: upload)
+                    }
+
+                }
             }
         }
         .environmentObject(uploadCreationModel)
-    }
-}
-
-fileprivate struct ScreenContentView: View {
-    @EnvironmentObject var uploadCreationModel: UploadCreationModel
-
-    var body: some View {
-        ZStack {
-            WindowBackground
-            switch uploadCreationModel.exportState {
-            case .not_started: EmptyView()
-            case .preparing: ProcessingView()
-            case .failure(let error): ErrorView(error: error)
-            case .ready(let upload): ThumbnailView(preparedMedia: upload)
-            }
-            
-        }
     }
 }
 
@@ -201,7 +196,7 @@ fileprivate struct EmptyView: View {
                 matching: .videos,
                 preferredItemEncoding: .current,
                 label: {
-                    BigUploadCTALabel()
+                    UploadCallToActionLabel()
                 }
             )
             .padding(
@@ -216,14 +211,6 @@ fileprivate struct EmptyView: View {
         }
     }
 }
-
-struct ContentContainer_Previews: PreviewProvider {
-    static var previews: some View {
-        ScreenContentView()
-            .environmentObject(UploadCreationModel())
-    }
-}
-
 
 struct Thumbnail_Previews: PreviewProvider {
     static var previews: some View {

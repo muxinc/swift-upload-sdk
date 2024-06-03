@@ -9,19 +9,7 @@ import SwiftUI
 import MuxUploadSDK
 import AVFoundation
 
-struct UploadListScreen: View {
-    @EnvironmentObject var uploadListVM: UploadListModel
-    
-    var body: some View {
-        ZStack(alignment: .top) {
-            WindowBackground
-            VStack(spacing: 0) {
-                MuxNavBar()
-                UploadListContainerView()
-            }
-        }
-    }
-}
+
 
 extension DirectUpload {
     var objectIdentifier: ObjectIdentifier {
@@ -35,7 +23,7 @@ struct UploadListContainerView: View {
 
     var body: some View {
         if uploadListModel.lastKnownUploads.isEmpty {
-            EmptyList()
+            UploadListPlaceholderView()
         } else {
             ScrollView {
                 LazyVStack {
@@ -172,24 +160,17 @@ fileprivate struct ListItem: View {
     }
 }
 
-fileprivate struct EmptyList: View {
+fileprivate struct UploadListPlaceholderView: View {
     var body: some View {
         NavigationLink {
             CreateUploadView()
                 .navigationBarHidden(true)
         } label: {
             ZStack(alignment: .top) {
-                BigUploadCTALabel()
+                UploadCallToActionLabel()
                     .padding(EdgeInsets(top: 64, leading: 20, bottom: 0, trailing: 20))
             }
         }
-    }
-}
-
-struct UploadListScreen_Previews: PreviewProvider {
-    static var previews: some View {
-        UploadListScreen()
-            .environmentObject(UploadListModel())
     }
 }
 
@@ -207,7 +188,7 @@ struct EmptyList_Previews: PreviewProvider {
     static var previews: some View {
         ZStack(alignment: .top) {
             WindowBackground
-            EmptyList()
+            UploadListPlaceholderView()
             
         }
     }

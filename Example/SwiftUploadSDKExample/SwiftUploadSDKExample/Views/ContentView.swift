@@ -14,10 +14,26 @@ struct ContentView: View {
 
     var body: some View {
         NavigationView {
+
+
+
             VStack(spacing: 0) {
                 MuxNavBar()
                 UploadListContainerView()
                 Spacer()
+            }
+            NavigationLink {
+                CreateUploadView()
+                    .navigationBarHidden(true)
+            } label : {
+                if !uploadListModel.lastKnownUploads.isEmpty {
+                    ZStack {
+                        Image("Mux-y Add")
+                            .padding()
+                            .background(Green50.clipShape(Circle()))
+                    }
+                    .padding(24.0)
+                }
             }
         }
         .background {
