@@ -14,13 +14,13 @@ struct ContentView: View {
 
     var body: some View {
         NavigationView {
-
-
-
             VStack(spacing: 0) {
                 MuxNavBar()
                 UploadListContainerView()
                 Spacer()
+            }
+            .background {
+                WindowBackground
             }
             NavigationLink {
                 CreateUploadView()
@@ -40,6 +40,7 @@ struct ContentView: View {
             WindowBackground
                 .ignoresSafeArea()
         }
+        .navigationViewStyle(.stack)
         .preferredColorScheme(.dark)
         .environmentObject(uploadListModel)
         .environmentObject(uploadCreationModel)
