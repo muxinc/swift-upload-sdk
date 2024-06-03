@@ -10,6 +10,19 @@ import PhotosUI
 import MuxUploadSDK
 import SwiftUI
 
+struct UploadInput: Transferable {
+    let file: URL
+    static var transferRepresentation: some TransferRepresentation {
+        FileRepresentation(
+            contentType: .mpeg4Movie
+        ) { transferable in
+            SentTransferredFile(transferable.file)
+        } importing: { receivedTransferedFile in
+            UploadInput(file: receivedTransferedFile.file)
+        }
+    }
+}
+
 class UploadCreationModel : ObservableObject {
     
     struct PickerError: Error, Equatable {
@@ -43,19 +56,16 @@ class UploadCreationModel : ObservableObject {
 
     @Published var photosAuthStatus: PhotosAuthState
     @Published var exportState: ExportState = .not_started
+    @Published var pickedItem: [PhotosPickerItem] = [] {
+        didSet {
+            tryToPrepare(from: pickedItem.first!)
+        }
+    }
 
     init() {
         let innerAuthStatus = PHPhotoLibrary.authorizationStatus(for: .readWrite)
         self.photosAuthStatus = innerAuthStatus.asAppAuthState()
         self.exportState = .not_started
-    }
-
-    func requestPhotosAccess() {
-        switch photosAuthStatus {
-        case .cant_auth(_): logger.critical("This application can't ask for permission to access photos. Check your Info.plist for NSPhotoLibraryAddUsageDescription, and make sure to use a physical device with this app")
-        case .authorized(_): logger.warning("requestPhotosAccess called but we already had access. ignoring")
-        case .can_auth(_): doRequestPhotosPermission()
-        }
     }
     
     @discardableResult func startUpload(preparedMedia: PreparedUpload, forceRestart: Bool) -> DirectUpload {
@@ -72,59 +82,67 @@ class UploadCreationModel : ObservableObject {
     }
     
     /// Prepares a Photos Asset for upload by exporting it to a local temp file
-    func tryToPrepare(from pickerResult: PHPickerResult) {
-        if case ExportState.preparing = exportState {
-            return
-        }
-
-        // Cancel anything that was already happening
-        if let assetRequestId = assetRequestId {
-            PHImageManager.default().cancelImageRequest(assetRequestId)
-        }
-        if let prepareTask = prepareTask {
-            prepareTask.cancel()
-        }
-        if let thumbnailGenerator = thumbnailGenerator {
-            thumbnailGenerator.cancelAllCGImageGeneration()
-        }
-        
-        // TODO: This is a very common workflow. Should the SDK be able to do this workflow with Photos?
+    func tryToPrepare(from pickerItem: PhotosPickerItem) {
         exportState = .preparing
         
         let tempDir = FileManager.default.temporaryDirectory
-        let tempFile = URL(string: "upload-\(Date().timeIntervalSince1970).mp4", relativeTo: tempDir)!
-        
-        guard let assetIdentitfier = pickerResult.assetIdentifier else {
-            NSLog("!! No Asset ID for chosen asset")
-            exportState = .failure(UploadCreationModel.PickerError.assetExportSessionFailed)
-            return
-        }
-        let options = PHFetchOptions()
-        options.includeAssetSourceTypes = [.typeUserLibrary, .typeCloudShared]
-        let phAssetResult = PHAsset.fetchAssets(withLocalIdentifiers: [assetIdentitfier], options: options)
-        guard let phAsset = phAssetResult.firstObject else {
-            self.logger.error("!! No Asset fetched")
+        let tempFile = URL(
+            string: "upload-\(Date().timeIntervalSince1970).mp4",
+            relativeTo: tempDir
+        )!
+
+        guard let itemIdentifier = pickerItem.itemIdentifier else {
+            self.logger.error("No item identifier for chosen video")
             Task.detached {
                 await MainActor.run {
-                    self.exportState = .failure(PickerError.missingAssetIdentifier)
+                    self.exportState = .failure(
+                        PickerError.assetExportSessionFailed
+                    )
                 }
             }
             return
         }
-        
-        let exportOptions = PHVideoRequestOptions()
-        exportOptions.isNetworkAccessAllowed = true
-        exportOptions.deliveryMode = .highQualityFormat
-        assetRequestId = PHImageManager.default().requestExportSession(forVideo: phAsset, options: exportOptions, exportPreset: AVAssetExportPresetHighestQuality, resultHandler: {(exportSession, info) -> Void in
-            DispatchQueue.main.async {
-                guard let exportSession = exportSession else {
-                    self.logger.error("!! No Export session")
-                    self.exportState = .failure(UploadCreationModel.PickerError.assetExportSessionFailed)
-                    return
+
+        doRequestPhotosPermission { authorizationStatus in
+            Task.detached {
+                await MainActor.run {
+                    self.photosAuthStatus = authorizationStatus.asAppAuthState()
+
+                    let options = PHFetchOptions()
+                    options.includeAssetSourceTypes = [.typeUserLibrary, .typeCloudShared]
+                    let fetchAssetResult = PHAsset.fetchAssets(withLocalIdentifiers: [itemIdentifier], options: options)
+                    guard let fetchedAsset = fetchAssetResult.firstObject else {
+                        self.logger.error("No Asset fetched")
+                        Task.detached {
+                            await MainActor.run {
+                                self.exportState = .failure(
+                                    PickerError.missingAssetIdentifier
+                                )
+                            }
+                        }
+                        return
+                    }
+
+                    let exportOptions = PHVideoRequestOptions()
+                    exportOptions.isNetworkAccessAllowed = true
+                    exportOptions.deliveryMode = .highQualityFormat
+                    self.assetRequestId = PHImageManager.default().requestExportSession(
+                        forVideo: fetchedAsset,
+                        options: exportOptions,
+                        exportPreset: AVAssetExportPresetHighestQuality,
+                        resultHandler: {(exportSession, info) -> Void in
+                        DispatchQueue.main.async {
+                            guard let exportSession = exportSession else {
+                                self.logger.error("!! No Export session")
+                                self.exportState = .failure(UploadCreationModel.PickerError.assetExportSessionFailed)
+                                return
+                            }
+                            self.exportToOutFile(session: exportSession, outFile: tempFile)
+                        }
+                    })
                 }
-                self.exportToOutFile(session: exportSession, outFile: tempFile)
             }
-        })
+        }
     }
     
     private func exportToOutFile(session: AVAssetExportSession, outFile: URL) {
@@ -197,14 +215,13 @@ class UploadCreationModel : ObservableObject {
         
     }
     
-    private func doRequestPhotosPermission() {
-        PHPhotoLibrary.requestAuthorization(for: .readWrite) { status in
-            Task.detached {
-                await MainActor.run {
-                    self.photosAuthStatus = status.asAppAuthState()
-                }
-            }
-        }
+    private func doRequestPhotosPermission(
+        handler: @escaping (PHAuthorizationStatus) -> Void
+    ) {
+        PHPhotoLibrary.requestAuthorization(
+            for: .readWrite,
+            handler: handler
+        )
     }
 }
 
@@ -215,11 +232,16 @@ struct PreparedUpload {
 }
 
 enum ExportState {
-    case not_started, preparing, failure(UploadCreationModel.PickerError), ready(PreparedUpload)
+    case not_started
+    case preparing
+    case failure(UploadCreationModel.PickerError)
+    case ready(PreparedUpload)
 }
 
 enum PhotosAuthState {
-    case cant_auth(PHAuthorizationStatus), can_auth(PHAuthorizationStatus), authorized(PHAuthorizationStatus)
+    case cant_auth(PHAuthorizationStatus)
+    case can_auth(PHAuthorizationStatus)
+    case authorized(PHAuthorizationStatus)
 }
 
 extension PHAuthorizationStatus {
