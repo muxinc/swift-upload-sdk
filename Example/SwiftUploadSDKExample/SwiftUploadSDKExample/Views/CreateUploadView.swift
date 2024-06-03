@@ -23,7 +23,7 @@ struct CreateUploadView: View {
                 ZStack {
                     WindowBackground
                     switch uploadCreationModel.exportState {
-                    case .not_started: EmptyView()
+                    case .not_started: SelectVideoView()
                     case .preparing: ProcessingView()
                     case .failure(let error): ErrorView(error: error)
                     case .ready(let upload): ThumbnailView(preparedMedia: upload)
@@ -184,33 +184,7 @@ fileprivate struct ProcessingView: View {
     }
 }
 
-fileprivate struct EmptyView: View {
-    @EnvironmentObject var uploadCreationModel: UploadCreationModel
 
-    @State var pickedItem: PhotosPickerItem?
-
-    var body: some View {
-        VStack {
-            PhotosPicker(
-                selection: $pickedItem,
-                matching: .videos,
-                preferredItemEncoding: .current,
-                label: {
-                    UploadCallToActionLabel()
-                }
-            )
-            .padding(
-                EdgeInsets(
-                    top: 64,
-                    leading: 20,
-                    bottom: 0,
-                    trailing: 20
-                )
-            )
-            Spacer()
-        }
-    }
-}
 
 struct Thumbnail_Previews: PreviewProvider {
     static var previews: some View {
@@ -222,11 +196,11 @@ struct Thumbnail_Previews: PreviewProvider {
     }
 }
 
-struct EmptyView_Previews: PreviewProvider {
+struct SelectVideoView_Previews: PreviewProvider {
     static var previews: some View {
         ZStack {
             WindowBackground.ignoresSafeArea()
-            EmptyView()
+            SelectVideoView()
         }
         .environmentObject(UploadCreationModel())
     }

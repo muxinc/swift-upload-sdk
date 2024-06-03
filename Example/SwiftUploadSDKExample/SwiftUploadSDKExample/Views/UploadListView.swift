@@ -9,8 +9,6 @@ import SwiftUI
 import MuxUploadSDK
 import AVFoundation
 
-
-
 extension DirectUpload {
     var objectIdentifier: ObjectIdentifier {
         ObjectIdentifier(self)
