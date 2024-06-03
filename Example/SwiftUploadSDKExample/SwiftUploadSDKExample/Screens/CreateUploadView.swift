@@ -10,25 +10,27 @@ import PhotosUI
 
 struct CreateUploadView: View {
     
-    @StateObject var uploadCreationVM: UploadCreationModel = UploadCreationModel()
-    
+    @EnvironmentObject var uploadCreationModel: UploadCreationModel
+
     var body: some View {
         ZStack { // Outer window
             Gray100.ignoresSafeArea(.container)
             VStack(spacing: 0) {
                 MuxNavBar(leadingNavButton: .close, title: "Create a New Upload")
-                ScreenContentView(exportState: uploadCreationVM.exportState)
+                ScreenContentView()
             }
         }
-        .environmentObject(uploadCreationVM)
+        .environmentObject(uploadCreationModel)
     }
 }
 
 fileprivate struct ScreenContentView: View {
+    @EnvironmentObject var uploadCreationModel: UploadCreationModel
+
     var body: some View {
         ZStack {
             WindowBackground
-            switch exportState {
+            switch uploadCreationModel.exportState {
             case .not_started: EmptyView()
             case .preparing: ProcessingView()
             case .failure(let error): ErrorView(error: error)
@@ -37,8 +39,6 @@ fileprivate struct ScreenContentView: View {
             
         }
     }
-    
-    let exportState: ExportState
 }
 
 fileprivate struct ErrorView: View {
@@ -74,7 +74,7 @@ fileprivate struct ErrorView: View {
                     trailing: 20
                 )
             )
-            .frame(height: SwiftUploadSDKExample.THUMBNAIL_HEIGHT)
+            .frame(height: SwiftUploadSDKExample.thumbnailHeight)
             
             Spacer()
         }
@@ -144,7 +144,7 @@ fileprivate struct ThumbnailView: View {
                     trailing: 20
                 )
             )
-            .frame(height: SwiftUploadSDKExample.THUMBNAIL_HEIGHT)
+            .frame(height: SwiftUploadSDKExample.thumbnailHeight)
             Spacer()
             StretchyDefaultButton("Upload") {
                 if let preparedMedia = preparedMedia {
@@ -183,31 +183,42 @@ fileprivate struct ProcessingView: View {
                     trailing: 20
                 )
             )
-            .frame(height: SwiftUploadSDKExample.THUMBNAIL_HEIGHT)
+            .frame(height: SwiftUploadSDKExample.thumbnailHeight)
             Spacer()
         }
     }
 }
 
 fileprivate struct EmptyView: View {
+    @EnvironmentObject var uploadCreationModel: UploadCreationModel
+
+    @State var pickedItem: PhotosPickerItem?
+
     var body: some View {
         VStack {
-            UploadCTA()
-                .padding(
-                    EdgeInsets(
-                        top: 64,
-                        leading: 20,
-                        bottom: 0,
-                        trailing: 20
-                    )
+            PhotosPicker(
+                selection: $pickedItem,
+                matching: .videos,
+                preferredItemEncoding: .current,
+                label: {
+                    BigUploadCTALabel()
+                }
+            )
+            .padding(
+                EdgeInsets(
+                    top: 64,
+                    leading: 20,
+                    bottom: 0,
+                    trailing: 20
                 )
+            )
             Spacer()
         }
     }
 }
 
 fileprivate struct UploadCTA: View {
-    @EnvironmentObject var uploadCreationVM: UploadCreationModel
+    @EnvironmentObject var uploadCreationModel: UploadCreationModel
     @State var inPickFlow = false // True when picking photos or resolving the related permission prompt, or when first launching the screen
     
     private var pickerConfig: PHPickerConfiguration = {
@@ -224,10 +235,10 @@ fileprivate struct UploadCTA: View {
     
     var body: some View {
         Button { [self] in
-            switch uploadCreationVM.photosAuthStatus {
+            switch uploadCreationModel.photosAuthStatus {
             case .can_auth(_): do {
                 inPickFlow = true
-                uploadCreationVM.requestPhotosAccess()
+                uploadCreationModel.requestPhotosAccess()
             }
             case .authorized(_): do {
                 inPickFlow = true
@@ -252,15 +263,15 @@ fileprivate struct UploadCTA: View {
                     // Only 0 or 1 images can be selected
                     if let firstVideo = images.first {
                         inPickFlow = false
-                        uploadCreationVM.tryToPrepare(from: firstVideo)
+                        uploadCreationModel.tryToPrepare(from: firstVideo)
                     }
                 }
             )}
         )
         .task {
             inPickFlow = true
-            if case .can_auth(_) = uploadCreationVM.photosAuthStatus {
-                uploadCreationVM.requestPhotosAccess()
+            if case .can_auth(_) = uploadCreationModel.photosAuthStatus {
+                uploadCreationModel.requestPhotosAccess()
             }
         }
     }
@@ -282,7 +293,7 @@ fileprivate struct UploadCTA: View {
     }
     
     private func isAuthorizedForPhotos() -> Bool {
-        switch uploadCreationVM.photosAuthStatus {
+        switch uploadCreationModel.photosAuthStatus {
         case .authorized(_): return true
         default: return false
         }
@@ -297,20 +308,11 @@ fileprivate struct UploadCTA: View {
 
 struct ContentContainer_Previews: PreviewProvider {
     static var previews: some View {
-        let exportState = ExportState.ready(
-            PreparedUpload(thumbnail: nil, localVideoFile: URL(string: "file:///")!, remoteURL: URL(string: "file:///")!)
-        )
-        ScreenContentView(exportState: exportState)
+        ScreenContentView()
             .environmentObject(UploadCreationModel())
     }
 }
 
-struct EntireScreen_Previews: PreviewProvider {
-    static var previews: some View {
-        CreateUploadView()
-            .environmentObject(UploadCreationModel())
-    }
-}
 
 struct Thumbnail_Previews: PreviewProvider {
     static var previews: some View {

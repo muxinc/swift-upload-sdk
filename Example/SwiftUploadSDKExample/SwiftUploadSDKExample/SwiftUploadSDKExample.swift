@@ -11,19 +11,20 @@ import OSLog
 @main
 struct SwiftUploadSDKExample: App {
     
-    static var logger = Logger(subsystem: "mux", category: "default")
-    static let THUMBNAIL_HEIGHT = 228.0
+    static var logger = Logger(
+        subsystem: "UploadExample",
+        category: "diagnostics"
+    )
+    static let thumbnailHeight = 228.0
     
-    @StateObject private var uploadListVM = UploadListModel()
-    
+    @StateObject var uploadListModel = UploadListModel()
+    @StateObject var uploadCreationModel = UploadCreationModel()
+
     var body: some Scene {
         WindowGroup {
             ContentView()
-                .environmentObject(uploadListVM)
+                .environmentObject(uploadListModel)
+                .environmentObject(uploadCreationModel)
         }
-    }
-    
-    public init() {
-        //MuxUploadSDK.enableDefaultLogging() // note: Kind of noisy on the simulator
     }
 }

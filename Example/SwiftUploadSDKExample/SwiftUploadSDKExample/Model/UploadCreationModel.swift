@@ -8,6 +8,7 @@
 import Foundation
 import PhotosUI
 import MuxUploadSDK
+import SwiftUI
 
 class UploadCreationModel : ObservableObject {
     
@@ -32,7 +33,23 @@ class UploadCreationModel : ObservableObject {
         var localizedDescription: String
         
     }
-    
+
+    private var assetRequestId: PHImageRequestID? = nil
+    private var prepareTask: Task<Void, Never>? = nil
+    private var thumbnailGenerator: AVAssetImageGenerator? = nil
+
+    private let logger = SwiftUploadSDKExample.logger
+    private let myServerBackend = FakeBackend(urlSession: URLSession(configuration: URLSessionConfiguration.default))
+
+    @Published var photosAuthStatus: PhotosAuthState
+    @Published var exportState: ExportState = .not_started
+
+    init() {
+        let innerAuthStatus = PHPhotoLibrary.authorizationStatus(for: .readWrite)
+        self.photosAuthStatus = innerAuthStatus.asAppAuthState()
+        self.exportState = .not_started
+    }
+
     func requestPhotosAccess() {
         switch photosAuthStatus {
         case .cant_auth(_): logger.critical("This application can't ask for permission to access photos. Check your Info.plist for NSPhotoLibraryAddUsageDescription, and make sure to use a physical device with this app")
@@ -188,24 +205,6 @@ class UploadCreationModel : ObservableObject {
                 }
             }
         }
-    }
-    
-    private var assetRequestId: PHImageRequestID? = nil
-    private var prepareTask: Task<Void, Never>? = nil
-    private var thumbnailGenerator: AVAssetImageGenerator? = nil
-    
-    private let logger = SwiftUploadSDKExample.logger
-    private let myServerBackend = FakeBackend(urlSession: URLSession(configuration: URLSessionConfiguration.default))
-    
-    @Published
-    var photosAuthStatus: PhotosAuthState
-    @Published
-    var exportState: ExportState = .not_started
-    
-    init() {
-        let innerAuthStatus = PHPhotoLibrary.authorizationStatus(for: .readWrite)
-        self.photosAuthStatus = innerAuthStatus.asAppAuthState()
-        self.exportState = .not_started
     }
 }
 

@@ -23,7 +23,7 @@ struct BigUploadCTALabel: View {
                     .foregroundColor(White)
             }
         }
-        .frame(height: SwiftUploadSDKExample.THUMBNAIL_HEIGHT)
+        .frame(height: SwiftUploadSDKExample.thumbnailHeight)
     }
 }
 
