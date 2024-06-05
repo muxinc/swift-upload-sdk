@@ -19,7 +19,7 @@ extension UploadInput {
             URL(string: "file://path/to/dummy/file/")
         )
 
-        let uploadInputAsset = AVAsset(
+        let uploadInputAsset = AVURLAsset(
             url: videoInputURL
         )
 
@@ -43,7 +43,7 @@ extension UploadInput {
             URL(string: "file://path/to/dummy/file/")
         )
 
-        let uploadInputAsset = AVAsset(
+        let uploadInputAsset = AVURLAsset(
             url: videoInputURL
         )
 

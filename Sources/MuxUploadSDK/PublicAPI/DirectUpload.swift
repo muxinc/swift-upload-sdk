@@ -228,7 +228,7 @@ public final class DirectUpload {
         inputStandardization: DirectUploadOptions.InputStandardization = .default,
         eventTracking: DirectUploadOptions.EventTracking = .default
     ) {
-        let asset = AVAsset(url: videoFileURL)
+        let asset = AVURLAsset(url: videoFileURL)
         self.init(
             input: UploadInput(
                 asset: asset,
@@ -265,7 +265,7 @@ public final class DirectUpload {
         inputFileURL: URL,
         options: DirectUploadOptions = .default
     ) {
-        let asset = AVAsset(
+        let asset = AVURLAsset(
             url: inputFileURL
         )
         self.init(
@@ -410,10 +410,10 @@ public final class DirectUpload {
     /// restarted. If false the upload will resume from where
     /// it left off if paused, otherwise the upload will change.
     public func start(forceRestart: Bool = false) {
-        if self.manageBySDK, let f = (input.sourceAsset as? AVURLAsset)?.url {
+        if self.manageBySDK {
             // See if there's anything in progress already
             fileWorker = uploadManager.findChunkedFileUploader(
-                inputFileURL: f
+                inputFileURL: input.sourceAsset.url
             )
         }
         if fileWorker != nil && !forceRestart {
@@ -432,7 +432,7 @@ public final class DirectUpload {
 
         if case UploadInput.Status.ready = input.status {
             input.status = .started(input.sourceAsset, uploadInfo)
-            startInspection(sourceAsset: input.sourceAsset as! AVURLAsset)
+            startInspection(sourceAsset: input.sourceAsset)
         } else if forceRestart {
             cancel()
         }
@@ -454,7 +454,7 @@ public final class DirectUpload {
             // instead throw an error since upload
             // will likely fail
             let inputSize = (try? FileManager.default.fileSizeOfItem(
-                atPath: (input.sourceAsset as! AVURLAsset).url.absoluteString
+                atPath: input.sourceAsset.url.absoluteString
             )) ?? 0
 
             input.status = .underInspection(input.sourceAsset, uploadInfo)

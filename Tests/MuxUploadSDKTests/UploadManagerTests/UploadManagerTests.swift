@@ -34,7 +34,7 @@ class UploadManagerTests: XCTestCase {
 
         let upload = DirectUpload(
             input: UploadInput(
-                asset: AVAsset(url: videoInputURL),
+                asset: AVURLAsset(url: videoInputURL),
                 info: UploadInfo(
                     uploadURL: uploadURL,
                     options: .inputStandardizationSkipped
@@ -45,7 +45,7 @@ class UploadManagerTests: XCTestCase {
 
         let duplicateUpload = DirectUpload(
             input: UploadInput(
-                asset: AVAsset(url: videoInputURL),
+                asset: AVURLAsset(url: videoInputURL),
                 info: UploadInfo(
                     uploadURL: uploadURL,
                     options: .inputStandardizationSkipped

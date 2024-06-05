@@ -10,26 +10,26 @@ import Foundation
 struct UploadInput {
 
     internal enum Status {
-        case ready(AVAsset, UploadInfo)
-        case started(AVAsset, UploadInfo)
-        case underInspection(AVAsset, UploadInfo)
-        case standardizing(AVAsset, UploadInfo)
+        case ready(AVURLAsset, UploadInfo)
+        case started(AVURLAsset, UploadInfo)
+        case underInspection(AVURLAsset, UploadInfo)
+        case standardizing(AVURLAsset, UploadInfo)
         case standardizationSucceeded(
-            source: AVAsset,
-            standardized: AVAsset?,
+            source: AVURLAsset,
+            standardized: AVURLAsset?,
             uploadInfo: UploadInfo
         )
-        case standardizationFailed(AVAsset, UploadInfo)
-        case awaitingUploadConfirmation(AVAsset,UploadInfo)
-        case uploadInProgress(AVAsset, UploadInfo, DirectUpload.TransportStatus)
-        case uploadPaused(AVAsset, UploadInfo, DirectUpload.TransportStatus)
-        case uploadSucceeded(AVAsset, UploadInfo, DirectUpload.SuccessDetails)
-        case uploadFailed(AVAsset, UploadInfo, DirectUploadError)
+        case standardizationFailed(AVURLAsset, UploadInfo)
+        case awaitingUploadConfirmation(AVURLAsset,UploadInfo)
+        case uploadInProgress(AVURLAsset, UploadInfo, DirectUpload.TransportStatus)
+        case uploadPaused(AVURLAsset, UploadInfo, DirectUpload.TransportStatus)
+        case uploadSucceeded(AVURLAsset, UploadInfo, DirectUpload.SuccessDetails)
+        case uploadFailed(AVURLAsset, UploadInfo, DirectUploadError)
     }
 
     var status: Status
 
-    var sourceAsset: AVAsset {
+    var sourceAsset: AVURLAsset {
         switch status {
         case .ready(let sourceAsset, _):
             return sourceAsset
@@ -151,7 +151,7 @@ extension UploadInput.Status: Equatable { }
 
 extension UploadInput {
     init(
-        asset: AVAsset,
+        asset: AVURLAsset,
         info: UploadInfo
     ) {
         self.status = .ready(asset, info)
