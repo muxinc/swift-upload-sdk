@@ -506,7 +506,7 @@ public final class DirectUpload {
                                 outputURL: outputURL
                             ) { sourceAsset, standardizedAsset, error in
 
-                                if let error {
+                                if let _ = error {
                                     // Request upload confirmation
                                     // before proceeding. If handler unset,
                                     // by default do not cancel upload if
@@ -611,7 +611,7 @@ public final class DirectUpload {
                             self.inputStandardizer.acknowledgeCompletion(id: self.id)
                         }
                     }
-                case (.some(let result), .some(let error)):
+                case (.some(_), .some(let error)):
                     self.handleInspectionFailure(
                         inspectionError: error,
                         inputDuration: inputDuration,

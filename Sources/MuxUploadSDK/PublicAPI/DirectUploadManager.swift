@@ -178,7 +178,7 @@ public final class DirectUploadManager {
             _ uploader: ChunkedFileUploader,
             stateUpdated state: ChunkedFileUploader.InternalUploadState
         ) {
-            Task.detached {
+            let _ = Task.detached {
                 await manager.uploadActor.updateUpload(
                     uploader.uploadInfo,
                     fileInputURL: uploader.inputFileURL,
