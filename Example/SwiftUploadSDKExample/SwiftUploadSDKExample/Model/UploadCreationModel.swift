@@ -71,7 +71,8 @@ class UploadCreationModel : ObservableObject {
     @discardableResult func startUpload(preparedMedia: PreparedUpload, forceRestart: Bool) -> DirectUpload {
         let upload = DirectUpload(
             uploadURL: preparedMedia.remoteURL,
-            videoFileURL: preparedMedia.localVideoFile
+            inputAsset: AVAsset(url: preparedMedia.localVideoFile),
+            options: .default
         )
         upload.progressHandler = { progress in
             self.logger.info("Uploading \(progress.progress?.completedUnitCount ?? 0)/\(progress.progress?.totalUnitCount ?? 0)")

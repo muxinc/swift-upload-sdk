@@ -171,7 +171,11 @@ struct UploadListItem_Previews: PreviewProvider {
     static var previews: some View {
         ZStack {
             WindowBackground
-            let upload = DirectUpload(uploadURL: URL(string: "file:///")!, videoFileURL: URL(string: "file:///")!)
+            let upload = DirectUpload(
+                uploadURL: URL(string: "file:///")!,
+                inputAsset: AVAsset(),
+                options: .default
+            )
             ListItem(upload: upload)
         }
     }
