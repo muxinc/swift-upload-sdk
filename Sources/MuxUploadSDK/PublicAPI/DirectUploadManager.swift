@@ -170,7 +170,6 @@ public final class DirectUploadManager {
     
     /// The shared instance of this object that should be used
     public static let shared = DirectUploadManager()
-    internal init() { }
     
     private struct FileUploaderDelegate : ChunkedFileUploaderDelegate {
         let manager: DirectUploadManager
