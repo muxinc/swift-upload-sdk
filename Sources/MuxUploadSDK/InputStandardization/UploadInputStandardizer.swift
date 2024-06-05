@@ -10,10 +10,10 @@ class UploadInputStandardizer {
 
     func standardize(
         id: String,
-        sourceAsset: AVAsset,
+        sourceAsset: AVURLAsset,
         rescalingDetails: UploadInputFormatInspectionResult.RescalingDetails,
         outputURL: URL,
-        completion: @escaping (AVAsset, AVAsset?, Error?) -> ()
+        completion: @escaping (AVURLAsset, AVAsset?, Error?) -> ()
     ) {
         let worker = UploadInputStandardizationWorker()
 

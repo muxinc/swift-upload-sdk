@@ -42,10 +42,10 @@ class UploadInputStandardizationWorker {
     var standardizedInput: AVAsset?
 
     func standardize(
-        sourceAsset: AVAsset,
+        sourceAsset: AVURLAsset,
         rescalingDetails: UploadInputFormatInspectionResult.RescalingDetails,
         outputURL: URL,
-        completion: @escaping (AVAsset, AVAsset?, Error?) -> ()
+        completion: @escaping (AVURLAsset, AVAsset?, Error?) -> ()
     ) {
 
         let availableExportPresets = AVAssetExportSession.allExportPresets()
