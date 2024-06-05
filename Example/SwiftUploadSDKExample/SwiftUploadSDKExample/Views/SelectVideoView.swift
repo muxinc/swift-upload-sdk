@@ -24,10 +24,6 @@ struct SelectVideoView: View {
                     UploadCallToActionLabel()
                 }
             )
-            .photosPickerAccessoryVisibility(
-                .hidden,
-                edges: .all
-            )
             .padding(
                 EdgeInsets(
                     top: 64,
