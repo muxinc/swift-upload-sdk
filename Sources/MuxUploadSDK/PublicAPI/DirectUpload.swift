@@ -661,9 +661,32 @@ public final class DirectUpload {
         }
     }
 
+    func readyForTransport() -> Bool {
+        switch inputStatus {
+        case .ready:
+            return false
+        case .started:
+            return true
+        case .preparing:
+            return true
+        case .awaitingConfirmation:
+            return true
+        case .transportInProgress:
+            return false
+        case .paused:
+            return false
+        case .finished:
+            return false
+        }
+    }
+
     func startNetworkTransport(
         videoFile: URL
     ) {
+        guard readyForTransport() else {
+            return
+        }
+
         let completedUnitCount = UInt64(uploadStatus?.progress?.completedUnitCount ?? 0)
 
         let fileWorker = ChunkedFileUploader(
@@ -695,6 +718,11 @@ public final class DirectUpload {
         videoFile: URL,
         duration: CMTime
     ) {
+        
+        guard readyForTransport() else {
+            return
+        }
+
         let completedUnitCount = UInt64(uploadStatus?.progress?.completedUnitCount ?? 0)
 
         let fileWorker = ChunkedFileUploader(
