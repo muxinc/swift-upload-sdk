@@ -62,9 +62,10 @@ public final class DirectUploadManager {
         return nil
     }
     
-    /// Returns all uploads currently-managed uploads.
-    /// Uploads are managed while in-progress or completed.
-    ///  Uploads become un-managed when canceled, or if the process dies after they complete
+    /// Returns all currently-managed uploads that are
+    /// in-progress or completed. Uploads that are canceled
+    /// or uploads that completed before the most recent
+    /// application termination are omitted
     public func allManagedDirectUploads() -> [DirectUpload] {
         // Sort upload list for consistent ordering
         return Array(uploadsByID.values.map(\.upload))
