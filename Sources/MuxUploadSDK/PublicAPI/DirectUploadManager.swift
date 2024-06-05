@@ -145,13 +145,13 @@ public final class DirectUploadManager {
 
         uploadsByID.updateValue(UploadStorage(upload: upload), forKey: upload.id)
         fileWorker.addDelegate(withToken: UUID().uuidString, uploaderDelegate)
+        self.notifyDelegates()
         Task.detached {
             await self.uploadActor.updateUpload(
                 fileWorker.uploadInfo,
                 fileInputURL: fileWorker.inputFileURL,
                 withUpdate: fileWorker.currentState
             )
-            self.notifyDelegates()
         }
     }
     
@@ -175,7 +175,10 @@ public final class DirectUploadManager {
     private struct FileUploaderDelegate : ChunkedFileUploaderDelegate {
         let manager: DirectUploadManager
         
-        func chunkedFileUploader(_ uploader: ChunkedFileUploader, stateUpdated state: ChunkedFileUploader.InternalUploadState) {
+        func chunkedFileUploader(
+            _ uploader: ChunkedFileUploader,
+            stateUpdated state: ChunkedFileUploader.InternalUploadState
+        ) {
             Task.detached {
                 await manager.uploadActor.updateUpload(
                     uploader.uploadInfo,
@@ -185,8 +188,12 @@ public final class DirectUploadManager {
                 manager.notifyDelegates()
             }
             switch state {
-            case .success(_), .canceled: manager.acknowledgeUpload(id: uploader.uploadInfo.id)
-            default: do { }
+            case .canceled:
+                manager.acknowledgeUpload(
+                    id: uploader.uploadInfo.id
+                )
+            default:
+                break
             }
         }
     }
