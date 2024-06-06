@@ -137,21 +137,17 @@ public final class DirectUpload {
     /// Handles a change in the input status of the upload
     public typealias InputStatusHandler = (InputStatus) -> ()
 
-    /**
-     If set will be notified of a change to a new input status
-     */
+    /// Sets a handler that gets notified when the status of
+    /// the upload changes
     public var inputStatusHandler: InputStatusHandler?
 
-    /**
-     Confirms upload if input standardization did not succeed
-     */
+    /// Confirms if upload should proceed when input
+    /// standardization does not succeed
     public typealias NonStandardInputHandler = () -> Bool
 
-    /**
-     If set will be executed by the SDK when input standardization
-     hadn't succeeded, return <doc:true> to continue the upload
-     or return <doc:false> to cancel the upload
-     */
+    /// Sets a handler that will be executed by the SDK
+    /// when input standardization doesn't succeed. Return
+    /// <doc:true> to continue the upload
     public var nonStandardInputHandler: NonStandardInputHandler?
 
     private let manageBySDK: Bool
@@ -317,45 +313,37 @@ public final class DirectUpload {
         )
     }
 
-    /**
-     Handles state updates for this upload in your app.
-     */
+    
+    /// Handles updates when upload data is sent over the network
     public typealias StateHandler = (TransportStatus) -> Void
 
-    /**
-     If set will receive progress updates for this upload,
-     updates will not be received less than 100ms apart
-     */
+    /// Sets handler that receives progress updates when
+    /// the upload transits over the network. Updates will
+    /// not be received less than 100ms apart
     public var progressHandler: StateHandler?
 
-    /**
-     Details about a ``DirectUpload`` after it successfully finished
-     */
+    /// Details of a successfully completed ``DirectUpload``
     public struct SuccessDetails : Sendable, Hashable {
         public let finalState: TransportStatus
     }
 
-    /**
-     The current status of the upload. This object is updated periodically. To listen for changes, use ``progressHandler``
-     */
+    /// Current status of the upload while it is in transit.
+    /// To listen for changes, use ``progressHandler``
+    /// - SeeAlso: progressHandler
     public var uploadStatus: TransportStatus? {
         input.transportStatus
     }
 
-    /**
-     Handles the final result of this upload in your app
-     */
+    /// Handles completion of the uploads execution
     public typealias ResultHandler = (DirectUploadResult) -> Void
 
-    /**
-     If set will be notified when this upload is successfully
-     completed or if there's an error
-     */
+    /// Sets handler that is notified when the upload completes
+    /// execution or if it fails due to an error
+    /// - SeeAlso: ResultHandler
     public var resultHandler: ResultHandler?
-    
-    /**
-     True if this upload is currently in progress and not paused
-     */
+
+    /// Indicates if the upload is currently in progress
+    /// and not paused
     public var inProgress: Bool {
         if case InputStatus.transportInProgress = inputStatus {
             return true
@@ -363,10 +351,8 @@ public final class DirectUpload {
             return false
         }
     }
-    
-    /**
-     True if this upload was completed
-     */
+
+    /// Indicates if the upload has been completed
     public var complete: Bool {
         if case InputStatus.finished = inputStatus {
             return true
