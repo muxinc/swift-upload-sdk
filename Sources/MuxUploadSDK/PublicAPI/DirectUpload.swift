@@ -335,6 +335,7 @@ public final class DirectUpload {
     }
 
     /// Handles completion of the uploads execution
+    /// - SeeAlso: resultHandler
     public typealias ResultHandler = (DirectUploadResult) -> Void
 
     /// Sets handler that is notified when the upload completes
@@ -701,6 +702,7 @@ public final class DirectUpload {
     /// to resume the upload from where it left off.
     ///
     /// Call ``cancel()`` to permanently halt the upload.
+    /// - SeeAlso cancel()
     public func pause() {
         fileWorker?.pause()
     }
