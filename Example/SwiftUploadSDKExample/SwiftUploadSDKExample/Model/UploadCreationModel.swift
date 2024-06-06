@@ -130,7 +130,7 @@ class UploadCreationModel : ObservableObject {
                     self.assetRequestId = PHImageManager.default().requestExportSession(
                         forVideo: fetchedAsset,
                         options: exportOptions,
-                        exportPreset: AVAssetExportPresetHighestQuality,
+                        exportPreset: AVAssetExportPresetPassthrough,
                         resultHandler: {(exportSession, info) -> Void in
                         DispatchQueue.main.async {
                             guard let exportSession = exportSession else {
