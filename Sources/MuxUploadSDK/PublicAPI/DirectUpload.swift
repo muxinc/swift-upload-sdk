@@ -24,32 +24,28 @@ public typealias DirectUploadResult = Result<DirectUpload.SuccessDetails, Direct
 /// ```swift
 /// let upload = DirectUpload(
 ///   uploadURL: myDirectUploadURL,
-///   videoFileURL: myVideoFileURL,
+///   inputFileURL: myInputFileURL,
 /// )
 ///
 /// upload.progressHandler = { state in
-///   self.uploadScreenState = .uploading(state)
+///   print("Upload Progress: \(state.progress.fractionCompleted ?? 0)")
 /// }
 ///
 /// upload.resultHandler = { result in
 ///   switch result {
 ///     case .success(let success):
-///     self.uploadScreenState = .done(success)
-///     self.upload = nil
-///     NSLog("Upload Success!")
+///       print("Upload Success!")
 ///     case .failure(let error):
-///     self.uploadScreenState = .failure(error)
-///     NSLog("!! Upload error: \(error.localizedDescription)")
+///       print("Upload Error: \(error.localizedDescription)")
 ///   }
 /// }
 ///
-/// self.upload = upload
 /// upload.start()
 /// ```
 ///
-/// Uploads created by this SDK are globally managed by default, and can be resumed after failures or even after process death. For more information on
-/// this topic, see ``UploadManager``
-///
+/// Uploads created by this SDK are globally managed by default, 
+/// and can be resumed after failures or after an application
+/// restart or termination. For more see ``UploadManager``.
 public final class DirectUpload {
 
     var input: UploadInput {
@@ -71,7 +67,7 @@ public final class DirectUpload {
 
     private var inspectionResult: UploadInputFormatInspectionResult?
 
-    /// Indicates the status of the upload input as it goes
+    /// The status of the upload input as the upload goes
     /// through its lifecycle
     public enum InputStatus {
         /// Upload initialized and not yet started
@@ -138,26 +134,20 @@ public final class DirectUpload {
         }
     }
 
-    /**
-     Handles a change in the input status of the upload
-     */
+    /// Handles a change in the input status of the upload
     public typealias InputStatusHandler = (InputStatus) -> ()
 
-    /**
-     If set will be notified of a change to a new input status
-     */
+    /// Sets a handler that gets notified when the status of
+    /// the upload changes
     public var inputStatusHandler: InputStatusHandler?
 
-    /**
-     Confirms upload if input standardization did not succeed
-     */
+    /// Confirms if upload should proceed when input
+    /// standardization does not succeed
     public typealias NonStandardInputHandler = () -> Bool
 
-    /**
-     If set will be executed by the SDK when input standardization
-     hadn't succeeded, return <doc:true> to continue the upload
-     or return <doc:false> to cancel the upload
-     */
+    /// Sets a handler that will be executed by the SDK
+    /// when input standardization doesn't succeed. Return
+    /// <doc:true> to continue the upload
     public var nonStandardInputHandler: NonStandardInputHandler?
 
     private let manageBySDK: Bool
@@ -170,27 +160,18 @@ public final class DirectUpload {
     
     internal var fileWorker: ChunkedFileUploader?
 
-    /**
-     Represents the state of an upload in progress.
-     */
+    /// Represents the state of an upload when it is being 
+    /// sent to Mux over the network
     public struct TransportStatus : Sendable, Hashable {
-        /**
-         The percentage of file bytes received by the server
-         accepting the upload
-         */
+        /// The percentage of file bytes received at the 
+        /// upload destination
         public let progress: Progress?
-        /**
-         A timestamp indicating when this status was generated
-         */
+        /// Timestamp from when this update was generated
         public let updatedTime: TimeInterval
-        /**
-         The start time of the upload, nil if the upload
-         has never been started
-         */
+        /// The start time of the upload, nil if the upload
+        /// has never been started
         public let startTime: TimeInterval?
-        /**
-         Indicates if the upload has been paused
-         */
+        /// Indicates if the upload has been paused
         public let isPaused: Bool
     }
 
@@ -332,45 +313,38 @@ public final class DirectUpload {
         )
     }
 
-    /**
-     Handles state updates for this upload in your app.
-     */
+    
+    /// Handles updates when upload data is sent over the network
     public typealias StateHandler = (TransportStatus) -> Void
 
-    /**
-     If set will receive progress updates for this upload,
-     updates will not be received less than 100ms apart
-     */
+    /// Sets handler that receives progress updates when
+    /// the upload transits over the network. Updates will
+    /// not be received less than 100ms apart
     public var progressHandler: StateHandler?
 
-    /**
-     Details about a ``DirectUpload`` after it successfully finished
-     */
+    /// Details of a successfully completed ``DirectUpload``
     public struct SuccessDetails : Sendable, Hashable {
         public let finalState: TransportStatus
     }
 
-    /**
-     The current status of the upload. This object is updated periodically. To listen for changes, use ``progressHandler``
-     */
+    /// Current status of the upload while it is in transit.
+    /// To listen for changes, use ``progressHandler``
+    /// - SeeAlso: progressHandler
     public var uploadStatus: TransportStatus? {
         input.transportStatus
     }
 
-    /**
-     Handles the final result of this upload in your app
-     */
+    /// Handles completion of the uploads execution
+    /// - SeeAlso: resultHandler
     public typealias ResultHandler = (DirectUploadResult) -> Void
 
-    /**
-     If set will be notified when this upload is successfully
-     completed or if there's an error
-     */
+    /// Sets handler that is notified when the upload completes
+    /// execution or if it fails due to an error
+    /// - SeeAlso: ResultHandler
     public var resultHandler: ResultHandler?
-    
-    /**
-     True if this upload is currently in progress and not paused
-     */
+
+    /// Indicates if the upload is currently in progress
+    /// and not paused
     public var inProgress: Bool {
         if case InputStatus.transportInProgress = inputStatus {
             return true
@@ -378,10 +352,8 @@ public final class DirectUpload {
             return false
         }
     }
-    
-    /**
-     True if this upload was completed
-     */
+
+    /// Indicates if the upload has been completed
     public var complete: Bool {
         if case InputStatus.finished = inputStatus {
             return true
@@ -398,17 +370,15 @@ public final class DirectUpload {
         return fileWorker?.inputFileURL
     }
     
-    /**
-     The remote endpoint that this object uploads to
-     */
+    /// URL of the remote upload destination
     public var uploadURL: URL {
         return uploadInfo.uploadURL
     }
-    // TODO: Computed Properties for some other UploadInfo properties
-    
-    /**
-     Begins the upload. You can control what happens when the upload is already started. If `forceRestart` is true, the upload will be restarted. Otherwise, nothing will happen. The default is not to restart
-     */
+
+    /// Starts the upload.
+    /// - Parameter forceRestart: if true, the upload will be
+    /// restarted. If false the upload will resume from where
+    /// it left off if paused, otherwise the upload will change.
     public func start(forceRestart: Bool = false) {
 
         let videoFile = (input.sourceAsset as! AVURLAsset).url
@@ -725,19 +695,21 @@ public final class DirectUpload {
         inputStatusHandler?(inputStatus)
     }
     
-    /**
-     Suspends the execution of this upload. Temp files and state will not be changed. The upload will remain paused in this state
-     even after process death.
-     Use ``start(forceRestart:)``, passing `false` to start the process over where it was left.
-     Use ``cancel()`` to remove this upload completely
-     */
+    
+    /// Suspends upload execution. Temporary files will be
+    /// kept unchanged and the upload can be resumed by calling
+    /// ``start(forceRestart:)`` with forceRestart set to `false`
+    /// to resume the upload from where it left off.
+    ///
+    /// Call ``cancel()`` to permanently halt the upload.
+    /// - SeeAlso cancel()
     public func pause() {
         fileWorker?.pause()
     }
     
-    /**
-     Cancels an ongoing download. State and Delegates will be cleared. Your delegates will recieve no further calls
-     */
+    /// Cancels an upload that has already been started.
+    /// Any delegates or handlers set prior to this will
+    /// receive no further updates.
     public func cancel() {
         fileWorker?.cancel()
         uploadManager.acknowledgeUpload(id: id)
@@ -908,9 +880,9 @@ extension DirectUpload {
     }
 }
 
-/**
- An fatal error that ocurred during the upload process. The last-known state of the upload is available, as well as the Error that stopped the upload
- */
+/// An unrecoverable error occurring while the upload was
+/// executing The last-known state of the upload is available,
+/// as well as the Error that stopped the upload
 public struct DirectUploadError : Error {
     /// Represents the possible error cases from a ``DirectUpload``
     public enum Kind : Int {
