@@ -29,11 +29,3 @@ struct UploadInfo : Codable {
 }
 
 extension UploadInfo: Equatable { }
-
-extension UploadInfo {
-    func sourceAsset() -> AVAsset {
-        AVAsset(
-            url: uploadURL
-        )
-    }
-}

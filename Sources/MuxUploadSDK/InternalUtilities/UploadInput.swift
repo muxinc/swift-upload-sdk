@@ -10,26 +10,26 @@ import Foundation
 struct UploadInput {
 
     internal enum Status {
-        case ready(AVAsset, UploadInfo)
-        case started(AVAsset, UploadInfo)
-        case underInspection(AVAsset, UploadInfo)
-        case standardizing(AVAsset, UploadInfo)
+        case ready(AVURLAsset, UploadInfo)
+        case started(AVURLAsset, UploadInfo)
+        case underInspection(AVURLAsset, UploadInfo)
+        case standardizing(AVURLAsset, UploadInfo)
         case standardizationSucceeded(
-            source: AVAsset,
-            standardized: AVAsset?,
+            source: AVURLAsset,
+            standardized: AVURLAsset?,
             uploadInfo: UploadInfo
         )
-        case standardizationFailed(AVAsset, UploadInfo)
-        case awaitingUploadConfirmation(UploadInfo)
-        case uploadInProgress(UploadInfo, DirectUpload.TransportStatus)
-        case uploadPaused(UploadInfo, DirectUpload.TransportStatus)
-        case uploadSucceeded(UploadInfo, DirectUpload.SuccessDetails)
-        case uploadFailed(UploadInfo, DirectUploadError)
+        case standardizationFailed(AVURLAsset, UploadInfo)
+        case awaitingUploadConfirmation(AVURLAsset,UploadInfo)
+        case uploadInProgress(AVURLAsset, UploadInfo, DirectUpload.TransportStatus)
+        case uploadPaused(AVURLAsset, UploadInfo, DirectUpload.TransportStatus)
+        case uploadSucceeded(AVURLAsset, UploadInfo, DirectUpload.SuccessDetails)
+        case uploadFailed(AVURLAsset, UploadInfo, DirectUploadError)
     }
 
     var status: Status
 
-    var sourceAsset: AVAsset {
+    var sourceAsset: AVURLAsset {
         switch status {
         case .ready(let sourceAsset, _):
             return sourceAsset
@@ -43,16 +43,16 @@ struct UploadInput {
             return sourceAsset
         case .standardizationFailed(let sourceAsset, _):
             return sourceAsset
-        case .awaitingUploadConfirmation(let uploadInfo):
-            return uploadInfo.sourceAsset()
-        case .uploadInProgress(let uploadInfo, _):
-            return uploadInfo.sourceAsset()
-        case .uploadSucceeded(let uploadInfo, _):
-            return uploadInfo.sourceAsset()
-        case .uploadFailed(let uploadInfo, _):
-            return uploadInfo.sourceAsset()
-        case .uploadPaused(let uploadInfo, _):
-            return uploadInfo.sourceAsset()
+        case .awaitingUploadConfirmation(let sourceAsset, _):
+            return sourceAsset
+        case .uploadInProgress(let sourceAsset, _, _):
+            return sourceAsset
+        case .uploadSucceeded(let sourceAsset, _, _):
+            return sourceAsset
+        case .uploadFailed(let sourceAsset, _, _):
+            return sourceAsset
+        case .uploadPaused(let sourceAsset, _, _):
+            return sourceAsset
         }
     }
 
@@ -70,15 +70,15 @@ struct UploadInput {
             return uploadInfo
         case .standardizationFailed(_, let uploadInfo):
             return uploadInfo
-        case .awaitingUploadConfirmation(let uploadInfo):
+        case .awaitingUploadConfirmation(_, let uploadInfo):
             return uploadInfo
-        case .uploadInProgress(let uploadInfo, _):
+        case .uploadInProgress(_, let uploadInfo, _):
             return uploadInfo
-        case .uploadPaused(let uploadInfo, _):
+        case .uploadPaused(_, let uploadInfo, _):
             return uploadInfo
-        case .uploadSucceeded(let uploadInfo, _):
+        case .uploadSucceeded(_, let uploadInfo, _):
             return uploadInfo
-        case .uploadFailed(let uploadInfo, _):
+        case .uploadFailed(_, let uploadInfo, _):
             return uploadInfo
         }
     }
@@ -99,11 +99,11 @@ struct UploadInput {
             return nil
         case .awaitingUploadConfirmation:
             return nil
-        case .uploadInProgress(_, let transportStatus):
+        case .uploadInProgress(_, _, let transportStatus):
             return transportStatus
-        case .uploadPaused(_, let transportStatus):
+        case .uploadPaused(_, _, let transportStatus):
             return transportStatus
-        case .uploadSucceeded(_, let successDetails):
+        case .uploadSucceeded(_, _, let successDetails):
             return successDetails.finalState
         case .uploadFailed:
             return nil
@@ -125,7 +125,7 @@ extension UploadInput {
         startingTransportStatus: DirectUpload.TransportStatus
     ) {
         if case UploadInput.Status.underInspection = status {
-            status = .uploadInProgress(uploadInfo, startingTransportStatus)
+            status = .uploadInProgress(sourceAsset, uploadInfo, startingTransportStatus)
         } else {
             return
         }
@@ -134,15 +134,15 @@ extension UploadInput {
     mutating func processUploadSuccess(
         transportStatus: DirectUpload.TransportStatus
     ) {
-        if case UploadInput.Status.uploadInProgress(let info, _) = status {
-            status = .uploadSucceeded(info, DirectUpload.SuccessDetails(finalState: transportStatus))
+        if case UploadInput.Status.uploadInProgress(let asset, let info, _) = status {
+            status = .uploadSucceeded(asset, info, DirectUpload.SuccessDetails(finalState: transportStatus))
         } else {
             return
         }
     }
 
     mutating func processUploadFailure(error: DirectUploadError) {
-        status = .uploadFailed(uploadInfo, error)
+        status = .uploadFailed(sourceAsset, uploadInfo, error)
     }
 
 }
@@ -151,7 +151,7 @@ extension UploadInput.Status: Equatable { }
 
 extension UploadInput {
     init(
-        asset: AVAsset,
+        asset: AVURLAsset,
         info: UploadInfo
     ) {
         self.status = .ready(asset, info)

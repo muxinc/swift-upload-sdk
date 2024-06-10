@@ -107,30 +107,59 @@ public final class DirectUpload {
             return InputStatus.preparing(sourceAsset)
         case .standardizationFailed(let sourceAsset, _):
             return InputStatus.preparing(sourceAsset)
-        case .awaitingUploadConfirmation(let uploadInfo):
+        case .awaitingUploadConfirmation(let sourceAsset, _):
             return InputStatus.awaitingConfirmation(
-                uploadInfo.sourceAsset()
+                sourceAsset
             )
-        case .uploadInProgress(let uploadInfo, let transportStatus):
+        case .uploadInProgress(let sourceAsset, _, let transportStatus):
             return InputStatus.transportInProgress(
-                uploadInfo.sourceAsset(),
+                sourceAsset,
                 transportStatus
             )
-        case .uploadPaused(let uploadInfo, let transportStatus):
+        case .uploadPaused(let sourceAsset, _, let transportStatus):
             return InputStatus.paused(
-                uploadInfo.sourceAsset(),
+                sourceAsset,
                 transportStatus
             )
-        case .uploadSucceeded(let uploadInfo, let success):
+        case .uploadSucceeded(let sourceAsset, _, let success):
             return InputStatus.finished(
-                uploadInfo.sourceAsset(),
+                sourceAsset,
                 .success(success)
             )
-        case .uploadFailed(let uploadInfo, let error):
+        case .uploadFailed(let sourceAsset, _, let error):
             return InputStatus.finished(
-                uploadInfo.sourceAsset(),
+                sourceAsset,
                 .failure(error)
             )
+        }
+    }
+
+
+    /// AVAsset containing the input source
+    public var inputAsset: AVAsset {
+        switch input.status {
+        case .ready(let sourceAsset, _):
+            return sourceAsset
+        case .started(let sourceAsset, _):
+            return sourceAsset
+        case .underInspection(let sourceAsset, _):
+            return sourceAsset
+        case .standardizing(let sourceAsset, _):
+            return sourceAsset
+        case .standardizationSucceeded(let sourceAsset, _, _):
+            return sourceAsset
+        case .standardizationFailed(let sourceAsset, _):
+            return sourceAsset
+        case .awaitingUploadConfirmation(let sourceAsset, _):
+            return sourceAsset
+        case .uploadInProgress(let sourceAsset, _, _):
+            return sourceAsset
+        case .uploadPaused(let sourceAsset, _, _):
+            return sourceAsset
+        case .uploadSucceeded(let sourceAsset, _, _):
+            return sourceAsset
+        case .uploadFailed(let sourceAsset, _, _):
+            return sourceAsset
         }
     }
 
@@ -199,7 +228,7 @@ public final class DirectUpload {
         inputStandardization: DirectUploadOptions.InputStandardization = .default,
         eventTracking: DirectUploadOptions.EventTracking = .default
     ) {
-        let asset = AVAsset(url: videoFileURL)
+        let asset = AVURLAsset(url: videoFileURL)
         self.init(
             input: UploadInput(
                 asset: asset,
@@ -236,7 +265,7 @@ public final class DirectUpload {
         inputFileURL: URL,
         options: DirectUploadOptions = .default
     ) {
-        let asset = AVAsset(
+        let asset = AVURLAsset(
             url: inputFileURL
         )
         self.init(
@@ -286,6 +315,7 @@ public final class DirectUpload {
         self.init(
             input: UploadInput(
                 status: .uploadInProgress(
+                    AVURLAsset(url: uploader.inputFileURL),
                     uploader.uploadInfo,
                     TransportStatus(
                         progress: uploader.currentState.progress ?? Progress(),
@@ -380,13 +410,10 @@ public final class DirectUpload {
     /// restarted. If false the upload will resume from where
     /// it left off if paused, otherwise the upload will change.
     public func start(forceRestart: Bool = false) {
-
-        let videoFile = (input.sourceAsset as! AVURLAsset).url
-
         if self.manageBySDK {
             // See if there's anything in progress already
             fileWorker = uploadManager.findChunkedFileUploader(
-                inputFileURL: videoFile
+                inputFileURL: input.sourceAsset.url
             )
         }
         if fileWorker != nil && !forceRestart {
@@ -405,17 +432,17 @@ public final class DirectUpload {
 
         if case UploadInput.Status.ready = input.status {
             input.status = .started(input.sourceAsset, uploadInfo)
-            startInspection(videoFile: videoFile)
+            startInspection(sourceAsset: input.sourceAsset)
         } else if forceRestart {
             cancel()
         }
     }
 
     func startInspection(
-        videoFile: URL
+        sourceAsset: AVURLAsset
     ) {
         if !uploadInfo.options.inputStandardization.isRequested {
-            startNetworkTransport(videoFile: videoFile)
+            startNetworkTransport(videoFile: sourceAsset.url)
         } else {
             let inputStandardizationStartTime = Date()
             let reporter = Reporter.shared
@@ -427,7 +454,7 @@ public final class DirectUpload {
             // instead throw an error since upload
             // will likely fail
             let inputSize = (try? FileManager.default.fileSizeOfItem(
-                atPath: videoFile.path
+                atPath: input.sourceAsset.url.absoluteString
             )) ?? 0
 
             input.status = .underInspection(input.sourceAsset, uploadInfo)
@@ -445,7 +472,7 @@ public final class DirectUpload {
                         inputDuration: inputDuration,
                         inputSize: inputSize,
                         inputStandardizationStartTime: inputStandardizationStartTime,
-                        videoFile: videoFile
+                        sourceAsset: sourceAsset
                     )
                 case (.none, .some(let error)):
                     self.handleInspectionFailure(
@@ -453,7 +480,7 @@ public final class DirectUpload {
                         inputDuration: inputDuration,
                         inputSize: inputSize,
                         inputStandardizationStartTime: inputStandardizationStartTime,
-                        videoFile: videoFile
+                        sourceAsset: sourceAsset
                     )
                 case (.some(let result), .none):
                     if result.isStandardInput {
@@ -474,12 +501,12 @@ public final class DirectUpload {
 
                             self.inputStandardizer.standardize(
                                 id: self.id,
-                                sourceAsset: AVAsset(url: videoFile),
+                                sourceAsset: sourceAsset,
                                 rescalingDetails: result.rescalingDetails,
                                 outputURL: outputURL
                             ) { sourceAsset, standardizedAsset, error in
 
-                                if let error {
+                                if let _ = error {
                                     // Request upload confirmation
                                     // before proceeding. If handler unset,
                                     // by default do not cancel upload if
@@ -488,7 +515,7 @@ public final class DirectUpload {
 
                                     if !shouldCancelUpload {
                                         self.startNetworkTransport(
-                                            videoFile: videoFile
+                                            videoFile: sourceAsset.url
                                         )
                                     } else {
                                         self.fileWorker?.cancel()
@@ -507,7 +534,7 @@ public final class DirectUpload {
 
                         } else {
                             self.startNetworkTransport(
-                                videoFile: videoFile
+                                videoFile: sourceAsset.url
                             )
                         }
                     } else {
@@ -531,7 +558,7 @@ public final class DirectUpload {
 
                         self.inputStandardizer.standardize(
                             id: self.id,
-                            sourceAsset: AVAsset(url: videoFile),
+                            sourceAsset: sourceAsset,
                             rescalingDetails: result.rescalingDetails,
                             outputURL: outputURL
                         ) { sourceAsset, standardizedAsset, error in
@@ -557,7 +584,7 @@ public final class DirectUpload {
 
                                 if !shouldCancelUpload {
                                     self.startNetworkTransport(
-                                        videoFile: videoFile
+                                        videoFile: sourceAsset.url
                                     )
                                 } else {
                                     self.fileWorker?.cancel()
@@ -584,13 +611,13 @@ public final class DirectUpload {
                             self.inputStandardizer.acknowledgeCompletion(id: self.id)
                         }
                     }
-                case (.some(let result), .some(let error)):
+                case (.some(_), .some(let error)):
                     self.handleInspectionFailure(
                         inspectionError: error,
                         inputDuration: inputDuration,
                         inputSize: inputSize,
                         inputStandardizationStartTime: inputStandardizationStartTime,
-                        videoFile: videoFile
+                        sourceAsset: sourceAsset
                     )
                 }
             }
@@ -602,7 +629,7 @@ public final class DirectUpload {
         inputDuration: CMTime,
         inputSize: UInt64,
         inputStandardizationStartTime: Date,
-        videoFile: URL
+        sourceAsset: AVURLAsset
     ) {
         let reporter = Reporter.shared
         // Request upload confirmation
@@ -625,7 +652,7 @@ public final class DirectUpload {
 
         if !shouldCancelUpload {
             self.startNetworkTransport(
-                videoFile: videoFile
+                videoFile: sourceAsset.url
             )
         } else {
             self.fileWorker?.cancel()
@@ -634,9 +661,32 @@ public final class DirectUpload {
         }
     }
 
+    func readyForTransport() -> Bool {
+        switch inputStatus {
+        case .ready:
+            return false
+        case .started:
+            return true
+        case .preparing:
+            return true
+        case .awaitingConfirmation:
+            return true
+        case .transportInProgress:
+            return false
+        case .paused:
+            return false
+        case .finished:
+            return false
+        }
+    }
+
     func startNetworkTransport(
         videoFile: URL
     ) {
+        guard readyForTransport() else {
+            return
+        }
+
         let completedUnitCount = UInt64(uploadStatus?.progress?.completedUnitCount ?? 0)
 
         let fileWorker = ChunkedFileUploader(
@@ -668,6 +718,11 @@ public final class DirectUpload {
         videoFile: URL,
         duration: CMTime
     ) {
+        
+        guard readyForTransport() else {
+            return
+        }
+
         let completedUnitCount = UInt64(uploadStatus?.progress?.completedUnitCount ?? 0)
 
         let fileWorker = ChunkedFileUploader(
@@ -774,6 +829,7 @@ public final class DirectUpload {
                 )
             } else {
                 input.status = .uploadInProgress(
+                    input.sourceAsset,
                     input.uploadInfo,
                     status
                 )
