@@ -204,52 +204,6 @@ public final class DirectUpload {
         public let isPaused: Bool
     }
 
-    /// Initializes a DirectUpload from a local file URL with
-    /// the given configuration
-    /// - Parameters:
-    ///    - uploadURL: the URL of your direct upload, see
-    ///    the [direct upload guide](https://docs.mux.com/api-reference#video/operation/create-direct-upload)
-    ///     - videoFileURL: the file:// URL of the upload
-    ///     input
-    ///     - chunkSize: the size of chunks when uploading,
-    ///     at least 8M is recommended
-    ///     - retriesPerChunk: number of retry attempts for
-    ///     a failed chunk request
-    ///     - inputStandardization: enable or disable input
-    ///     standardization by the SDK locally
-    ///     - eventTracking: options to opt out of event
-    ///     tracking
-    @available(*, deprecated, renamed: "init(uploadURL:inputFileURL:options:)")
-    public convenience init(
-        uploadURL: URL,
-        videoFileURL: URL,
-        chunkSize: Int = 8 * 1024 * 1024, // Google recommends at least 8M
-        retriesPerChunk: Int = 3,
-        inputStandardization: DirectUploadOptions.InputStandardization = .default,
-        eventTracking: DirectUploadOptions.EventTracking = .default
-    ) {
-        let asset = AVURLAsset(url: videoFileURL)
-        self.init(
-            input: UploadInput(
-                asset: asset,
-                info: UploadInfo(
-                    id: UUID().uuidString,
-                    uploadURL: uploadURL,
-                    options: DirectUploadOptions(
-                        inputStandardization: inputStandardization,
-                        transport: DirectUploadOptions.Transport(
-                            chunkSizeInBytes: chunkSize,
-                            retryLimitPerChunk: retriesPerChunk
-                        ),
-                        eventTracking: eventTracking
-                    )
-                )
-            ),
-            uploadManager: .shared,
-            inputInspector: .shared
-        )
-    }
-
     /// Initializes a DirectUpload from a local file URL
     ///
     /// - Parameters:
