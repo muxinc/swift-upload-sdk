@@ -9,6 +9,11 @@
 /* Begin PBXBuildFile section */
 		191C59C42A69C9A900D3AF05 /* SwiftUploadSDKExampleUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19822A7B2A4CA6A300CFA822 /* SwiftUploadSDKExampleUITests.swift */; };
 		191C59C52A69C9AC00D3AF05 /* SwiftUploadSDKExampleLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19822A7C2A4CA6A300CFA822 /* SwiftUploadSDKExampleLaunchTests.swift */; };
+		197DD9DA2C0E428C002C1294 /* UploadListPlaceholderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 197DD9D92C0E428C002C1294 /* UploadListPlaceholderView.swift */; };
+		197DD9DC2C0E7003002C1294 /* SelectVideoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 197DD9DB2C0E7003002C1294 /* SelectVideoView.swift */; };
+		197DD9DE2C0E7161002C1294 /* ThumbnailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 197DD9DD2C0E7161002C1294 /* ThumbnailView.swift */; };
+		197DD9E02C0E71A1002C1294 /* ProcessingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 197DD9DF2C0E71A1002C1294 /* ProcessingView.swift */; };
+		197DD9E22C0E71C6002C1294 /* ErrorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 197DD9E12C0E71C6002C1294 /* ErrorView.swift */; };
 		19822A692A4CA69700CFA822 /* Mux Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 19822A522A4CA69700CFA822 /* Mux Assets.xcassets */; };
 		19822A6A2A4CA69700CFA822 /* Buttons.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19822A542A4CA69700CFA822 /* Buttons.swift */; };
 		19822A6B2A4CA69700CFA822 /* MuxNavBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19822A552A4CA69700CFA822 /* MuxNavBar.swift */; };
@@ -23,8 +28,7 @@
 		19822A742A4CA69700CFA822 /* UploadListModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19822A622A4CA69700CFA822 /* UploadListModel.swift */; };
 		19822A752A4CA69700CFA822 /* UploadCreationModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19822A632A4CA69700CFA822 /* UploadCreationModel.swift */; };
 		19822A762A4CA69700CFA822 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19822A642A4CA69700CFA822 /* ContentView.swift */; };
-		19822A772A4CA69700CFA822 /* UploadCTA.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19822A662A4CA69700CFA822 /* UploadCTA.swift */; };
-		19822A792A4CA69700CFA822 /* ImagePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19822A682A4CA69700CFA822 /* ImagePicker.swift */; };
+		19822A772A4CA69700CFA822 /* UploadCallToActionLabel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19822A662A4CA69700CFA822 /* UploadCallToActionLabel.swift */; };
 		19DCD95B2A4CA567001FBBF6 /* MuxUploadSDK in Frameworks */ = {isa = PBXBuildFile; productRef = 19DCD95A2A4CA567001FBBF6 /* MuxUploadSDK */; };
 /* End PBXBuildFile section */
 
@@ -39,6 +43,11 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		197DD9D92C0E428C002C1294 /* UploadListPlaceholderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UploadListPlaceholderView.swift; sourceTree = "<group>"; };
+		197DD9DB2C0E7003002C1294 /* SelectVideoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectVideoView.swift; sourceTree = "<group>"; };
+		197DD9DD2C0E7161002C1294 /* ThumbnailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThumbnailView.swift; sourceTree = "<group>"; };
+		197DD9DF2C0E71A1002C1294 /* ProcessingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessingView.swift; sourceTree = "<group>"; };
+		197DD9E12C0E71C6002C1294 /* ErrorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ErrorView.swift; sourceTree = "<group>"; };
 		19822A522A4CA69700CFA822 /* Mux Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Mux Assets.xcassets"; sourceTree = "<group>"; };
 		19822A542A4CA69700CFA822 /* Buttons.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Buttons.swift; sourceTree = "<group>"; };
 		19822A552A4CA69700CFA822 /* MuxNavBar.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MuxNavBar.swift; sourceTree = "<group>"; };
@@ -53,8 +62,7 @@
 		19822A622A4CA69700CFA822 /* UploadListModel.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = UploadListModel.swift; sourceTree = "<group>"; };
 		19822A632A4CA69700CFA822 /* UploadCreationModel.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = UploadCreationModel.swift; sourceTree = "<group>"; };
 		19822A642A4CA69700CFA822 /* ContentView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
-		19822A662A4CA69700CFA822 /* UploadCTA.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = UploadCTA.swift; sourceTree = "<group>"; };
-		19822A682A4CA69700CFA822 /* ImagePicker.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ImagePicker.swift; sourceTree = "<group>"; };
+		19822A662A4CA69700CFA822 /* UploadCallToActionLabel.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = UploadCallToActionLabel.swift; sourceTree = "<group>"; };
 		19822A7B2A4CA6A300CFA822 /* SwiftUploadSDKExampleUITests.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SwiftUploadSDKExampleUITests.swift; sourceTree = "<group>"; };
 		19822A7C2A4CA6A300CFA822 /* SwiftUploadSDKExampleLaunchTests.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SwiftUploadSDKExampleLaunchTests.swift; sourceTree = "<group>"; };
 		19DCD9592A4CA546001FBBF6 /* swift-upload-sdk */ = {isa = PBXFileReference; lastKnownFileType = wrapper; name = "swift-upload-sdk"; path = ../..; sourceTree = "<group>"; };
@@ -87,12 +95,10 @@
 				19822A512A4CA69700CFA822 /* Mux Style */,
 				19822A572A4CA69700CFA822 /* Fake Server Backend */,
 				19822A592A4CA69700CFA822 /* Assets.xcassets */,
-				19822A5A2A4CA69700CFA822 /* Preview Content */,
-				19822A5C2A4CA69700CFA822 /* Screens */,
 				19822A5F2A4CA69700CFA822 /* SwiftUploadSDKExample.swift */,
+				19822A5A2A4CA69700CFA822 /* Preview Content */,
+				19822A5C2A4CA69700CFA822 /* Views */,
 				19822A602A4CA69700CFA822 /* Model */,
-				19822A642A4CA69700CFA822 /* ContentView.swift */,
-				19822A652A4CA69700CFA822 /* Widgets */,
 			);
 			path = SwiftUploadSDKExample;
 			sourceTree = "<group>";
@@ -132,13 +138,20 @@
 			path = "Preview Content";
 			sourceTree = "<group>";
 		};
-		19822A5C2A4CA69700CFA822 /* Screens */ = {
+		19822A5C2A4CA69700CFA822 /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				19822A642A4CA69700CFA822 /* ContentView.swift */,
 				19822A5D2A4CA69700CFA822 /* CreateUploadView.swift */,
+				197DD9E12C0E71C6002C1294 /* ErrorView.swift */,
 				19822A5E2A4CA69700CFA822 /* UploadListView.swift */,
+				19822A662A4CA69700CFA822 /* UploadCallToActionLabel.swift */,
+				197DD9D92C0E428C002C1294 /* UploadListPlaceholderView.swift */,
+				197DD9DB2C0E7003002C1294 /* SelectVideoView.swift */,
+				197DD9DD2C0E7161002C1294 /* ThumbnailView.swift */,
+				197DD9DF2C0E71A1002C1294 /* ProcessingView.swift */,
 			);
-			path = Screens;
+			path = Views;
 			sourceTree = "<group>";
 		};
 		19822A602A4CA69700CFA822 /* Model */ = {
@@ -149,15 +162,6 @@
 				19822A632A4CA69700CFA822 /* UploadCreationModel.swift */,
 			);
 			path = Model;
-			sourceTree = "<group>";
-		};
-		19822A652A4CA69700CFA822 /* Widgets */ = {
-			isa = PBXGroup;
-			children = (
-				19822A662A4CA69700CFA822 /* UploadCTA.swift */,
-				19822A682A4CA69700CFA822 /* ImagePicker.swift */,
-			);
-			path = Widgets;
 			sourceTree = "<group>";
 		};
 		19822A7A2A4CA6A300CFA822 /* SwiftUploadSDKExampleTests */ = {
@@ -308,19 +312,23 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				197DD9DC2C0E7003002C1294 /* SelectVideoView.swift in Sources */,
 				19822A702A4CA69700CFA822 /* CreateUploadView.swift in Sources */,
 				19822A762A4CA69700CFA822 /* ContentView.swift in Sources */,
 				19822A722A4CA69700CFA822 /* SwiftUploadSDKExample.swift in Sources */,
-				19822A792A4CA69700CFA822 /* ImagePicker.swift in Sources */,
+				197DD9E22C0E71C6002C1294 /* ErrorView.swift in Sources */,
 				19822A6C2A4CA69700CFA822 /* Mux Colors.swift in Sources */,
+				197DD9DA2C0E428C002C1294 /* UploadListPlaceholderView.swift in Sources */,
 				19822A752A4CA69700CFA822 /* UploadCreationModel.swift in Sources */,
+				197DD9E02C0E71A1002C1294 /* ProcessingView.swift in Sources */,
 				19822A6B2A4CA69700CFA822 /* MuxNavBar.swift in Sources */,
 				19822A732A4CA69700CFA822 /* ThumbnailModel.swift in Sources */,
 				19822A6A2A4CA69700CFA822 /* Buttons.swift in Sources */,
 				19822A6D2A4CA69700CFA822 /* FakeBackend.swift in Sources */,
 				19822A712A4CA69700CFA822 /* UploadListView.swift in Sources */,
+				197DD9DE2C0E7161002C1294 /* ThumbnailView.swift in Sources */,
 				19822A742A4CA69700CFA822 /* UploadListModel.swift in Sources */,
-				19822A772A4CA69700CFA822 /* UploadCTA.swift in Sources */,
+				19822A772A4CA69700CFA822 /* UploadCallToActionLabel.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -475,7 +483,7 @@
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -507,7 +515,7 @@
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -528,7 +536,7 @@
 				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = XX95P4Y787;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.mux.video.upload.Test-AppUITests";
@@ -546,7 +554,7 @@
 				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = XX95P4Y787;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.mux.video.upload.Test-AppUITests";

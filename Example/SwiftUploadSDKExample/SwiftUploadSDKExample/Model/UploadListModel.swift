@@ -10,9 +10,15 @@ import AVFoundation
 import MuxUploadSDK
 
 class UploadListModel : ObservableObject {
-    
-    init() {
-        DirectUploadManager.shared.addDelegate(
+
+    @Published var lastKnownUploads: [DirectUpload]
+
+    init(
+        directUploadManager: DirectUploadManager = .shared
+    ) {
+
+        self.lastKnownUploads = directUploadManager.allManagedDirectUploads()
+        directUploadManager.addDelegate(
             Delegate(
                 handler: { uploads in
 
@@ -39,8 +45,6 @@ class UploadListModel : ObservableObject {
             )
         )
     }
-    
-    @Published var lastKnownUploads: [DirectUpload] = Array()
 }
 
 fileprivate class Delegate: DirectUploadManagerDelegate {
