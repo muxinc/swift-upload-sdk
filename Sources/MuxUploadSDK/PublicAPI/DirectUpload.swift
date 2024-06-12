@@ -24,32 +24,28 @@ public typealias DirectUploadResult = Result<DirectUpload.SuccessDetails, Direct
 /// ```swift
 /// let upload = DirectUpload(
 ///   uploadURL: myDirectUploadURL,
-///   videoFileURL: myVideoFileURL,
+///   inputFileURL: myInputFileURL,
 /// )
 ///
 /// upload.progressHandler = { state in
-///   self.uploadScreenState = .uploading(state)
+///   print("Upload Progress: \(state.progress.fractionCompleted ?? 0)")
 /// }
 ///
 /// upload.resultHandler = { result in
 ///   switch result {
 ///     case .success(let success):
-///     self.uploadScreenState = .done(success)
-///     self.upload = nil
-///     NSLog("Upload Success!")
+///       print("Upload Success!")
 ///     case .failure(let error):
-///     self.uploadScreenState = .failure(error)
-///     NSLog("!! Upload error: \(error.localizedDescription)")
+///       print("Upload Error: \(error.localizedDescription)")
 ///   }
 /// }
 ///
-/// self.upload = upload
 /// upload.start()
 /// ```
 ///
-/// Uploads created by this SDK are globally managed by default, and can be resumed after failures or even after process death. For more information on
-/// this topic, see ``UploadManager``
-///
+/// Uploads created by this SDK are globally managed by default, 
+/// and can be resumed after failures or after an application
+/// restart or termination. For more see ``UploadManager``.
 public final class DirectUpload {
 
     var input: UploadInput {
@@ -71,7 +67,7 @@ public final class DirectUpload {
 
     private var inspectionResult: UploadInputFormatInspectionResult?
 
-    /// Indicates the status of the upload input as it goes
+    /// The status of the upload input as the upload goes
     /// through its lifecycle
     public enum InputStatus {
         /// Upload initialized and not yet started
@@ -111,53 +107,76 @@ public final class DirectUpload {
             return InputStatus.preparing(sourceAsset)
         case .standardizationFailed(let sourceAsset, _):
             return InputStatus.preparing(sourceAsset)
-        case .awaitingUploadConfirmation(let uploadInfo):
+        case .awaitingUploadConfirmation(let sourceAsset, _):
             return InputStatus.awaitingConfirmation(
-                uploadInfo.sourceAsset()
+                sourceAsset
             )
-        case .uploadInProgress(let uploadInfo, let transportStatus):
+        case .uploadInProgress(let sourceAsset, _, let transportStatus):
             return InputStatus.transportInProgress(
-                uploadInfo.sourceAsset(),
+                sourceAsset,
                 transportStatus
             )
-        case .uploadPaused(let uploadInfo, let transportStatus):
+        case .uploadPaused(let sourceAsset, _, let transportStatus):
             return InputStatus.paused(
-                uploadInfo.sourceAsset(),
+                sourceAsset,
                 transportStatus
             )
-        case .uploadSucceeded(let uploadInfo, let success):
+        case .uploadSucceeded(let sourceAsset, _, let success):
             return InputStatus.finished(
-                uploadInfo.sourceAsset(),
+                sourceAsset,
                 .success(success)
             )
-        case .uploadFailed(let uploadInfo, let error):
+        case .uploadFailed(let sourceAsset, _, let error):
             return InputStatus.finished(
-                uploadInfo.sourceAsset(),
+                sourceAsset,
                 .failure(error)
             )
         }
     }
 
-    /**
-     Handles a change in the input status of the upload
-     */
+
+    /// AVAsset containing the input source
+    public var inputAsset: AVAsset {
+        switch input.status {
+        case .ready(let sourceAsset, _):
+            return sourceAsset
+        case .started(let sourceAsset, _):
+            return sourceAsset
+        case .underInspection(let sourceAsset, _):
+            return sourceAsset
+        case .standardizing(let sourceAsset, _):
+            return sourceAsset
+        case .standardizationSucceeded(let sourceAsset, _, _):
+            return sourceAsset
+        case .standardizationFailed(let sourceAsset, _):
+            return sourceAsset
+        case .awaitingUploadConfirmation(let sourceAsset, _):
+            return sourceAsset
+        case .uploadInProgress(let sourceAsset, _, _):
+            return sourceAsset
+        case .uploadPaused(let sourceAsset, _, _):
+            return sourceAsset
+        case .uploadSucceeded(let sourceAsset, _, _):
+            return sourceAsset
+        case .uploadFailed(let sourceAsset, _, _):
+            return sourceAsset
+        }
+    }
+
+    /// Handles a change in the input status of the upload
     public typealias InputStatusHandler = (InputStatus) -> ()
 
-    /**
-     If set will be notified of a change to a new input status
-     */
+    /// Sets a handler that gets notified when the status of
+    /// the upload changes
     public var inputStatusHandler: InputStatusHandler?
 
-    /**
-     Confirms upload if input standardization did not succeed
-     */
+    /// Confirms if upload should proceed when input
+    /// standardization does not succeed
     public typealias NonStandardInputHandler = () -> Bool
 
-    /**
-     If set will be executed by the SDK when input standardization
-     hadn't succeeded, return <doc:true> to continue the upload
-     or return <doc:false> to cancel the upload
-     */
+    /// Sets a handler that will be executed by the SDK
+    /// when input standardization doesn't succeed. Return
+    /// <doc:true> to continue the upload
     public var nonStandardInputHandler: NonStandardInputHandler?
 
     private let manageBySDK: Bool
@@ -170,74 +189,19 @@ public final class DirectUpload {
     
     internal var fileWorker: ChunkedFileUploader?
 
-    /**
-     Represents the state of an upload in progress.
-     */
+    /// Represents the state of an upload when it is being 
+    /// sent to Mux over the network
     public struct TransportStatus : Sendable, Hashable {
-        /**
-         The percentage of file bytes received by the server
-         accepting the upload
-         */
+        /// The percentage of file bytes received at the 
+        /// upload destination
         public let progress: Progress?
-        /**
-         A timestamp indicating when this status was generated
-         */
+        /// Timestamp from when this update was generated
         public let updatedTime: TimeInterval
-        /**
-         The start time of the upload, nil if the upload
-         has never been started
-         */
+        /// The start time of the upload, nil if the upload
+        /// has never been started
         public let startTime: TimeInterval?
-        /**
-         Indicates if the upload has been paused
-         */
+        /// Indicates if the upload has been paused
         public let isPaused: Bool
-    }
-
-    /// Initializes a DirectUpload from a local file URL with
-    /// the given configuration
-    /// - Parameters:
-    ///    - uploadURL: the URL of your direct upload, see
-    ///    the [direct upload guide](https://docs.mux.com/api-reference#video/operation/create-direct-upload)
-    ///     - videoFileURL: the file:// URL of the upload
-    ///     input
-    ///     - chunkSize: the size of chunks when uploading,
-    ///     at least 8M is recommended
-    ///     - retriesPerChunk: number of retry attempts for
-    ///     a failed chunk request
-    ///     - inputStandardization: enable or disable input
-    ///     standardization by the SDK locally
-    ///     - eventTracking: options to opt out of event
-    ///     tracking
-    @available(*, deprecated, renamed: "init(uploadURL:inputFileURL:options:)")
-    public convenience init(
-        uploadURL: URL,
-        videoFileURL: URL,
-        chunkSize: Int = 8 * 1024 * 1024, // Google recommends at least 8M
-        retriesPerChunk: Int = 3,
-        inputStandardization: DirectUploadOptions.InputStandardization = .default,
-        eventTracking: DirectUploadOptions.EventTracking = .default
-    ) {
-        let asset = AVAsset(url: videoFileURL)
-        self.init(
-            input: UploadInput(
-                asset: asset,
-                info: UploadInfo(
-                    id: UUID().uuidString,
-                    uploadURL: uploadURL,
-                    options: DirectUploadOptions(
-                        inputStandardization: inputStandardization,
-                        transport: DirectUploadOptions.Transport(
-                            chunkSizeInBytes: chunkSize,
-                            retryLimitPerChunk: retriesPerChunk
-                        ),
-                        eventTracking: eventTracking
-                    )
-                )
-            ),
-            uploadManager: .shared,
-            inputInspector: .shared
-        )
     }
 
     /// Initializes a DirectUpload from a local file URL
@@ -255,7 +219,7 @@ public final class DirectUpload {
         inputFileURL: URL,
         options: DirectUploadOptions = .default
     ) {
-        let asset = AVAsset(
+        let asset = AVURLAsset(
             url: inputFileURL
         )
         self.init(
@@ -305,6 +269,7 @@ public final class DirectUpload {
         self.init(
             input: UploadInput(
                 status: .uploadInProgress(
+                    AVURLAsset(url: uploader.inputFileURL),
                     uploader.uploadInfo,
                     TransportStatus(
                         progress: uploader.currentState.progress ?? Progress(),
@@ -332,45 +297,38 @@ public final class DirectUpload {
         )
     }
 
-    /**
-     Handles state updates for this upload in your app.
-     */
+    
+    /// Handles updates when upload data is sent over the network
     public typealias StateHandler = (TransportStatus) -> Void
 
-    /**
-     If set will receive progress updates for this upload,
-     updates will not be received less than 100ms apart
-     */
+    /// Sets handler that receives progress updates when
+    /// the upload transits over the network. Updates will
+    /// not be received less than 100ms apart
     public var progressHandler: StateHandler?
 
-    /**
-     Details about a ``DirectUpload`` after it successfully finished
-     */
+    /// Details of a successfully completed ``DirectUpload``
     public struct SuccessDetails : Sendable, Hashable {
         public let finalState: TransportStatus
     }
 
-    /**
-     The current status of the upload. This object is updated periodically. To listen for changes, use ``progressHandler``
-     */
+    /// Current status of the upload while it is in transit.
+    /// To listen for changes, use ``progressHandler``
+    /// - SeeAlso: progressHandler
     public var uploadStatus: TransportStatus? {
         input.transportStatus
     }
 
-    /**
-     Handles the final result of this upload in your app
-     */
+    /// Handles completion of the uploads execution
+    /// - SeeAlso: resultHandler
     public typealias ResultHandler = (DirectUploadResult) -> Void
 
-    /**
-     If set will be notified when this upload is successfully
-     completed or if there's an error
-     */
+    /// Sets handler that is notified when the upload completes
+    /// execution or if it fails due to an error
+    /// - SeeAlso: ResultHandler
     public var resultHandler: ResultHandler?
-    
-    /**
-     True if this upload is currently in progress and not paused
-     */
+
+    /// Indicates if the upload is currently in progress
+    /// and not paused
     public var inProgress: Bool {
         if case InputStatus.transportInProgress = inputStatus {
             return true
@@ -378,10 +336,8 @@ public final class DirectUpload {
             return false
         }
     }
-    
-    /**
-     True if this upload was completed
-     */
+
+    /// Indicates if the upload has been completed
     public var complete: Bool {
         if case InputStatus.finished = inputStatus {
             return true
@@ -398,25 +354,20 @@ public final class DirectUpload {
         return fileWorker?.inputFileURL
     }
     
-    /**
-     The remote endpoint that this object uploads to
-     */
+    /// URL of the remote upload destination
     public var uploadURL: URL {
         return uploadInfo.uploadURL
     }
-    // TODO: Computed Properties for some other UploadInfo properties
-    
-    /**
-     Begins the upload. You can control what happens when the upload is already started. If `forceRestart` is true, the upload will be restarted. Otherwise, nothing will happen. The default is not to restart
-     */
+
+    /// Starts the upload.
+    /// - Parameter forceRestart: if true, the upload will be
+    /// restarted. If false the upload will resume from where
+    /// it left off if paused, otherwise the upload will change.
     public func start(forceRestart: Bool = false) {
-
-        let videoFile = (input.sourceAsset as! AVURLAsset).url
-
         if self.manageBySDK {
             // See if there's anything in progress already
             fileWorker = uploadManager.findChunkedFileUploader(
-                inputFileURL: videoFile
+                inputFileURL: input.sourceAsset.url
             )
         }
         if fileWorker != nil && !forceRestart {
@@ -435,17 +386,17 @@ public final class DirectUpload {
 
         if case UploadInput.Status.ready = input.status {
             input.status = .started(input.sourceAsset, uploadInfo)
-            startInspection(videoFile: videoFile)
+            startInspection(sourceAsset: input.sourceAsset)
         } else if forceRestart {
             cancel()
         }
     }
 
     func startInspection(
-        videoFile: URL
+        sourceAsset: AVURLAsset
     ) {
         if !uploadInfo.options.inputStandardization.isRequested {
-            startNetworkTransport(videoFile: videoFile)
+            startNetworkTransport(videoFile: sourceAsset.url)
         } else {
             let inputStandardizationStartTime = Date()
             let reporter = Reporter.shared
@@ -457,133 +408,239 @@ public final class DirectUpload {
             // instead throw an error since upload
             // will likely fail
             let inputSize = (try? FileManager.default.fileSizeOfItem(
-                atPath: videoFile.path
+                atPath: input.sourceAsset.url.absoluteString
             )) ?? 0
 
             input.status = .underInspection(input.sourceAsset, uploadInfo)
             inputInspector.performInspection(
-                sourceInput: input.sourceAsset
-            ) { inspectionResult in
+                sourceInput: input.sourceAsset, 
+                maximumResolution: uploadInfo.options.inputStandardization.maximumResolution
+            ) { inspectionResult, inputDuration, inspectionError in
                 self.inspectionResult = inspectionResult
 
-                switch inspectionResult {
-                case .inspectionFailure:
-                    // Request upload confirmation
-                    // before proceeding. If handler unset,
-                    // by default do not cancel upload if
-                    // input standardization fails
-                    let shouldCancelUpload = self.nonStandardInputHandler?() ?? false
-
-                    reporter.reportUploadInputStandardizationFailure(
-                        errorDescription: "Input inspection failure",
-                        inputDuration: inspectionResult.sourceInputDuration.seconds,
+                switch (inspectionResult, inspectionError) {
+                case (.none, .none):
+                    // Corner case
+                    self.handleInspectionFailure(
+                        inspectionError: UploadInputInspectionError.inspectionFailure,
+                        inputDuration: inputDuration,
                         inputSize: inputSize,
-                        nonStandardInputReasons: [],
-                        options: self.uploadInfo.options,
-                        standardizationEndTime: Date(),
-                        standardizationStartTime: inputStandardizationStartTime,
-                        uploadCanceled: shouldCancelUpload,
-                        uploadURL: self.uploadURL
+                        inputStandardizationStartTime: inputStandardizationStartTime,
+                        sourceAsset: sourceAsset
                     )
-
-                    if !shouldCancelUpload {
-                        self.startNetworkTransport(
-                            videoFile: videoFile
-                        )
-                    } else {
-                        self.fileWorker?.cancel()
-                        self.uploadManager.acknowledgeUpload(id: self.id)
-                        self.input.processUploadCancellation()
-                    }
-                case .standard:
-                    self.startNetworkTransport(videoFile: videoFile)
-                case .nonstandard(
-                    let reasons, _
-                ):
-                    print("""
-                    Detected Nonstandard Reasons
-
-                    \(dump(reasons, indent: 4))
-
-                    """
+                case (.none, .some(let error)):
+                    self.handleInspectionFailure(
+                        inspectionError: error,
+                        inputDuration: inputDuration,
+                        inputSize: inputSize,
+                        inputStandardizationStartTime: inputStandardizationStartTime,
+                        sourceAsset: sourceAsset
                     )
+                case (.some(let result), .none):
+                    if result.isStandardInput {
 
-                    // TODO: inject Date() for testing purposes
-                    let outputFileName = "upload-\(Date().timeIntervalSince1970)"
-
-                    let outputDirectory = FileManager.default.temporaryDirectory
-                    let outputURL = URL(
-                        fileURLWithPath: outputFileName,
-                        relativeTo: outputDirectory
-                    )
-                    let maximumResolution = self.input
-                        .uploadInfo
-                        .options
-                        .inputStandardization
-                        .maximumResolution
-
-                    self.inputStandardizer.standardize(
-                        id: self.id,
-                        sourceAsset: AVAsset(url: videoFile),
-                        maximumResolution: maximumResolution,
-                        outputURL: outputURL
-                    ) { sourceAsset, standardizedAsset, error in
-
-                        if let error {
-                            // Request upload confirmation
-                            // before proceeding. If handler unset,
-                            // by default do not cancel upload if
-                            // input standardization fails
-                            let shouldCancelUpload = self.nonStandardInputHandler?() ?? false
-
-                            reporter.reportUploadInputStandardizationFailure(
-                                errorDescription: error.localizedDescription,
-                                inputDuration: inspectionResult.sourceInputDuration.seconds,
-                                inputSize: inputSize,
-                                nonStandardInputReasons: reasons,
-                                options: self.uploadInfo.options,
-                                standardizationEndTime: Date(),
-                                standardizationStartTime: inputStandardizationStartTime,
-                                uploadCanceled: shouldCancelUpload,
-                                uploadURL: self.uploadURL
+                        if result.rescalingDetails.needsRescaling {
+                            SDKLogger.logger?.debug(
+                                "Detected Input Needs Rescaling"
                             )
 
-                            if !shouldCancelUpload {
-                                self.startNetworkTransport(
-                                    videoFile: videoFile
-                                )
-                            } else {
-                                self.fileWorker?.cancel()
-                                self.uploadManager.acknowledgeUpload(id: self.id)
-                                self.input.processUploadCancellation()
+                            // TODO: inject Date() for testing purposes
+                            let outputFileName = "upload-\(Date().timeIntervalSince1970)"
+
+                            let outputDirectory = FileManager.default.temporaryDirectory
+                            let outputURL = URL(
+                                fileURLWithPath: outputFileName,
+                                relativeTo: outputDirectory
+                            )
+
+                            self.inputStandardizer.standardize(
+                                id: self.id,
+                                sourceAsset: sourceAsset,
+                                rescalingDetails: result.rescalingDetails,
+                                outputURL: outputURL
+                            ) { sourceAsset, standardizedAsset, error in
+
+                                if let _ = error {
+                                    // Request upload confirmation
+                                    // before proceeding. If handler unset,
+                                    // by default do not cancel upload if
+                                    // input standardization fails
+                                    let shouldCancelUpload = self.nonStandardInputHandler?() ?? false
+
+                                    if !shouldCancelUpload {
+                                        self.startNetworkTransport(
+                                            videoFile: sourceAsset.url
+                                        )
+                                    } else {
+                                        self.fileWorker?.cancel()
+                                        self.uploadManager.acknowledgeUpload(id: self.id)
+                                        self.input.processUploadCancellation()
+                                    }
+                                } else {
+                                    self.startNetworkTransport(
+                                        videoFile: outputURL,
+                                        duration: inputDuration
+                                    )
+                                }
+
+                                self.inputStandardizer.acknowledgeCompletion(id: self.id)
                             }
-                        } else {
-                            reporter.reportUploadInputStandardizationSuccess(
-                                inputDuration: inspectionResult.sourceInputDuration.seconds,
-                                inputSize: inputSize,
-                                options: self.uploadInfo.options,
-                                nonStandardInputReasons: reasons,
-                                standardizationEndTime: Date(),
-                                standardizationStartTime: inputStandardizationStartTime,
-                                uploadURL: self.uploadURL
-                            )
 
+                        } else {
                             self.startNetworkTransport(
-                                videoFile: outputURL,
-                                duration: inspectionResult.sourceInputDuration
+                                videoFile: sourceAsset.url
                             )
                         }
+                    } else {
+                        SDKLogger.logger?.debug(
+                            """
+                            Detected Nonstandard Reasons
 
-                        self.inputStandardizer.acknowledgeCompletion(id: self.id)
+                            \(dump(result.nonStandardInputReasons, indent: 4))
+
+                            """
+                        )
+
+                        // TODO: inject Date() for testing purposes
+                        let outputFileName = "upload-\(Date().timeIntervalSince1970)"
+
+                        let outputDirectory = FileManager.default.temporaryDirectory
+                        let outputURL = URL(
+                            fileURLWithPath: outputFileName,
+                            relativeTo: outputDirectory
+                        )
+
+                        self.inputStandardizer.standardize(
+                            id: self.id,
+                            sourceAsset: sourceAsset,
+                            rescalingDetails: result.rescalingDetails,
+                            outputURL: outputURL
+                        ) { sourceAsset, standardizedAsset, error in
+
+                            if let error {
+                                // Request upload confirmation
+                                // before proceeding. If handler unset,
+                                // by default do not cancel upload if
+                                // input standardization fails
+                                let shouldCancelUpload = self.nonStandardInputHandler?() ?? false
+
+                                reporter.reportUploadInputStandardizationFailure(
+                                    errorDescription: error.localizedDescription,
+                                    inputDuration: inputDuration.seconds,
+                                    inputSize: inputSize,
+                                    nonStandardInputReasons: result.nonStandardInputReasons,
+                                    options: self.uploadInfo.options,
+                                    standardizationEndTime: Date(),
+                                    standardizationStartTime: inputStandardizationStartTime,
+                                    uploadCanceled: shouldCancelUpload,
+                                    uploadURL: self.uploadURL
+                                )
+
+                                if !shouldCancelUpload {
+                                    self.startNetworkTransport(
+                                        videoFile: sourceAsset.url
+                                    )
+                                } else {
+                                    self.fileWorker?.cancel()
+                                    self.uploadManager.acknowledgeUpload(id: self.id)
+                                    self.input.processUploadCancellation()
+                                }
+                            } else {
+                                reporter.reportUploadInputStandardizationSuccess(
+                                    inputDuration: inputDuration.seconds,
+                                    inputSize: inputSize,
+                                    options: self.uploadInfo.options,
+                                    nonStandardInputReasons: result.nonStandardInputReasons,
+                                    standardizationEndTime: Date(),
+                                    standardizationStartTime: inputStandardizationStartTime,
+                                    uploadURL: self.uploadURL
+                                )
+
+                                self.startNetworkTransport(
+                                    videoFile: outputURL,
+                                    duration: inputDuration
+                                )
+                            }
+
+                            self.inputStandardizer.acknowledgeCompletion(id: self.id)
+                        }
                     }
+                case (.some(_), .some(let error)):
+                    self.handleInspectionFailure(
+                        inspectionError: error,
+                        inputDuration: inputDuration,
+                        inputSize: inputSize,
+                        inputStandardizationStartTime: inputStandardizationStartTime,
+                        sourceAsset: sourceAsset
+                    )
                 }
             }
+        }
+    }
+
+    func handleInspectionFailure(
+        inspectionError: Error,
+        inputDuration: CMTime,
+        inputSize: UInt64,
+        inputStandardizationStartTime: Date,
+        sourceAsset: AVURLAsset
+    ) {
+        let reporter = Reporter.shared
+        // Request upload confirmation
+        // before proceeding. If handler unset,
+        // by default do not cancel upload if
+        // input standardization fails
+        let shouldCancelUpload = self.nonStandardInputHandler?() ?? false
+
+        reporter.reportUploadInputStandardizationFailure(
+            errorDescription: "Input inspection failure",
+            inputDuration: inputDuration.seconds,
+            inputSize: inputSize,
+            nonStandardInputReasons: [],
+            options: self.uploadInfo.options,
+            standardizationEndTime: Date(),
+            standardizationStartTime: inputStandardizationStartTime,
+            uploadCanceled: shouldCancelUpload,
+            uploadURL: self.uploadURL
+        )
+
+        if !shouldCancelUpload {
+            self.startNetworkTransport(
+                videoFile: sourceAsset.url
+            )
+        } else {
+            self.fileWorker?.cancel()
+            self.uploadManager.acknowledgeUpload(id: self.id)
+            self.input.processUploadCancellation()
+        }
+    }
+
+    func readyForTransport() -> Bool {
+        switch inputStatus {
+        case .ready:
+            return false
+        case .started:
+            return true
+        case .preparing:
+            return true
+        case .awaitingConfirmation:
+            return true
+        case .transportInProgress:
+            return false
+        case .paused:
+            return false
+        case .finished:
+            return false
         }
     }
 
     func startNetworkTransport(
         videoFile: URL
     ) {
+        guard readyForTransport() else {
+            return
+        }
+
         let completedUnitCount = UInt64(uploadStatus?.progress?.completedUnitCount ?? 0)
 
         let fileWorker = ChunkedFileUploader(
@@ -615,6 +672,11 @@ public final class DirectUpload {
         videoFile: URL,
         duration: CMTime
     ) {
+        
+        guard readyForTransport() else {
+            return
+        }
+
         let completedUnitCount = UInt64(uploadStatus?.progress?.completedUnitCount ?? 0)
 
         let fileWorker = ChunkedFileUploader(
@@ -642,19 +704,21 @@ public final class DirectUpload {
         inputStatusHandler?(inputStatus)
     }
     
-    /**
-     Suspends the execution of this upload. Temp files and state will not be changed. The upload will remain paused in this state
-     even after process death.
-     Use ``start(forceRestart:)``, passing `false` to start the process over where it was left.
-     Use ``cancel()`` to remove this upload completely
-     */
+    
+    /// Suspends upload execution. Temporary files will be
+    /// kept unchanged and the upload can be resumed by calling
+    /// ``start(forceRestart:)`` with forceRestart set to `false`
+    /// to resume the upload from where it left off.
+    ///
+    /// Call ``cancel()`` to permanently halt the upload.
+    /// - SeeAlso cancel()
     public func pause() {
         fileWorker?.pause()
     }
     
-    /**
-     Cancels an ongoing download. State and Delegates will be cleared. Your delegates will recieve no further calls
-     */
+    /// Cancels an upload that has already been started.
+    /// Any delegates or handlers set prior to this will
+    /// receive no further updates.
     public func cancel() {
         fileWorker?.cancel()
         uploadManager.acknowledgeUpload(id: id)
@@ -719,6 +783,7 @@ public final class DirectUpload {
                 )
             } else {
                 input.status = .uploadInProgress(
+                    input.sourceAsset,
                     input.uploadInfo,
                     status
                 )
@@ -825,9 +890,9 @@ extension DirectUpload {
     }
 }
 
-/**
- An fatal error that ocurred during the upload process. The last-known state of the upload is available, as well as the Error that stopped the upload
- */
+/// An unrecoverable error occurring while the upload was
+/// executing The last-known state of the upload is available,
+/// as well as the Error that stopped the upload
 public struct DirectUploadError : Error {
     /// Represents the possible error cases from a ``DirectUpload``
     public enum Kind : Int {

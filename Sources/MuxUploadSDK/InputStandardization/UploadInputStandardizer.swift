@@ -10,16 +10,16 @@ class UploadInputStandardizer {
 
     func standardize(
         id: String,
-        sourceAsset: AVAsset,
-        maximumResolution: DirectUploadOptions.InputStandardization.MaximumResolution,
+        sourceAsset: AVURLAsset,
+        rescalingDetails: UploadInputFormatInspectionResult.RescalingDetails,
         outputURL: URL,
-        completion: @escaping (AVAsset, AVAsset?, Error?) -> ()
+        completion: @escaping (AVURLAsset, AVAsset?, Error?) -> ()
     ) {
         let worker = UploadInputStandardizationWorker()
 
         worker.standardize(
             sourceAsset: sourceAsset,
-            maximumResolution: maximumResolution,
+            rescalingDetails: rescalingDetails,
             outputURL: outputURL,
             completion: completion
         )

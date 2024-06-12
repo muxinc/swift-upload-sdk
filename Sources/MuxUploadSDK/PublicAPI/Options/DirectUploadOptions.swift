@@ -88,21 +88,29 @@ public struct DirectUploadOptions {
         /// format. ``true`` by default
         public var isRequested: Bool = true
 
-        /// Preset to control the resolution of the standard
-        /// input.
+        /// Preset to control the maximum resolution of a
+        /// standardized input. Inputs with smaller dimensions
+        /// won't be scaled up.
         ///
-        /// See ``DirectUploadOptions.InputStandardization.maximumResolution``
-        /// for more details.
         public enum MaximumResolution {
-            /// Preset standardized direct upload input to the SDK
-            /// default standard resolution of 1920x1080 (1080p).
+            /// By default the standardized input will be
+            /// scaled down to 1920x1080 (1080p) from a larger
+            /// size. Inputs with smaller dimensions won't be
+            /// scaled up.
             case `default`
-            /// Limit standardized direct upload input resolution to
-            /// 1280x720 (720p).
+            /// The standardized input will be scaled down
+            /// to 1280x720 (720p) from a larger size. Inputs 
+            /// with smaller dimensions won't be scaled up.
             case preset1280x720  // 720p
-            /// Limit standardized direct upload input resolution to
-            /// 1920x1080 (1080p).
+            /// The standardized input will be scaled down
+            /// to 1920x1080 (1080p) from a larger size. Inputs
+            /// with smaller dimensions won't be scaled up.
             case preset1920x1080 // 1080p
+            /// The standardized input will be scaled down
+            /// to 3840x2160 (2160p/4K) from a larger size.
+            /// Inputs with smaller dimensions won't be scaled
+            /// up.
+            case preset3840x2160 // 2160p
         }
 
         /// The maximum resolution of the standardized direct
@@ -311,6 +319,8 @@ extension DirectUploadOptions.InputStandardization.MaximumResolution: CustomStri
             return "preset1280x720"
         case .preset1920x1080:
             return "preset1920x1080"
+        case .preset3840x2160:
+            return "preset3840x2160"
         case .default:
             return "default"
         }

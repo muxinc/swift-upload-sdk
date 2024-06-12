@@ -62,9 +62,10 @@ public final class DirectUploadManager {
         return nil
     }
     
-    /// Returns all uploads currently-managed uploads.
-    /// Uploads are managed while in-progress or compelted.
-    ///  Uploads become un-managed when canceled, or if the process dies after they complete
+    /// Returns all currently-managed uploads that are
+    /// in-progress or completed. Uploads that are canceled
+    /// or uploads that completed before the most recent
+    /// application termination are omitted
     public func allManagedDirectUploads() -> [DirectUpload] {
         // Sort upload list for consistent ordering
         return Array(uploadsByID.values.map(\.upload))
@@ -144,13 +145,13 @@ public final class DirectUploadManager {
 
         uploadsByID.updateValue(UploadStorage(upload: upload), forKey: upload.id)
         fileWorker.addDelegate(withToken: UUID().uuidString, uploaderDelegate)
+        self.notifyDelegates()
         Task.detached {
             await self.uploadActor.updateUpload(
                 fileWorker.uploadInfo,
                 fileInputURL: fileWorker.inputFileURL,
                 withUpdate: fileWorker.currentState
             )
-            self.notifyDelegates()
         }
     }
     
@@ -169,13 +170,15 @@ public final class DirectUploadManager {
     
     /// The shared instance of this object that should be used
     public static let shared = DirectUploadManager()
-    internal init() { }
     
     private struct FileUploaderDelegate : ChunkedFileUploaderDelegate {
         let manager: DirectUploadManager
         
-        func chunkedFileUploader(_ uploader: ChunkedFileUploader, stateUpdated state: ChunkedFileUploader.InternalUploadState) {
-            Task.detached {
+        func chunkedFileUploader(
+            _ uploader: ChunkedFileUploader,
+            stateUpdated state: ChunkedFileUploader.InternalUploadState
+        ) {
+            let _ = Task.detached {
                 await manager.uploadActor.updateUpload(
                     uploader.uploadInfo,
                     fileInputURL: uploader.inputFileURL,
@@ -184,8 +187,12 @@ public final class DirectUploadManager {
                 manager.notifyDelegates()
             }
             switch state {
-            case .success(_), .canceled: manager.acknowledgeUpload(id: uploader.uploadInfo.id)
-            default: do { }
+            case .canceled:
+                manager.acknowledgeUpload(
+                    id: uploader.uploadInfo.id
+                )
+            default:
+                break
             }
         }
     }

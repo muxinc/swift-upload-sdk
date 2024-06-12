@@ -9,37 +9,25 @@ import SwiftUI
 import MuxUploadSDK
 import AVFoundation
 
-struct UploadListScreen: View {
-    @EnvironmentObject var uploadListVM: UploadListModel
-    
-    var body: some View {
-        ZStack(alignment: .top) {
-            WindowBackground
-            VStack(spacing: 0) {
-                MuxNavBar()
-                ListContainerView()
-            }
-        }
-    }
-}
-
 extension DirectUpload {
     var objectIdentifier: ObjectIdentifier {
         ObjectIdentifier(self)
     }
 }
 
-fileprivate struct ListContainerView: View {
-    
-    @EnvironmentObject var viewModel: UploadListModel
-    
+struct UploadListView: View {
+    @EnvironmentObject var uploadListModel: UploadListModel
+
     var body: some View {
-        if viewModel.lastKnownUploads.isEmpty {
-            EmptyList()
+        if uploadListModel.lastKnownUploads.isEmpty {
+            UploadListPlaceholderView()
         } else {
             ScrollView {
                 LazyVStack {
-                    ForEach(viewModel.lastKnownUploads, id: \.objectIdentifier) { upload in
+                    ForEach(
+                        uploadListModel.lastKnownUploads,
+                        id: \.objectIdentifier
+                    ) { upload in
                         ListItem(upload: upload)
                     }
                 }
@@ -51,7 +39,6 @@ fileprivate struct ListContainerView: View {
 fileprivate struct ListItem: View {
     
     @StateObject var thumbnailModel: ThumbnailModel
-    let upload: DirectUpload
     
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -81,7 +68,7 @@ fileprivate struct ListItem: View {
                     .foregroundColor(Gray30)
                     .background(Gray90.clipShape(RoundedRectangle(cornerRadius: 4.0)))
             }
-            if upload.inProgress {
+            if thumbnailModel.upload.inProgress {
                 HStack() {
                     VStack (alignment: .leading, spacing: 0) {
                         Text("Uploading...")
@@ -124,7 +111,7 @@ fileprivate struct ListItem: View {
                 trailing: 20
             )
         )
-        .frame(height: SwiftUploadSDKExample.THUMBNAIL_HEIGHT)
+        .frame(height: SwiftUploadSDKExample.thumbnailHeight)
         .onAppear {
             thumbnailModel.startExtractingThumbnail()
         }
@@ -160,61 +147,35 @@ fileprivate struct ListItem: View {
     }
     
     init(upload: DirectUpload) {
-        self.upload = upload
         _thumbnailModel = StateObject(
-            wrappedValue: {
-                ThumbnailModel(asset: AVAsset(url: upload.videoFile!), upload: upload)
-            }()
+            wrappedValue: ThumbnailModel(
+                upload: upload
+            )
         )
     }
 }
 
-fileprivate struct EmptyList: View {
-    var body: some View {
-        NavigationLink {
-            CreateUploadView()
-                .navigationBarHidden(true)
-        } label: {
-            ZStack(alignment: .top) {
-                BigUploadCTALabel()
-                    .padding(EdgeInsets(top: 64, leading: 20, bottom: 0, trailing: 20))
-            }
-        }
-    }
-}
-
-struct UploadListScreen_Previews: PreviewProvider {
-    static var previews: some View {
-        UploadListScreen()
-            .environmentObject(UploadListModel())
-    }
-}
-
-struct ListContent_Previews: PreviewProvider {
+struct UploadListView_Previews: PreviewProvider {
     static var previews: some View {
         ZStack(alignment: .top) {
             WindowBackground
-            ListContainerView()
+            UploadListView()
         }
         .environmentObject(UploadListModel())
     }
 }
 
-struct EmptyList_Previews: PreviewProvider {
-    static var previews: some View {
-        ZStack(alignment: .top) {
-            WindowBackground
-            EmptyList()
-            
-        }
-    }
-}
+
 
 struct UploadListItem_Previews: PreviewProvider {
     static var previews: some View {
         ZStack {
             WindowBackground
-            let upload = DirectUpload(uploadURL: URL(string: "file:///")!, videoFileURL: URL(string: "file:///")!)
+            let upload = DirectUpload(
+                uploadURL: URL(string: "file:///")!,
+                inputAsset: AVAsset(),
+                options: .default
+            )
             ListItem(upload: upload)
         }
     }

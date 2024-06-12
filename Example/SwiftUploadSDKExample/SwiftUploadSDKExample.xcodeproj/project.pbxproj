@@ -9,6 +9,11 @@
 /* Begin PBXBuildFile section */
 		191C59C42A69C9A900D3AF05 /* SwiftUploadSDKExampleUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19822A7B2A4CA6A300CFA822 /* SwiftUploadSDKExampleUITests.swift */; };
 		191C59C52A69C9AC00D3AF05 /* SwiftUploadSDKExampleLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19822A7C2A4CA6A300CFA822 /* SwiftUploadSDKExampleLaunchTests.swift */; };
+		197DD9DA2C0E428C002C1294 /* UploadListPlaceholderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 197DD9D92C0E428C002C1294 /* UploadListPlaceholderView.swift */; };
+		197DD9DC2C0E7003002C1294 /* SelectVideoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 197DD9DB2C0E7003002C1294 /* SelectVideoView.swift */; };
+		197DD9DE2C0E7161002C1294 /* ThumbnailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 197DD9DD2C0E7161002C1294 /* ThumbnailView.swift */; };
+		197DD9E02C0E71A1002C1294 /* ProcessingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 197DD9DF2C0E71A1002C1294 /* ProcessingView.swift */; };
+		197DD9E22C0E71C6002C1294 /* ErrorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 197DD9E12C0E71C6002C1294 /* ErrorView.swift */; };
 		19822A692A4CA69700CFA822 /* Mux Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 19822A522A4CA69700CFA822 /* Mux Assets.xcassets */; };
 		19822A6A2A4CA69700CFA822 /* Buttons.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19822A542A4CA69700CFA822 /* Buttons.swift */; };
 		19822A6B2A4CA69700CFA822 /* MuxNavBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19822A552A4CA69700CFA822 /* MuxNavBar.swift */; };
@@ -23,10 +28,8 @@
 		19822A742A4CA69700CFA822 /* UploadListModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19822A622A4CA69700CFA822 /* UploadListModel.swift */; };
 		19822A752A4CA69700CFA822 /* UploadCreationModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19822A632A4CA69700CFA822 /* UploadCreationModel.swift */; };
 		19822A762A4CA69700CFA822 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19822A642A4CA69700CFA822 /* ContentView.swift */; };
-		19822A772A4CA69700CFA822 /* UploadCTA.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19822A662A4CA69700CFA822 /* UploadCTA.swift */; };
-		19822A792A4CA69700CFA822 /* ImagePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19822A682A4CA69700CFA822 /* ImagePicker.swift */; };
+		19822A772A4CA69700CFA822 /* UploadCallToActionLabel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19822A662A4CA69700CFA822 /* UploadCallToActionLabel.swift */; };
 		19DCD95B2A4CA567001FBBF6 /* MuxUploadSDK in Frameworks */ = {isa = PBXBuildFile; productRef = 19DCD95A2A4CA567001FBBF6 /* MuxUploadSDK */; };
-		F38876D22B86DCFB00B82A86 /* MuxUploadSDK in Frameworks */ = {isa = PBXBuildFile; productRef = F38876D12B86DCFB00B82A86 /* MuxUploadSDK */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -37,16 +40,14 @@
 			remoteGlobalIDString = 358E3C7629A92167005261CB;
 			remoteInfo = "Test App";
 		};
-		F38876CB2B86DBEB00B82A86 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 358E3C6F29A92167005261CB /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 358E3C7629A92167005261CB;
-			remoteInfo = SwiftUploadSDKExample;
-		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		197DD9D92C0E428C002C1294 /* UploadListPlaceholderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UploadListPlaceholderView.swift; sourceTree = "<group>"; };
+		197DD9DB2C0E7003002C1294 /* SelectVideoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectVideoView.swift; sourceTree = "<group>"; };
+		197DD9DD2C0E7161002C1294 /* ThumbnailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThumbnailView.swift; sourceTree = "<group>"; };
+		197DD9DF2C0E71A1002C1294 /* ProcessingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessingView.swift; sourceTree = "<group>"; };
+		197DD9E12C0E71C6002C1294 /* ErrorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ErrorView.swift; sourceTree = "<group>"; };
 		19822A522A4CA69700CFA822 /* Mux Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Mux Assets.xcassets"; sourceTree = "<group>"; };
 		19822A542A4CA69700CFA822 /* Buttons.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Buttons.swift; sourceTree = "<group>"; };
 		19822A552A4CA69700CFA822 /* MuxNavBar.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MuxNavBar.swift; sourceTree = "<group>"; };
@@ -61,14 +62,12 @@
 		19822A622A4CA69700CFA822 /* UploadListModel.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = UploadListModel.swift; sourceTree = "<group>"; };
 		19822A632A4CA69700CFA822 /* UploadCreationModel.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = UploadCreationModel.swift; sourceTree = "<group>"; };
 		19822A642A4CA69700CFA822 /* ContentView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
-		19822A662A4CA69700CFA822 /* UploadCTA.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = UploadCTA.swift; sourceTree = "<group>"; };
-		19822A682A4CA69700CFA822 /* ImagePicker.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ImagePicker.swift; sourceTree = "<group>"; };
+		19822A662A4CA69700CFA822 /* UploadCallToActionLabel.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = UploadCallToActionLabel.swift; sourceTree = "<group>"; };
 		19822A7B2A4CA6A300CFA822 /* SwiftUploadSDKExampleUITests.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SwiftUploadSDKExampleUITests.swift; sourceTree = "<group>"; };
 		19822A7C2A4CA6A300CFA822 /* SwiftUploadSDKExampleLaunchTests.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SwiftUploadSDKExampleLaunchTests.swift; sourceTree = "<group>"; };
 		19DCD9592A4CA546001FBBF6 /* swift-upload-sdk */ = {isa = PBXFileReference; lastKnownFileType = wrapper; name = "swift-upload-sdk"; path = ../..; sourceTree = "<group>"; };
 		358E3C7729A92167005261CB /* SwiftUploadSDKExample.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SwiftUploadSDKExample.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		358E3C9129A92168005261CB /* SwiftUploadSDKExampleTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SwiftUploadSDKExampleTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		F38876C72B86DBEB00B82A86 /* .xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = .xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -87,14 +86,6 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		F38876C42B86DBEB00B82A86 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				F38876D22B86DCFB00B82A86 /* MuxUploadSDK in Frameworks */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -104,12 +95,10 @@
 				19822A512A4CA69700CFA822 /* Mux Style */,
 				19822A572A4CA69700CFA822 /* Fake Server Backend */,
 				19822A592A4CA69700CFA822 /* Assets.xcassets */,
-				19822A5A2A4CA69700CFA822 /* Preview Content */,
-				19822A5C2A4CA69700CFA822 /* Screens */,
 				19822A5F2A4CA69700CFA822 /* SwiftUploadSDKExample.swift */,
+				19822A5A2A4CA69700CFA822 /* Preview Content */,
+				19822A5C2A4CA69700CFA822 /* Views */,
 				19822A602A4CA69700CFA822 /* Model */,
-				19822A642A4CA69700CFA822 /* ContentView.swift */,
-				19822A652A4CA69700CFA822 /* Widgets */,
 			);
 			path = SwiftUploadSDKExample;
 			sourceTree = "<group>";
@@ -149,13 +138,20 @@
 			path = "Preview Content";
 			sourceTree = "<group>";
 		};
-		19822A5C2A4CA69700CFA822 /* Screens */ = {
+		19822A5C2A4CA69700CFA822 /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				19822A642A4CA69700CFA822 /* ContentView.swift */,
 				19822A5D2A4CA69700CFA822 /* CreateUploadView.swift */,
+				197DD9E12C0E71C6002C1294 /* ErrorView.swift */,
 				19822A5E2A4CA69700CFA822 /* UploadListView.swift */,
+				19822A662A4CA69700CFA822 /* UploadCallToActionLabel.swift */,
+				197DD9D92C0E428C002C1294 /* UploadListPlaceholderView.swift */,
+				197DD9DB2C0E7003002C1294 /* SelectVideoView.swift */,
+				197DD9DD2C0E7161002C1294 /* ThumbnailView.swift */,
+				197DD9DF2C0E71A1002C1294 /* ProcessingView.swift */,
 			);
-			path = Screens;
+			path = Views;
 			sourceTree = "<group>";
 		};
 		19822A602A4CA69700CFA822 /* Model */ = {
@@ -166,15 +162,6 @@
 				19822A632A4CA69700CFA822 /* UploadCreationModel.swift */,
 			);
 			path = Model;
-			sourceTree = "<group>";
-		};
-		19822A652A4CA69700CFA822 /* Widgets */ = {
-			isa = PBXGroup;
-			children = (
-				19822A662A4CA69700CFA822 /* UploadCTA.swift */,
-				19822A682A4CA69700CFA822 /* ImagePicker.swift */,
-			);
-			path = Widgets;
 			sourceTree = "<group>";
 		};
 		19822A7A2A4CA6A300CFA822 /* SwiftUploadSDKExampleTests */ = {
@@ -192,7 +179,6 @@
 				358E3CC329A9221F005261CB /* Packages */,
 				19822A502A4CA69700CFA822 /* SwiftUploadSDKExample */,
 				19822A7A2A4CA6A300CFA822 /* SwiftUploadSDKExampleTests */,
-				F38876C82B86DBEB00B82A86 /* SwiftUploadSDKExampleUnitTests */,
 				358E3C7829A92167005261CB /* Products */,
 				358E3CC529A9223B005261CB /* Frameworks */,
 			);
@@ -203,7 +189,6 @@
 			children = (
 				358E3C7729A92167005261CB /* SwiftUploadSDKExample.app */,
 				358E3C9129A92168005261CB /* SwiftUploadSDKExampleTests.xctest */,
-				F38876C72B86DBEB00B82A86 /* .xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -221,13 +206,6 @@
 			children = (
 			);
 			name = Frameworks;
-			sourceTree = "<group>";
-		};
-		F38876C82B86DBEB00B82A86 /* SwiftUploadSDKExampleUnitTests */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			path = SwiftUploadSDKExampleUnitTests;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -271,27 +249,6 @@
 			productReference = 358E3C9129A92168005261CB /* SwiftUploadSDKExampleTests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
-		F38876C62B86DBEB00B82A86 /* SwiftUploadSDKExampleUnitTests */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = F38876CD2B86DBEB00B82A86 /* Build configuration list for PBXNativeTarget "SwiftUploadSDKExampleUnitTests" */;
-			buildPhases = (
-				F38876C32B86DBEB00B82A86 /* Sources */,
-				F38876C42B86DBEB00B82A86 /* Frameworks */,
-				F38876C52B86DBEB00B82A86 /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-				F38876CC2B86DBEB00B82A86 /* PBXTargetDependency */,
-			);
-			name = SwiftUploadSDKExampleUnitTests;
-			packageProductDependencies = (
-				F38876D12B86DCFB00B82A86 /* MuxUploadSDK */,
-			);
-			productName = SwiftUploadSDKExampleUnitTests;
-			productReference = F38876C72B86DBEB00B82A86 /* .xctest */;
-			productType = "com.apple.product-type.bundle.unit-test";
-		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -299,7 +256,7 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
-				LastSwiftUpdateCheck = 1500;
+				LastSwiftUpdateCheck = 1420;
 				LastUpgradeCheck = 1420;
 				TargetAttributes = {
 					358E3C7629A92167005261CB = {
@@ -307,10 +264,6 @@
 					};
 					358E3C9029A92168005261CB = {
 						CreatedOnToolsVersion = 14.2;
-						TestTargetID = 358E3C7629A92167005261CB;
-					};
-					F38876C62B86DBEB00B82A86 = {
-						CreatedOnToolsVersion = 15.0.1;
 						TestTargetID = 358E3C7629A92167005261CB;
 					};
 				};
@@ -324,16 +277,12 @@
 				Base,
 			);
 			mainGroup = 358E3C6E29A92167005261CB;
-			packageReferences = (
-				F38876D02B86DCFB00B82A86 /* XCRemoteSwiftPackageReference "swift-upload-sdk" */,
-			);
 			productRefGroup = 358E3C7829A92167005261CB /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
 				358E3C7629A92167005261CB /* SwiftUploadSDKExample */,
 				358E3C9029A92168005261CB /* SwiftUploadSDKExampleTests */,
-				F38876C62B86DBEB00B82A86 /* SwiftUploadSDKExampleUnitTests */,
 			);
 		};
 /* End PBXProject section */
@@ -356,13 +305,6 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		F38876C52B86DBEB00B82A86 /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -370,19 +312,23 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				197DD9DC2C0E7003002C1294 /* SelectVideoView.swift in Sources */,
 				19822A702A4CA69700CFA822 /* CreateUploadView.swift in Sources */,
 				19822A762A4CA69700CFA822 /* ContentView.swift in Sources */,
 				19822A722A4CA69700CFA822 /* SwiftUploadSDKExample.swift in Sources */,
-				19822A792A4CA69700CFA822 /* ImagePicker.swift in Sources */,
+				197DD9E22C0E71C6002C1294 /* ErrorView.swift in Sources */,
 				19822A6C2A4CA69700CFA822 /* Mux Colors.swift in Sources */,
+				197DD9DA2C0E428C002C1294 /* UploadListPlaceholderView.swift in Sources */,
 				19822A752A4CA69700CFA822 /* UploadCreationModel.swift in Sources */,
+				197DD9E02C0E71A1002C1294 /* ProcessingView.swift in Sources */,
 				19822A6B2A4CA69700CFA822 /* MuxNavBar.swift in Sources */,
 				19822A732A4CA69700CFA822 /* ThumbnailModel.swift in Sources */,
 				19822A6A2A4CA69700CFA822 /* Buttons.swift in Sources */,
 				19822A6D2A4CA69700CFA822 /* FakeBackend.swift in Sources */,
 				19822A712A4CA69700CFA822 /* UploadListView.swift in Sources */,
+				197DD9DE2C0E7161002C1294 /* ThumbnailView.swift in Sources */,
 				19822A742A4CA69700CFA822 /* UploadListModel.swift in Sources */,
-				19822A772A4CA69700CFA822 /* UploadCTA.swift in Sources */,
+				19822A772A4CA69700CFA822 /* UploadCallToActionLabel.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -395,13 +341,6 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		F38876C32B86DBEB00B82A86 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -409,11 +348,6 @@
 			isa = PBXTargetDependency;
 			target = 358E3C7629A92167005261CB /* SwiftUploadSDKExample */;
 			targetProxy = 358E3C9229A92168005261CB /* PBXContainerItemProxy */;
-		};
-		F38876CC2B86DBEB00B82A86 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = 358E3C7629A92167005261CB /* SwiftUploadSDKExample */;
-			targetProxy = F38876CB2B86DBEB00B82A86 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -549,12 +483,13 @@
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.mux.video.upload.Test-App";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -580,12 +515,13 @@
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.mux.video.upload.Test-App";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -600,9 +536,10 @@
 				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = XX95P4Y787;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.mux.video.upload.Test-AppUITests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
@@ -617,57 +554,15 @@
 				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = XX95P4Y787;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.mux.video.upload.Test-AppUITests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_TARGET_NAME = SwiftUploadSDKExample;
-			};
-			name = Release;
-		};
-		F38876CE2B86DBEB00B82A86 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
-				BUNDLE_LOADER = "$(TEST_HOST)";
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
-				GCC_C_LANGUAGE_STANDARD = gnu17;
-				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MARKETING_VERSION = 1.0;
-				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/SwiftUploadSDKExample.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/SwiftUploadSDKExample";
-			};
-			name = Debug;
-		};
-		F38876CF2B86DBEB00B82A86 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
-				BUNDLE_LOADER = "$(TEST_HOST)";
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
-				GCC_C_LANGUAGE_STANDARD = gnu17;
-				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MARKETING_VERSION = 1.0;
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/SwiftUploadSDKExample.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/SwiftUploadSDKExample";
 			};
 			name = Release;
 		};
@@ -701,36 +596,11 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		F38876CD2B86DBEB00B82A86 /* Build configuration list for PBXNativeTarget "SwiftUploadSDKExampleUnitTests" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				F38876CE2B86DBEB00B82A86 /* Debug */,
-				F38876CF2B86DBEB00B82A86 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
 /* End XCConfigurationList section */
-
-/* Begin XCRemoteSwiftPackageReference section */
-		F38876D02B86DCFB00B82A86 /* XCRemoteSwiftPackageReference "swift-upload-sdk" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/muxinc/swift-upload-sdk";
-			requirement = {
-				branch = main;
-				kind = branch;
-			};
-		};
-/* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
 		19DCD95A2A4CA567001FBBF6 /* MuxUploadSDK */ = {
 			isa = XCSwiftPackageProductDependency;
-			productName = MuxUploadSDK;
-		};
-		F38876D12B86DCFB00B82A86 /* MuxUploadSDK */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = F38876D02B86DCFB00B82A86 /* XCRemoteSwiftPackageReference "swift-upload-sdk" */;
 			productName = MuxUploadSDK;
 		};
 /* End XCSwiftPackageProductDependency section */
