@@ -23,8 +23,7 @@ extension DirectUpload {
         options: DirectUploadOptions
     ) {
         guard let urlAsset = inputAsset as? AVURLAsset else {
-            precondition(
-                false,
+            fatalError(
                 "Only assets with URLs can be uploaded"
             )
         }
