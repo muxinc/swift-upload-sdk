@@ -45,7 +45,7 @@ public typealias DirectUploadResult = Result<DirectUpload.SuccessDetails, Direct
 ///
 /// Uploads created by this SDK are globally managed by default, 
 /// and can be resumed after failures or after an application
-/// restart or termination. For more see ``UploadManager``.
+/// restart or termination. For more see ``MuxUploadSDK/DirectUploadManager``.
 public final class DirectUpload {
 
     var input: UploadInput {
@@ -72,7 +72,7 @@ public final class DirectUpload {
     public enum InputStatus {
         /// Upload initialized and not yet started
         case ready(AVAsset)
-        /// Upload started by a call to ``DirectUpload.start(forceRestart:)``
+        /// Upload started by a call to ``MuxUploadSDK/DirectUpload/start(forceRestart:)``
         case started(AVAsset)
         /// Upload is being prepared for transport to the
         /// server. If input standardization was requested,
@@ -176,7 +176,7 @@ public final class DirectUpload {
 
     /// Sets a handler that will be executed by the SDK
     /// when input standardization doesn't succeed. Return
-    /// <doc:true> to continue the upload
+    /// `true` to continue the upload
     public var nonStandardInputHandler: NonStandardInputHandler?
 
     private let manageBySDK: Bool

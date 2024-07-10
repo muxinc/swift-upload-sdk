@@ -85,7 +85,7 @@ public struct DirectUploadOptions {
         /// If requested the SDK will attempt to detect
         /// non-standard input formats and if so detected
         /// will attempt to standardize to a standard input
-        /// format. ``true`` by default
+        /// format. `true` by default
         public var isRequested: Bool = true
 
         /// Preset to control the maximum resolution of a
@@ -121,7 +121,7 @@ public struct DirectUploadOptions {
         /// Example 1: a direct upload input with 1440 x 1080
         /// resolution encoded using Apple ProRes and with
         /// no other non-standard input parameters with
-        /// ``MaximumResolution.default`` selected.
+        /// ``MuxUploadSDK/DirectUploadOptions/InputStandardization-swift.struct/MaximumResolution-swift.enum/default`` selected.
         ///
         /// If input standardization is requested, the SDK
         /// will attempt standardize the input into an H.264
@@ -131,7 +131,7 @@ public struct DirectUploadOptions {
         /// Example 2: a direct upload input with 1440 x 1080
         /// resolution encoded using H.264 and with no other
         /// non-standard input format parameters with
-        /// ``MaximumResolution.preset1280x720`` selected.
+        /// ``MuxUploadSDK/DirectUploadOptions/InputStandardization-swift.struct/MaximumResolution-swift.enum/preset1280x720`` selected.
         ///
         /// If input standardization is requested, the SDK
         /// will attempt standardize the input into an H.264
@@ -226,7 +226,7 @@ public struct DirectUploadOptions {
     ///     standardization. Input standardization is requested
     ///     by default.
     ///     To skip input standardization pass in
-    ///     ``DirectUploadOptions.InputStandardization.skipped``.
+    ///     ``MuxUploadSDK/DirectUploadOptions/InputStandardization/skipped``.
     ///     - transport: options for transporting the
     ///     direct upload input to Mux
     ///     - eventTracking: event tracking options for the
@@ -250,7 +250,7 @@ public struct DirectUploadOptions {
     ///     standardization. Input standardization is requested
     ///     by default.
     ///     To skip input standardization pass in
-    ///     ``DirectUploadOptions.InputStandardization.skipped``.
+    ///     ``MuxUploadSDK/DirectUploadOptions/InputStandardization/skipped``.
     ///     - chunkSize: The size of each file chunk sent by
     ///     the SDK during an upload. Defaults to 8MB.
     ///     - retryLimitPerChunk: number of retry attempts
@@ -278,7 +278,7 @@ public struct DirectUploadOptions {
     ///     standardization. Input standardization is requested
     ///     by default.
     ///     To skip input standardization pass in
-    ///     ``DirectUploadOptions.InputStandardization.skipped``.
+    ///     ``MuxUploadSDK/DirectUploadOptions/InputStandardization/skipped``.
     ///     - chunkSizeInBytes: The size of each file chunk
     ///     in bytes sent by the SDK during an upload.
     ///     Defaults to 8MB.

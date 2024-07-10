@@ -13,6 +13,7 @@ then
 fi
 
 echo "▸ Adding redirect from the docc static archive root"
+echo "▸ with path structure: ${1}/documentation/${2}"
 
 output_path="docs"
 
@@ -27,3 +28,7 @@ cat ${output_path}/index.html
 echo "▸ Copy theme settings to static archive"
 
 cp scripts/docc-files/theme-settings.json docs
+
+echo "▸ Copied theme settings content"
+
+cat docs/theme-settings.json

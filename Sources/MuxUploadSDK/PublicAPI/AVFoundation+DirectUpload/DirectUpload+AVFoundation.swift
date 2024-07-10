@@ -7,7 +7,7 @@ import Foundation
 
 extension DirectUpload {
 
-    /// Initializes a DirectUpload from an ``AVAsset``
+    /// Initializes a DirectUpload from an `AVAsset`.
     ///
     /// - Parameters:
     ///    - uploadURL: the URL of your direct upload, see
