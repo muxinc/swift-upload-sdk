@@ -70,7 +70,7 @@ self.upload = upload
 upload.start()
 ```
 
-A simple example of how to use the SDK in a realistic app can be found [here](https://github.com/muxinc/swift-upload-sdk/blob/main/Examples/)
+A simple example of how to use the SDK in a realistic app can be found [here](https://github.com/muxinc/swift-upload-sdk/blob/main/Example/)
 
 ## Development
 
