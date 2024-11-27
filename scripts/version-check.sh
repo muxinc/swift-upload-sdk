@@ -22,11 +22,11 @@ release_version=$(awk '
     }
 ' <(grep -E 'let major|let minor|let patch' "$SEMANTIC_VERSION_FILE"))
 
-echo $release_version
+echo "Release version found in ${SEMANTIC_VERSION_FILE}: ${release_version}"
 
 if [ "${cocoapod_spec_version}" == "${release_version}" ]; then
 	echo "Versions match"
 else
-    echo "Versions do not match, please update ${COCOAPOD_SPEC} to ${release_version}"
+    echo "Versions do not match, please fix up ${COCOAPOD_SPEC} or ${release_version} to be consistent"
     exit 1
 fi
