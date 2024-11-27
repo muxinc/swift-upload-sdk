@@ -17,10 +17,6 @@ then
     exit 1
 fi
 
-echo "▸ Selecting Xcode 15.4"
-
-sudo xcode-select -s /Applications/Xcode_15.4.app/Contents/Developer
-
 echo "▸ Using Xcode Version: ${XCODE}"
 
 echo "▸ Available Xcode SDKs"
@@ -40,5 +36,5 @@ echo "▸ Test ${SCHEME}"
 xcodebuild clean test \
 	-scheme $SCHEME \
 	-destination 'platform=iOS Simulator,OS=17.5,name=iPhone 15' \
-	-sdk iphonesimulator17.5 \
+	-sdk iphonesimulator18.0 \
   | xcbeautify

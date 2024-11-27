@@ -7,14 +7,26 @@ cocoapod_spec_version=$(grep -Eo '\b[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z-]+)?(\+[0
 
 echo "Detected Cocoapod Spec Version: ${cocoapod_spec_version}"
 
-# Checks branch name for a v followed by a semantic version MAJOR.MINOR.PATCH string
-release_version=$(git branch --show-current | sed -E 's/.*v([0-9]+\.[0-9]+\.[0-9]+).*/\1/')
+SEMANTIC_VERSION_FILE=Sources/MuxUploadSDK/PublicAPI/SemanticVersion.swift
 
-echo "Inferred Release Version: ${release_version}"
+release_version=$(awk '
+    /let major/ { gsub(/[^0-9]/, "", $0); major = $0 }
+    /let minor/ { gsub(/[^0-9]/, "", $0); minor = $0 }
+    /let patch/ { gsub(/[^0-9]/, "", $0); patch = $0 }
+    END {
+        if (major && minor && patch) {
+            print major "." minor "." patch
+        } else {
+            print "Error: Version information not found"
+        }
+    }
+' <(grep -E 'let major|let minor|let patch' "$SEMANTIC_VERSION_FILE"))
+
+echo "Release version found in ${SEMANTIC_VERSION_FILE}: ${release_version}"
 
 if [ "${cocoapod_spec_version}" == "${release_version}" ]; then
 	echo "Versions match"
 else
-    echo "Versions do not match, please update ${COCOAPOD_SPEC} to ${release_version}"
+    echo "Versions do not match, please fix up ${COCOAPOD_SPEC} or ${release_version} to be consistent"
     exit 1
 fi
