@@ -17,7 +17,7 @@ public struct DirectUploadOptions {
     public struct Transport {
 
         /// The size of each file chunk in bytes sent by the
-        /// SDK during an upload. At least 8MB is recommended.
+        /// SDK during an upload. At least 8MiB is recommended.
         public var chunkSizeInBytes: Int
 
         /// Number of retry attempts per chunk if its upload
@@ -39,7 +39,7 @@ public struct DirectUploadOptions {
         /// - Parameters:
         ///     - chunkSize: the size of each file chunk sent
         ///     by the SDK during an upload.
-        ///     Defaults to 8MB.
+        ///     Defaults to 8MiB.
         ///     - retryLimitPerChunk: number of times a failed
         ///     chunk request is retried. Default limit is
         ///     3 retries.
@@ -59,7 +59,7 @@ public struct DirectUploadOptions {
         /// - Parameters:
         ///     - chunkSizeInBytes: the size of each file
         ///     chunk in bytes the SDK uploads in a single
-        ///     request. Default chunk size is 8MB.
+        ///     request. Default chunk size is 8MiB.
         ///     - retryLimitPerChunk: number of times a failed
         ///     chunk request is retried. Default limit is
         ///     3 retries.
@@ -252,7 +252,7 @@ public struct DirectUploadOptions {
     ///     To skip input standardization pass in
     ///     ``DirectUploadOptions.InputStandardization.skipped``.
     ///     - chunkSize: The size of each file chunk sent by
-    ///     the SDK during an upload. Defaults to 8MB.
+    ///     the SDK during an upload. Defaults to 8MiB.
     ///     - retryLimitPerChunk: number of retry attempts
     ///     if the chunk request fails. Defaults to 3.
     public init(
@@ -281,7 +281,7 @@ public struct DirectUploadOptions {
     ///     ``DirectUploadOptions.InputStandardization.skipped``.
     ///     - chunkSizeInBytes: The size of each file chunk
     ///     in bytes sent by the SDK during an upload.
-    ///     Defaults to 8MB.
+    ///     Defaults to 8MiB.
     ///     - retryLimitPerChunk: number of retry attempts
     ///     if the chunk request fails. Defaults to 3.
     public init(
