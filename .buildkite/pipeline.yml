@@ -7,4 +7,3 @@ steps:
   - wait
   - command: "./scripts/version-check.sh"
     label: ":clipboard: Version Check"
-    branches: "releases/*"
