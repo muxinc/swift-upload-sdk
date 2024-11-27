@@ -2,7 +2,7 @@ agents:
   queue: "macOS-Monterey-12-4"
 
 steps:
-   - command: "./scripts/run-unit-tests.sh MuxUploadSDK"
+  - command: "./scripts/run-unit-tests.sh MuxUploadSDK"
     label: ":xcode_simulator: Unit Tests"
   - wait
   - command: "./scripts/version-check.sh"
