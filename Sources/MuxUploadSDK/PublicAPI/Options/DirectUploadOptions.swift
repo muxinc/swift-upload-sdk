@@ -25,7 +25,7 @@ public struct DirectUploadOptions {
         public var retryLimitPerChunk: Int
 
         /// Default options for ``DirectUpload`` chunk transport
-        /// over the network. The chunk size is 8MB and the
+        /// over the network. The chunk size is 8MiB and the
         /// per-chunk retry limit is 3.
         public static var `default`: Transport {
             Transport(
@@ -307,7 +307,7 @@ extension Measurement where UnitType == UnitInformationStorage {
     public static var defaultDirectUploadChunkSize: Self {
         Measurement(
             value: 8,
-            unit: .megabytes
+            unit: .mebibytes
         )
     }
 }
