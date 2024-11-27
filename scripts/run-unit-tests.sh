@@ -17,10 +17,6 @@ then
     exit 1
 fi
 
-echo "▸ Selecting Xcode 15.4"
-
-sudo xcode-select -s /Applications/Xcode_15.4.app/Contents/Developer
-
 echo "▸ Using Xcode Version: ${XCODE}"
 
 echo "▸ Available Xcode SDKs"
