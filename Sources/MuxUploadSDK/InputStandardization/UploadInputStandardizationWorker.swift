@@ -33,6 +33,10 @@ struct StandardizationError: Error {
     static var standardizedAssetExportFailure = StandardizationError(
         localizedDescription: "Failed to export standardized asset"
     )
+
+    static var standardizedAssetWriteFailure = StandardizationError(
+        localizedDescription: "Failed to write standardized asset to disk"
+    )
 }
 
 class UploadInputStandardizationWorker {
