@@ -14,7 +14,7 @@ public struct SemanticVersion {
     /// Minor version component.
     public static let minor = 0
     /// Patch version component.
-    public static let patch = 1
+    public static let patch = 2
 
     /// String form of the version number in the format X.Y.Z
     /// where X, Y, and Z are the major, minor, and patch
