@@ -447,7 +447,26 @@ public final class DirectUpload {
                             // TODO: inject Date() for testing purposes
                             let outputFileName = "upload-\(Date().timeIntervalSince1970)"
 
-                            let outputDirectory = FileManager.default.temporaryDirectory
+                            guard let outputDirectory = FileManager.default.urls(
+                                for: .documentDirectory,
+                                in: .userDomainMask
+                            ).first else {
+                                let error = StandardizationError.standardizedAssetWriteFailure
+                                let shouldCancelUpload = self.nonStandardInputHandler?() ?? false
+
+                                self.handleStandardizationFailure(
+                                    reporter: reporter,
+                                    shouldCancelUpload: shouldCancelUpload,
+                                    standardizationError: error,
+                                    inputDuration: inputDuration,
+                                    inputSize: inputSize,
+                                    inputStandardizationStartTime: inputStandardizationStartTime,
+                                    nonStandardInputReasons: result.nonStandardInputReasons,
+                                    sourceAsset: sourceAsset
+                                )
+                                return
+                            }
+
                             let outputURL = URL(
                                 fileURLWithPath: outputFileName,
                                 relativeTo: outputDirectory
@@ -475,6 +494,7 @@ public final class DirectUpload {
                                         self.fileWorker?.cancel()
                                         self.uploadManager.acknowledgeUpload(id: self.id)
                                         self.input.processUploadCancellation()
+                                        try? FileManager.default.removeItem(at: outputURL)
                                     }
                                 } else {
                                     self.startNetworkTransport(
@@ -504,7 +524,27 @@ public final class DirectUpload {
                         // TODO: inject Date() for testing purposes
                         let outputFileName = "upload-\(Date().timeIntervalSince1970)"
 
-                        let outputDirectory = FileManager.default.temporaryDirectory
+                        guard let outputDirectory = FileManager.default.urls(
+                            for: .documentDirectory,
+                            in: .userDomainMask
+                        ).first else {
+                            let error = StandardizationError.standardizedAssetWriteFailure
+                            let shouldCancelUpload = self.nonStandardInputHandler?() ?? false
+
+                            self.handleStandardizationFailure(
+                                reporter: reporter,
+                                shouldCancelUpload: shouldCancelUpload,
+                                standardizationError: error,
+                                inputDuration: inputDuration,
+                                inputSize: inputSize,
+                                inputStandardizationStartTime: inputStandardizationStartTime,
+                                nonStandardInputReasons: result.nonStandardInputReasons,
+                                sourceAsset: sourceAsset
+                            )
+                            
+                            return
+                        }
+
                         let outputURL = URL(
                             fileURLWithPath: outputFileName,
                             relativeTo: outputDirectory
@@ -575,6 +615,39 @@ public final class DirectUpload {
                     )
                 }
             }
+        }
+    }
+
+    func handleStandardizationFailure(
+        reporter: Reporter,
+        shouldCancelUpload: Bool,
+        standardizationError: Error,
+        inputDuration: CMTime,
+        inputSize: UInt64,
+        inputStandardizationStartTime: Date,
+        nonStandardInputReasons: [UploadInputFormatInspectionResult.NonstandardInputReason],
+        sourceAsset: AVURLAsset
+    ) {
+        reporter.reportUploadInputStandardizationFailure(
+            errorDescription: standardizationError.localizedDescription,
+            inputDuration: inputDuration.seconds,
+            inputSize: inputSize,
+            nonStandardInputReasons: nonStandardInputReasons,
+            options: self.uploadInfo.options,
+            standardizationEndTime: Date(),
+            standardizationStartTime: inputStandardizationStartTime,
+            uploadCanceled: shouldCancelUpload,
+            uploadURL: self.uploadURL
+        )
+
+        if !shouldCancelUpload {
+            self.startNetworkTransport(
+                videoFile: sourceAsset.url
+            )
+        } else {
+            self.fileWorker?.cancel()
+            self.uploadManager.acknowledgeUpload(id: self.id)
+            self.input.processUploadCancellation()
         }
     }
 
@@ -672,7 +745,6 @@ public final class DirectUpload {
         videoFile: URL,
         duration: CMTime
     ) {
-        
         guard readyForTransport() else {
             return
         }
