@@ -6,7 +6,7 @@ import AVFoundation
 import CoreMedia
 import Foundation
 
-typealias UploadInputInspectionCompletionHandler = (UploadInputFormatInspectionResult?, CMTime, Error?) -> ()
+typealias UploadInputInspectionCompletionHandler = @MainActor (UploadInputFormatInspectionResult?, CMTime, Error?) -> ()
 
 protocol UploadInputInspector {
     func performInspection(
@@ -42,10 +42,11 @@ class AVFoundationUploadInputInspector: UploadInputInspector {
                 withMediaType: .video
             ) { tracks, error in
                 if error != nil {
-                    completionHandler(
-                        nil, 
-                        CMTime.zero,
-                        UploadInputInspectionError.inspectionFailure
+                    self.completeOnMainThread(
+                        result: nil,
+                        sourceDuration: CMTime.zero,
+                        error: UploadInputInspectionError.inspectionFailure,
+                        completionHandler
                     )
                     return
                 }
@@ -90,10 +91,11 @@ class AVFoundationUploadInputInspector: UploadInputInspector {
         case 0:
             // Nothing to inspect, therefore nothing to standardize
             // declare as already standard
-            completionHandler(
-                UploadInputFormatInspectionResult(),
-                CMTime.zero,
-                nil
+            completeOnMainThread(
+                result: UploadInputFormatInspectionResult(),
+                sourceDuration: CMTime.zero,
+                error: nil,
+                completionHandler
             )
         case 1:
 
@@ -114,19 +116,21 @@ class AVFoundationUploadInputInspector: UploadInputInspector {
                         var nonStandardReasons: [UploadInputFormatInspectionResult.NonstandardInputReason] = []
 
                         guard let formatDescriptions = track.formatDescriptions as? [CMFormatDescription] else {
-                            completionHandler(
-                                nil,
-                                sourceInputDuration,
-                                UploadInputInspectionError.inspectionFailure
+                            self.completeOnMainThread(
+                                result: nil,
+                                sourceDuration: sourceInputDuration,
+                                error: UploadInputInspectionError.inspectionFailure,
+                                completionHandler
                             )
                             return
                         }
 
                         guard let formatDescription = formatDescriptions.first else {
-                            completionHandler(
-                                nil,
-                                sourceInputDuration,
-                                UploadInputInspectionError.inspectionFailure
+                            self.completeOnMainThread(
+                                result: nil,
+                                sourceDuration: sourceInputDuration,
+                                error: UploadInputInspectionError.inspectionFailure,
+                                completionHandler
                             )
                             return
                         }
@@ -171,16 +175,17 @@ class AVFoundationUploadInputInspector: UploadInputInspector {
                             }
                         }
 
-                        completionHandler(
-                            UploadInputFormatInspectionResult(
+                        self.completeOnMainThread(
+                            result: UploadInputFormatInspectionResult(
                                 nonStandardInputReasons: nonStandardReasons,
                                 rescalingDetails: UploadInputFormatInspectionResult.RescalingDetails(
-                                    maximumDesiredResolutionPreset: maximumResolution,
+                                maximumDesiredResolutionPreset: maximumResolution,
                                     recordedResolution: videoDimensions
                                 )
                             ),
-                            sourceInputDuration,
-                            nil
+                            sourceDuration: sourceInputDuration,
+                            error: nil,
+                            completionHandler
                         )
                     }
                 }
@@ -188,11 +193,21 @@ class AVFoundationUploadInputInspector: UploadInputInspector {
         default:
             // Inspection fails for multi-video track inputs
             // for the time being
-            completionHandler(
-                nil,
-                CMTime.zero,
-                UploadInputInspectionError.inspectionFailure
+            completeOnMainThread(
+                result: nil,
+                sourceDuration: CMTime.zero,
+                error: UploadInputInspectionError.inspectionFailure,
+                completionHandler
             )
         }
+    }
+    
+    private func completeOnMainThread(
+        result: UploadInputFormatInspectionResult?,
+        sourceDuration: CMTime,
+        error: Error?,
+        _ handler: @escaping UploadInputInspectionCompletionHandler
+    ) {
+        Task.detached { await MainActor.run { handler(result, sourceDuration, error) } }
     }
 }

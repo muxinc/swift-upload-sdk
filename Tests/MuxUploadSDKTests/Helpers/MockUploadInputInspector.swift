@@ -45,7 +45,7 @@ class MockUploadInputInspector: UploadInputInspector {
         maximumResolution: DirectUploadOptions.InputStandardization.MaximumResolution,
         completionHandler: @escaping UploadInputInspectionCompletionHandler
     ) {
-        completionHandler(mockInspectionResult, duration, mockInspectionError)
+        Task.detached { [self] in await MainActor.run { completionHandler(mockInspectionResult, duration, mockInspectionError) } }
     }
 
 }

@@ -188,9 +188,11 @@ public final class DirectUploadManager {
             }
             switch state {
             case .canceled:
-                manager.acknowledgeUpload(
-                    id: uploader.uploadInfo.id
-                )
+                Task.detached { await MainActor.run {
+                    manager.acknowledgeUpload(
+                        id: uploader.uploadInfo.id
+                    )
+                }}
             default:
                 break
             }
@@ -214,13 +216,13 @@ internal actor UploadCacheActor {
         fileInputURL: URL,
         withUpdate update: ChunkedFileUploader.InternalUploadState
     ) async {
-        Task {
+        let _ = await Task {
             persistence.update(
                 uploadState: update,
                 for: uploadInfo,
                 fileInputURL: fileInputURL
             )
-        }
+        }.result
     }
     
     func getUpload(uploadID: String) async -> ChunkedFileUploader? {
