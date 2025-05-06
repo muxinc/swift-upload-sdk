@@ -16,7 +16,8 @@ class ChunkWorker {
     let uploadURL: URL
     let maxRetries: Int
     let chunkProgress: Progress
-    
+    let configuration: URLSessionConfiguration
+
     private var chunkStartTime: TimeInterval? = nil
     private var lastSeenUpdate: Update = Update(progress: Progress(totalUnitCount: 10), bytesSinceLastUpdate: 0, chunkStartTime: 0, eventTime: 0)
     private var progressDelegate: ProgressHandler?
@@ -24,7 +25,7 @@ class ChunkWorker {
     private var uploadTask: Task<Success, Error>?
     private lazy var urlSession: URLSession = {
         URLSession(
-            configuration: .default,
+            configuration: configuration,
             delegate: makeProgressReportingTaskDelegate(),
             delegateQueue: .main
         )
@@ -158,23 +159,27 @@ class ChunkWorker {
     
     convenience init(
         uploadInfo: UploadInfo,
-        chunkProgress: Progress
+        chunkProgress: Progress,
+        configuration: URLSessionConfiguration
     ) {
         self.init(
             uploadURL: uploadInfo.uploadURL,
             chunkProgress: chunkProgress,
-            maxRetries: uploadInfo.options.transport.retryLimitPerChunk
+            maxRetries: uploadInfo.options.transport.retryLimitPerChunk,
+            configuration: configuration
         )
     }
     
     init(
         uploadURL: URL,
         chunkProgress: Progress,
-        maxRetries: Int
+        maxRetries: Int,
+        configuration: URLSessionConfiguration
     ) {
         self.uploadURL = uploadURL
         self.maxRetries = maxRetries
         self.chunkProgress = chunkProgress
+        self.configuration = configuration
     }
 }
 

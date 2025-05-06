@@ -20,7 +20,8 @@ extension DirectUpload {
     public convenience init(
         uploadURL: URL,
         inputAsset: AVAsset,
-        options: DirectUploadOptions
+        options: DirectUploadOptions,
+        configuration: URLSessionConfiguration
     ) {
         guard let urlAsset = inputAsset as? AVURLAsset else {
             fatalError(
@@ -36,6 +37,7 @@ extension DirectUpload {
                     options: options
                 )
             ),
+            configuration: configuration,
             uploadManager: .shared,
             inputInspector: .shared
         )

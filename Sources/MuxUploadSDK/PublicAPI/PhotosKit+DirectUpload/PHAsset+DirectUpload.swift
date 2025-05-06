@@ -29,6 +29,7 @@ extension PHAsset {
     func prepareForDirectUpload(
         from imageManager: PHImageManager = .default(),
         options: DirectUploadOptions = .default,
+        configuration: URLSessionConfiguration,
         uploadURL: URL,
         completion: @escaping (DirectUpload?) -> ()
     ) {
@@ -50,7 +51,8 @@ extension PHAsset {
                     DirectUpload(
                         uploadURL: uploadURL,
                         inputAsset: unwrappedAsset,
-                        options: options
+                        options: options,
+                        configuration: configuration
                     )
                 }
 

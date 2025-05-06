@@ -56,6 +56,8 @@ public final class DirectUpload {
         }
     }
 
+    var sessionConfiguration: URLSessionConfiguration
+
 
     private var internalStatus: UploadInput.Status {
         input.status
@@ -217,7 +219,8 @@ public final class DirectUpload {
     public convenience init(
         uploadURL: URL,
         inputFileURL: URL,
-        options: DirectUploadOptions = .default
+        options: DirectUploadOptions = .default,
+        configuration: URLSessionConfiguration
     ) {
         let asset = AVURLAsset(
             url: inputFileURL
@@ -230,6 +233,7 @@ public final class DirectUpload {
                     options: options
                 )
             ),
+            configuration: configuration,
             manage: true,
             uploadManager: .shared,
             inputInspector: .shared
@@ -238,11 +242,13 @@ public final class DirectUpload {
 
     init(
         input: UploadInput,
+        configuration: URLSessionConfiguration,
         manage: Bool = true,
         uploadManager: DirectUploadManager,
         inputInspector: AVFoundationUploadInputInspector = .shared
     ) {
         self.input = input
+        self.sessionConfiguration = configuration
         self.manageBySDK = manage
         self.uploadManager = uploadManager
         self.inputInspector = inputInspector
@@ -251,11 +257,13 @@ public final class DirectUpload {
 
     init(
         input: UploadInput,
+        configuration: URLSessionConfiguration,
         manage: Bool = true,
         uploadManager: DirectUploadManager,
         inputInspector: UploadInputInspector
     ) {
         self.input = input
+        self.sessionConfiguration = configuration
         self.manageBySDK = manage
         self.uploadManager = uploadManager
         self.inputInspector = inputInspector
@@ -264,7 +272,8 @@ public final class DirectUpload {
 
     internal convenience init(
         wrapping uploader: ChunkedFileUploader,
-        uploadManager: DirectUploadManager
+        uploadManager: DirectUploadManager,
+        configuration: URLSessionConfiguration
     ) {
         self.init(
             input: UploadInput(
@@ -279,6 +288,7 @@ public final class DirectUpload {
                     )
                 )
             ),
+            configuration: configuration,
             uploadManager: .shared,
             inputInspector: .shared
         )
@@ -646,6 +656,7 @@ public final class DirectUpload {
         let fileWorker = ChunkedFileUploader(
             uploadInfo: input.uploadInfo,
             inputFileURL: videoFile,
+            configuration: sessionConfiguration,
             file: ChunkedFile(chunkSize: input.uploadInfo.options.transport.chunkSizeInBytes),
             startingByte: completedUnitCount
         )
@@ -682,6 +693,7 @@ public final class DirectUpload {
         let fileWorker = ChunkedFileUploader(
             uploadInfo: input.uploadInfo,
             inputFileURL: videoFile,
+            configuration: sessionConfiguration,
             file: ChunkedFile(chunkSize: input.uploadInfo.options.transport.chunkSizeInBytes),
             startingByte: completedUnitCount
         )

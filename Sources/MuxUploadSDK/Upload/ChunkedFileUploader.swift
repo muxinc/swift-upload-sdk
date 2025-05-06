@@ -16,6 +16,7 @@ class ChunkedFileUploader {
     private(set) var currentState: InternalUploadState = .ready
     let uploadInfo: UploadInfo
     let inputFileURL: URL
+    let configuration: URLSessionConfiguration
     private var delegates: [String : ChunkedFileUploaderDelegate] = [:]
     
     private let file: ChunkedFile
@@ -287,6 +288,7 @@ class ChunkedFileUploader {
             inputFileURL: inputFileURL,
             chunkedFile: file,
             progress: overallProgress,
+            configuration: configuration,
             startByte: lastReadCount
         ) { progress, startTime, eventTime in
             let update = Update(
@@ -330,11 +332,13 @@ class ChunkedFileUploader {
     }
 
     convenience init(
-        persistenceEntry: PersistenceEntry
+        persistenceEntry: PersistenceEntry,
+        configuration: URLSessionConfiguration
     ) {
         self.init(
             uploadInfo: persistenceEntry.uploadInfo,
             inputFileURL: persistenceEntry.inputFileURL,
+            configuration: configuration,
             file: ChunkedFile(chunkSize: persistenceEntry.uploadInfo.options.transport.chunkSizeInBytes),
             startingByte: persistenceEntry.lastSuccessfulByte
         )
@@ -343,6 +347,7 @@ class ChunkedFileUploader {
     init(
         uploadInfo: UploadInfo,
         inputFileURL: URL,
+        configuration: URLSessionConfiguration,
         file: ChunkedFile,
         startingByte: UInt64 = 0
     ) {
@@ -350,6 +355,7 @@ class ChunkedFileUploader {
         self.file = file
         self.lastReadCount = startingByte
         self.inputFileURL = inputFileURL
+        self.configuration = configuration
         self.reporter = Reporter.shared
     }
     
@@ -406,7 +412,8 @@ fileprivate actor Worker {
     private let overallProgress: Progress
     private let progressHandler: ProgressHandler
     private let startingReadCount: UInt64
-    
+    private let configuration: URLSessionConfiguration
+
     func performUpload() async throws -> ChunkedFileUploader.Update {
         try chunkedFile.openFile(fileURL: inputFileURL)
         try chunkedFile.seekTo(byte: startingReadCount)
@@ -453,7 +460,8 @@ fileprivate actor Worker {
             let chunkWorker = ChunkWorker(
                 uploadURL: uploadInfo.uploadURL,
                 chunkProgress: chunkProgress,
-                maxRetries: uploadInfo.options.transport.retryLimitPerChunk
+                maxRetries: uploadInfo.options.transport.retryLimitPerChunk,
+                configuration: configuration
             )
             chunkWorker.addDelegate {[self] update in
                 // Called on the main thread
@@ -487,12 +495,14 @@ fileprivate actor Worker {
         inputFileURL: URL,
         chunkedFile: ChunkedFile,
         progress: Progress,
+        configuration: URLSessionConfiguration,
         startByte: UInt64,
         _ progressHandler: @escaping ProgressHandler
     ) {
         self.uploadInfo = uploadInfo
         self.inputFileURL = inputFileURL
         self.chunkedFile = chunkedFile
+        self.configuration = configuration
         self.progressHandler = progressHandler
         self.overallProgress = progress
         self.startingReadCount = startByte

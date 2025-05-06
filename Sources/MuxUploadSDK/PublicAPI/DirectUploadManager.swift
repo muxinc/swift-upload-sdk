@@ -48,7 +48,9 @@ public final class DirectUploadManager {
     private var uploadsUpdateDelegatesByToken: [ObjectIdentifier : any DirectUploadManagerDelegate] = [:]
     private let uploadActor = UploadCacheActor()
     private lazy var uploaderDelegate: FileUploaderDelegate = FileUploaderDelegate(manager: self)
-    
+    public var sessionConfiguration: URLSessionConfiguration = .default
+    // TODO: explicit switch to background config?
+
     /// Finds an upload already in-progress and returns a new ``DirectUpload`` that can be observed
     /// to track and control its state
     /// Returns nil if there was no uplod in progress for thr given file
@@ -74,10 +76,10 @@ public final class DirectUploadManager {
     /// Attempts to resume an upload that was previously paused or interrupted by process death
     ///  If no upload was found in the cache, this method returns null without taking any action
     public func resumeDirectUpload(ofFile url: URL) async -> DirectUpload? {
-        let fileUploader = await uploadActor.getUpload(ofFileAt: url)
+        let fileUploader = await uploadActor.getUpload(ofFileAt: url, configuration: self.sessionConfiguration)
         if let nonNilUploader = fileUploader {
             nonNilUploader.addDelegate(withToken: UUID().uuidString, uploaderDelegate)
-            return DirectUpload(wrapping: nonNilUploader, uploadManager: self)
+            return DirectUpload(wrapping: nonNilUploader, uploadManager: self, configuration: sessionConfiguration)
         } else {
             return nil
         }
@@ -98,7 +100,7 @@ public final class DirectUploadManager {
     /// It can be useful to call this during app initialization to resume uploads that have been killed by the process dying
     public func resumeAllDirectUploads() {
         Task.detached { [self] in
-            for upload in await uploadActor.getAllUploads() {
+            for upload in await uploadActor.getAllUploads(configuration: self.sessionConfiguration) {
                 upload.addDelegate(withToken: UUID().uuidString, uploaderDelegate)
             }
         }
@@ -223,20 +225,21 @@ internal actor UploadCacheActor {
         }
     }
     
-    func getUpload(uploadID: String) async -> ChunkedFileUploader? {
+    func getUpload(uploadID: String, configuration: URLSessionConfiguration) async -> ChunkedFileUploader? {
         // reminder: doesn't start the uploader, just makes it
         return await Task<ChunkedFileUploader?, Never> {
             try? persistence
                 .readEntry(uploadID: uploadID)
                 .map({ entry in
                     return ChunkedFileUploader(
-                        persistenceEntry: entry
+                        persistenceEntry: entry,
+                        configuration: configuration
                     )
                 })
         }.value
     }
 
-    func getUpload(ofFileAt: URL) async -> ChunkedFileUploader? {
+    func getUpload(ofFileAt: URL, configuration: URLSessionConfiguration) async -> ChunkedFileUploader? {
         return await Task<ChunkedFileUploader?, Never> {
             guard let matchingEntry = try? persistence.readAll().first(
                 where: { $0.uploadInfo.uploadURL == ofFileAt }
@@ -245,16 +248,18 @@ internal actor UploadCacheActor {
             }
 
             return ChunkedFileUploader(
-                persistenceEntry: matchingEntry
+                persistenceEntry: matchingEntry,
+                configuration: configuration
             )
         }.value
     }
     
-    func getAllUploads() async -> [ChunkedFileUploader] {
+    func getAllUploads(configuration: URLSessionConfiguration) async -> [ChunkedFileUploader] {
         return await Task<[ChunkedFileUploader]?, Never> {
             return try? persistence.readAll().compactMap { it in
                 ChunkedFileUploader(
-                    persistenceEntry: it
+                    persistenceEntry: it,
+                    configuration: configuration
                 )
             }
         }.value ?? []
