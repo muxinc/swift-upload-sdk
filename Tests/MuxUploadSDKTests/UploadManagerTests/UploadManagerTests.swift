@@ -40,6 +40,7 @@ class UploadManagerTests: XCTestCase {
                     options: .inputStandardizationSkipped
                 )
             ),
+            configuration: .ephemeral,
             uploadManager: uploadManager
         )
 
@@ -51,6 +52,7 @@ class UploadManagerTests: XCTestCase {
                     options: .inputStandardizationSkipped
                 )
             ),
+            configuration: .ephemeral,
             uploadManager: uploadManager
         )
 

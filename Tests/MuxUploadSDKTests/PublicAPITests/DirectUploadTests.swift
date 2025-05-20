@@ -12,7 +12,7 @@ class DirectUploadTests: XCTestCase {
     func testInitializationInputStatus() throws {
         let upload = DirectUpload(
             uploadURL: URL(string: "https://www.example.com/upload")!,
-            inputFileURL: URL(string: "file://var/mobile/Containers/Data/Application/Documents/myvideo.mp4")!
+            inputFileURL: URL(string: "file://var/mobile/Containers/Data/Application/Documents/myvideo.mp4")!, configuration: .ephemeral
         )
 
         guard case DirectUpload.InputStatus.ready(_) = upload.inputStatus else {
@@ -24,7 +24,7 @@ class DirectUploadTests: XCTestCase {
     func testStartStatusUpdate() throws {
         let upload = DirectUpload(
             uploadURL: URL(string: "https://www.example.com/upload")!,
-            inputFileURL: URL(string: "file://var/mobile/Containers/Data/Application/Documents/myvideo.mp4")!
+            inputFileURL: URL(string: "file://var/mobile/Containers/Data/Application/Documents/myvideo.mp4")!, configuration: .ephemeral
         )
 
         let ex = XCTestExpectation(
@@ -50,6 +50,7 @@ class DirectUploadTests: XCTestCase {
 
         let upload = DirectUpload(
             input: input,
+            configuration: .ephemeral,
             uploadManager: DirectUploadManager(),
             inputInspector: MockUploadInputInspector.alwaysStandard
         )
@@ -86,6 +87,7 @@ class DirectUploadTests: XCTestCase {
 
         let upload = DirectUpload(
             input: input,
+            configuration: .ephemeral,
             uploadManager: DirectUploadManager(),
             inputInspector: MockUploadInputInspector.alwaysFailing
         )
