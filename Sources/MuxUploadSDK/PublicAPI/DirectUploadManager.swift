@@ -49,7 +49,6 @@ public final class DirectUploadManager {
     private let uploadActor = UploadCacheActor()
     private lazy var uploaderDelegate: FileUploaderDelegate = FileUploaderDelegate(manager: self)
     public var sessionConfiguration: URLSessionConfiguration = .default
-    // TODO: explicit switch to background config?
 
     /// Finds an upload already in-progress and returns a new ``DirectUpload`` that can be observed
     /// to track and control its state
