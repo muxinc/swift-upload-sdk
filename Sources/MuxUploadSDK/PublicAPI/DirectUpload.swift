@@ -720,6 +720,13 @@ public final class DirectUpload {
     /// Any delegates or handlers set prior to this will
     /// receive no further updates.
     public func cancel() {
+        switch inputStatus {
+        case .ready, .finished:
+            return
+        default:
+            break
+        }
+
         fileWorker?.cancel()
         uploadManager.acknowledgeUpload(id: id)
         input.processUploadCancellation()

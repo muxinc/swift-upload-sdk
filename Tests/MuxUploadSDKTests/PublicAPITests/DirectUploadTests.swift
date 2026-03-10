@@ -116,6 +116,39 @@ class DirectUploadTests: XCTestCase {
             enforceOrder: true
         )
     }
+
+    func testCancelBeforeStartIsNoOp() throws {
+        let upload = DirectUpload(
+            uploadURL: URL(string: "https://www.example.com/upload")!,
+            inputFileURL: URL(string: "file://var/mobile/Containers/Data/Application/Documents/myvideo.mp4")!
+        )
+
+        let unexpectedStatusUpdate = XCTestExpectation(
+            description: "Expected no status update when canceling an unstarted upload"
+        )
+        unexpectedStatusUpdate.isInverted = true
+
+        upload.inputStatusHandler = { _ in
+            unexpectedStatusUpdate.fulfill()
+        }
+        upload.progressHandler = { _ in
+            XCTFail("Did not expect progress update when canceling an unstarted upload")
+        }
+        upload.resultHandler = { _ in
+            XCTFail("Did not expect result update when canceling an unstarted upload")
+        }
+
+        upload.cancel()
+
+        guard case DirectUpload.InputStatus.ready = upload.inputStatus else {
+            XCTFail("Expected status to remain ready after cancel on unstarted upload")
+            return
+        }
+        XCTAssertNotNil(upload.progressHandler)
+        XCTAssertNotNil(upload.resultHandler)
+
+        wait(for: [unexpectedStatusUpdate], timeout: 0.2)
+    }
     
 
 }
