@@ -727,11 +727,7 @@ public final class DirectUpload {
     }
     
     private func cancel(notifyCaller: Bool) {
-        fileWorker?.cancel()
-        uploadManager.acknowledgeUpload(id: id)
-        input.processUploadCancellation()
-        
-        if notifyCaller {
+        if notifyCaller && !isUploadComplete() {
             resultHandler?(.failure(
                 DirectUploadError(
                     lastStatus: uploadStatus,
@@ -742,8 +738,20 @@ public final class DirectUpload {
             ))
         }
         
+        fileWorker?.cancel()
+        uploadManager.acknowledgeUpload(id: id)
+        input.processUploadCancellation()
+        
         progressHandler = nil
         resultHandler = nil
+    }
+    
+    private func isUploadComplete() -> Bool {
+        switch internalStatus {
+        case .uploadSucceeded: return true
+        case .uploadFailed: return true
+        default: return false
+        }
     }
     
     private func handleStateUpdate(_ state: ChunkedFileUploader.InternalUploadState) {
