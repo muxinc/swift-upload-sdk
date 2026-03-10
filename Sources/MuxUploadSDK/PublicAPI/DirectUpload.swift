@@ -247,6 +247,8 @@ public final class DirectUpload {
         self.uploadManager = uploadManager
         self.inputInspector = inputInspector
         // TODO: Same for UploadInputStandardizer when it gets wired in
+        
+        SDKLogger.enableDefaultLogging()
     }
 
     init(
@@ -260,6 +262,8 @@ public final class DirectUpload {
         self.uploadManager = uploadManager
         self.inputInspector = inputInspector
         // TODO: Same for UploadInputStandardizer when it gets wired in
+        
+        SDKLogger.enableDefaultLogging()
     }
 
     internal convenience init(
@@ -388,7 +392,7 @@ public final class DirectUpload {
             input.status = .started(input.sourceAsset, uploadInfo)
             startInspection(sourceAsset: input.sourceAsset)
         } else if forceRestart {
-            cancel()
+            cancel(notifyCaller: false)
         }
     }
 
@@ -638,8 +642,11 @@ public final class DirectUpload {
         videoFile: URL
     ) {
         guard readyForTransport() else {
+            SDKLogger.logger?.info("Tried to start network transport before being ready")
             return
         }
+        
+        SDKLogger.logger?.info("Starting network transport")
 
         let completedUnitCount = UInt64(uploadStatus?.progress?.completedUnitCount ?? 0)
 
@@ -718,11 +725,27 @@ public final class DirectUpload {
     
     /// Cancels an upload that has already been started.
     /// Any delegates or handlers set prior to this will
-    /// receive no further updates.
+    /// receive no further updates after the resultHandler is called
     public func cancel() {
+        self.cancel(notifyCaller: true)
+    }
+    
+    private func cancel(notifyCaller: Bool) {
         fileWorker?.cancel()
         uploadManager.acknowledgeUpload(id: id)
         input.processUploadCancellation()
+        
+        if notifyCaller {
+            resultHandler?(.failure(
+                DirectUploadError(
+                    lastStatus: uploadStatus,
+                    kind: .cancelled,
+                    message: "Upload was cancelled by caller",
+                    reason: nil
+                )
+            ))
+        }
+        
         progressHandler = nil
         resultHandler = nil
     }
@@ -764,6 +787,12 @@ public final class DirectUpload {
                     isPaused: true
                 )
                 progressHandler?(canceledStatus)
+                resultHandler?(DirectUploadResult.failure(DirectUploadError(
+                    lastStatus: canceledStatus,
+                    kind: .cancelled,
+                    message: "user cancelled",
+                    reason: nil
+                )))
             } else {
                 resultHandler?(Result.failure(parsedError))
             }
