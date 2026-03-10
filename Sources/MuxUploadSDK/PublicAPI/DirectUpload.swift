@@ -727,7 +727,7 @@ public final class DirectUpload {
     }
     
     private func cancel(notifyCaller: Bool) {
-        if notifyCaller && !isUploadComplete() {
+        if notifyCaller && !isUploadComplete() && isUploadStarted() {
             resultHandler?(.failure(
                 DirectUploadError(
                     lastStatus: uploadStatus,
@@ -744,6 +744,13 @@ public final class DirectUpload {
         
         progressHandler = nil
         resultHandler = nil
+    }
+    
+    private func isUploadStarted() -> Bool {
+        switch internalStatus {
+        case .ready(_, _): return false
+        default: return true
+        }
     }
     
     private func isUploadComplete() -> Bool {
