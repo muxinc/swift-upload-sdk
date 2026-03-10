@@ -388,7 +388,7 @@ public final class DirectUpload {
             input.status = .started(input.sourceAsset, uploadInfo)
             startInspection(sourceAsset: input.sourceAsset)
         } else if forceRestart {
-            cancel()
+            cancel(notifyCaller: false)
         }
     }
 
@@ -638,8 +638,11 @@ public final class DirectUpload {
         videoFile: URL
     ) {
         guard readyForTransport() else {
+            SDKLogger.logger?.info("Tried to start network transport before being ready")
             return
         }
+        
+        SDKLogger.logger?.info("Starting network transport")
 
         let completedUnitCount = UInt64(uploadStatus?.progress?.completedUnitCount ?? 0)
 
@@ -718,13 +721,44 @@ public final class DirectUpload {
     
     /// Cancels an upload that has already been started.
     /// Any delegates or handlers set prior to this will
-    /// receive no further updates.
+    /// receive no further updates after the resultHandler is called
     public func cancel() {
+        self.cancel(notifyCaller: true)
+    }
+    
+    private func cancel(notifyCaller: Bool) {
+        if notifyCaller && !isUploadComplete() && isUploadStarted() {
+            resultHandler?(.failure(
+                DirectUploadError(
+                    lastStatus: uploadStatus,
+                    kind: .cancelled,
+                    message: "Upload was cancelled by caller",
+                    reason: nil
+                )
+            ))
+        }
+        
         fileWorker?.cancel()
         uploadManager.acknowledgeUpload(id: id)
         input.processUploadCancellation()
+        
         progressHandler = nil
         resultHandler = nil
+    }
+    
+    private func isUploadStarted() -> Bool {
+        switch internalStatus {
+        case .ready(_, _): return false
+        default: return true
+        }
+    }
+    
+    private func isUploadComplete() -> Bool {
+        switch internalStatus {
+        case .uploadSucceeded: return true
+        case .uploadFailed: return true
+        default: return false
+        }
     }
     
     private func handleStateUpdate(_ state: ChunkedFileUploader.InternalUploadState) {
@@ -764,6 +798,12 @@ public final class DirectUpload {
                     isPaused: true
                 )
                 progressHandler?(canceledStatus)
+                resultHandler?(DirectUploadResult.failure(DirectUploadError(
+                    lastStatus: canceledStatus,
+                    kind: .cancelled,
+                    message: "user cancelled",
+                    reason: nil
+                )))
             } else {
                 resultHandler?(Result.failure(parsedError))
             }

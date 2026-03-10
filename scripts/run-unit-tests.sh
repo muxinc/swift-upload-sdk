@@ -35,6 +35,5 @@ echo "▸ Test ${SCHEME}"
 
 xcodebuild clean test \
 	-scheme $SCHEME \
-	-destination 'platform=iOS Simulator,OS=17.5,name=iPhone 15' \
-	-sdk iphonesimulator18.0 \
+	-destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
   | xcbeautify
