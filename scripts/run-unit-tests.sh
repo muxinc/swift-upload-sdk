@@ -33,8 +33,6 @@ xcodebuild -list -json
 
 echo "▸ Test ${SCHEME}"
 
-# 'iOS Simulator' 'iPhone 16 Pro'
-
 xcodebuild clean test \
 	-scheme $SCHEME \
 	-destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
