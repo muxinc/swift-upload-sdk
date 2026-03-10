@@ -247,8 +247,6 @@ public final class DirectUpload {
         self.uploadManager = uploadManager
         self.inputInspector = inputInspector
         // TODO: Same for UploadInputStandardizer when it gets wired in
-        
-        SDKLogger.enableDefaultLogging()
     }
 
     init(
@@ -262,8 +260,6 @@ public final class DirectUpload {
         self.uploadManager = uploadManager
         self.inputInspector = inputInspector
         // TODO: Same for UploadInputStandardizer when it gets wired in
-        
-        SDKLogger.enableDefaultLogging()
     }
 
     internal convenience init(
