@@ -21,7 +21,7 @@ class FakeBackend {
             req.addValue("application/json", forHTTPHeaderField: "Content-Type")
             req.addValue("application/json", forHTTPHeaderField: "accept")
             
-            guard let basicAuthCredentialData = "\(MUX_ACCESS_TOKEN_ID):\(MUX_ACCESS_SECRET_KEY)".data(using: .utf8) else {
+            guard let basicAuthCredentialData = "\(Self.muxAccessTokenID):\(Self.muxAccessSecretKey)".data(using: .utf8) else {
                 throw CreateUploadError(message: "failed to encode authorization credentials")
             }
             let basicAuthCredential = basicAuthCredentialData.base64EncodedString()
@@ -60,12 +60,12 @@ class FakeBackend {
     private let logger = SwiftUploadSDKExample.logger
 
     // The example app uses this backend helper to create the direct upload URL passed to DirectUpload.
-    let urlSession: URLSession
-    let jsonEncoder: JSONEncoder
-    let jsonDecoder: JSONDecoder
+    private let urlSession: URLSession
+    private let jsonEncoder: JSONEncoder
+    private let jsonDecoder: JSONDecoder
     
-    let MUX_ACCESS_TOKEN_ID = "YOUR ACCESS TOKEN ID HERE"
-    let MUX_ACCESS_SECRET_KEY = "YOUR SECRET KEY HERE"
+    private static let muxAccessTokenID = "YOUR ACCESS TOKEN ID HERE"
+    private static let muxAccessSecretKey = "YOUR SECRET KEY HERE"
 
     init(urlSession: URLSession) {
         self.urlSession = urlSession

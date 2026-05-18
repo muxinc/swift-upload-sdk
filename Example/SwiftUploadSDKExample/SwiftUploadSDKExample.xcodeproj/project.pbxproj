@@ -20,9 +20,9 @@
 		19822A762A4CA69700CFA822 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19822A642A4CA69700CFA822 /* ContentView.swift */; };
 		19822A772A4CA69700CFA822 /* UploadCallToActionLabel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19822A662A4CA69700CFA822 /* UploadCallToActionLabel.swift */; };
 		19DCD95B2A4CA567001FBBF6 /* MuxUploadSDK in Frameworks */ = {isa = PBXBuildFile; productRef = 19DCD95A2A4CA567001FBBF6 /* MuxUploadSDK */; };
-		ABCDEF0123456789ABCDEF01 /* UploadWorkspaceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABCDEF0123456789ABCDEF04 /* UploadWorkspaceView.swift */; };
-		ABCDEF0123456789ABCDEF02 /* UploadPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABCDEF0123456789ABCDEF05 /* UploadPreview.swift */; };
-		ABCDEF0123456789ABCDEF03 /* UploadControlStyles.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABCDEF0123456789ABCDEF06 /* UploadControlStyles.swift */; };
+		8F4A1C9D2E3B4A5C6D7E8F90 /* UploadWorkspaceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F4A1C9D2E3B4A5C6D7E8F93 /* UploadWorkspaceView.swift */; };
+		8F4A1C9D2E3B4A5C6D7E8F91 /* UploadPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F4A1C9D2E3B4A5C6D7E8F94 /* UploadPreview.swift */; };
+		8F4A1C9D2E3B4A5C6D7E8F92 /* UploadControlStyles.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F4A1C9D2E3B4A5C6D7E8F95 /* UploadControlStyles.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -51,9 +51,9 @@
 		19DCD9592A4CA546001FBBF6 /* swift-upload-sdk */ = {isa = PBXFileReference; lastKnownFileType = wrapper; name = "swift-upload-sdk"; path = ../..; sourceTree = "<group>"; };
 		358E3C7729A92167005261CB /* SwiftUploadSDKExample.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SwiftUploadSDKExample.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		358E3C9129A92168005261CB /* SwiftUploadSDKExampleTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SwiftUploadSDKExampleTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		ABCDEF0123456789ABCDEF04 /* UploadWorkspaceView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = UploadWorkspaceView.swift; sourceTree = "<group>"; };
-		ABCDEF0123456789ABCDEF05 /* UploadPreview.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = UploadPreview.swift; sourceTree = "<group>"; };
-		ABCDEF0123456789ABCDEF06 /* UploadControlStyles.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = UploadControlStyles.swift; sourceTree = "<group>"; };
+		8F4A1C9D2E3B4A5C6D7E8F93 /* UploadWorkspaceView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = UploadWorkspaceView.swift; sourceTree = "<group>"; };
+		8F4A1C9D2E3B4A5C6D7E8F94 /* UploadPreview.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = UploadPreview.swift; sourceTree = "<group>"; };
+		8F4A1C9D2E3B4A5C6D7E8F95 /* UploadControlStyles.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = UploadControlStyles.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -127,10 +127,10 @@
 			isa = PBXGroup;
 			children = (
 				19822A642A4CA69700CFA822 /* ContentView.swift */,
-				ABCDEF0123456789ABCDEF06 /* UploadControlStyles.swift */,
+				8F4A1C9D2E3B4A5C6D7E8F95 /* UploadControlStyles.swift */,
 				19822A662A4CA69700CFA822 /* UploadCallToActionLabel.swift */,
-				ABCDEF0123456789ABCDEF05 /* UploadPreview.swift */,
-				ABCDEF0123456789ABCDEF04 /* UploadWorkspaceView.swift */,
+				8F4A1C9D2E3B4A5C6D7E8F94 /* UploadPreview.swift */,
+				8F4A1C9D2E3B4A5C6D7E8F93 /* UploadWorkspaceView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -292,14 +292,14 @@
 			buildActionMask = 2147483647;
 			files = (
 				19822A762A4CA69700CFA822 /* ContentView.swift in Sources */,
-				ABCDEF0123456789ABCDEF03 /* UploadControlStyles.swift in Sources */,
+				8F4A1C9D2E3B4A5C6D7E8F92 /* UploadControlStyles.swift in Sources */,
 				19822A722A4CA69700CFA822 /* SwiftUploadSDKExample.swift in Sources */,
 				19822A6C2A4CA69700CFA822 /* Mux Colors.swift in Sources */,
 				19822A752A4CA69700CFA822 /* UploadCreationModel.swift in Sources */,
 				19822A6B2A4CA69700CFA822 /* MuxNavBar.swift in Sources */,
-				ABCDEF0123456789ABCDEF02 /* UploadPreview.swift in Sources */,
+				8F4A1C9D2E3B4A5C6D7E8F91 /* UploadPreview.swift in Sources */,
 				19822A6D2A4CA69700CFA822 /* FakeBackend.swift in Sources */,
-				ABCDEF0123456789ABCDEF01 /* UploadWorkspaceView.swift in Sources */,
+				8F4A1C9D2E3B4A5C6D7E8F90 /* UploadWorkspaceView.swift in Sources */,
 				19822A772A4CA69700CFA822 /* UploadCallToActionLabel.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

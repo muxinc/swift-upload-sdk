@@ -22,7 +22,8 @@ struct UploadInput: Transferable {
     }
 }
 
-final class UploadCreationModel: ObservableObject, @unchecked Sendable {
+@MainActor
+final class UploadCreationModel: ObservableObject {
 
     struct PickerError: Error, Equatable {
 
@@ -49,12 +50,7 @@ final class UploadCreationModel: ObservableObject, @unchecked Sendable {
     private let myServerBackend = FakeBackend(urlSession: URLSession(configuration: URLSessionConfiguration.default))
 
     @Published var photosAuthStatus: PhotosAuthState
-    @Published var exportState: ExportState = .not_started
-    @Published var currentUpload: DirectUpload?
-    @Published var uploadProgress: DirectUpload.TransportStatus?
-    @Published var uploadResult: DirectUploadResult?
-    @Published var uploadErrorMessage: String?
-    @Published var isStartingUpload = false
+    @Published var workflowState: WorkflowState = .idle
     @Published var pickedItem: [PhotosPickerItem] = [] {
         didSet {
             guard let pickedItem = pickedItem.first else {
@@ -67,29 +63,20 @@ final class UploadCreationModel: ObservableObject, @unchecked Sendable {
     init() {
         let innerAuthStatus = PHPhotoLibrary.authorizationStatus(for: .readWrite)
         self.photosAuthStatus = innerAuthStatus.asAppAuthState()
-        self.exportState = .not_started
+        self.workflowState = .idle
     }
 
     func resetSelection() {
         prepareTask?.cancel()
-        if let assetRequestId {
-            PHImageManager.default().cancelImageRequest(assetRequestId)
-        }
-        assetRequestId = nil
-        thumbnailGenerator?.cancelAllCGImageGeneration()
-        currentUpload?.cancel()
-        currentUpload = nil
-        uploadProgress = nil
-        uploadResult = nil
-        uploadErrorMessage = nil
-        isStartingUpload = false
+        cancelPhotoKitRequests()
+        cancelActiveUpload()
         pickedItem = []
-        exportState = .not_started
+        workflowState = .idle
     }
 
     func startPreparedUpload() {
-        guard case .ready(let preparedMedia) = exportState else {
-            uploadErrorMessage = "No prepared video"
+        guard case .ready(let preparedMedia) = workflowState else {
+            assertionFailure("startPreparedUpload called without prepared media")
             return
         }
 
@@ -104,38 +91,29 @@ final class UploadCreationModel: ObservableObject, @unchecked Sendable {
             inputAsset: AVAsset(url: preparedMedia.localVideoFile),
             options: .default
         )
-        attachHandlers(to: upload)
-        currentUpload = upload
-        uploadProgress = nil
-        uploadResult = nil
-        uploadErrorMessage = nil
-        isStartingUpload = true
+        attachHandlers(to: upload, preparedMedia: preparedMedia)
+        workflowState = .uploading(upload, progress: nil, preparedMedia: preparedMedia)
 
         // forceRestart=false lets the SDK use its normal resumable upload path.
         upload.start(forceRestart: false)
     }
 
-    private func attachHandlers(to upload: DirectUpload) {
+    private func attachHandlers(to upload: DirectUpload, preparedMedia: PreparedUpload) {
         // The SDK reports upload progress and final success/failure through these callbacks.
         upload.progressHandler = { [weak self, weak upload] progress in
-            DispatchQueue.main.async { [weak self, weak upload] in
-                guard let self, let upload, upload === self.currentUpload else {
+            Task { @MainActor in
+                guard let self, let upload, self.isCurrentUpload(upload) else {
                     return
                 }
-                self.isStartingUpload = false
-                self.uploadProgress = progress
+                self.workflowState = .uploading(upload, progress: progress, preparedMedia: preparedMedia)
             }
         }
         upload.resultHandler = { [weak self, weak upload] result in
-            DispatchQueue.main.async { [weak self, weak upload] in
-                guard let self, let upload, upload === self.currentUpload else {
+            Task { @MainActor in
+                guard let self, let upload, self.isCurrentUpload(upload) else {
                     return
                 }
-                self.isStartingUpload = false
-                self.uploadResult = result
-                if case .failure(let error) = result {
-                    self.uploadErrorMessage = error.localizedDescription
-                }
+                self.workflowState = .completed(result, preparedMedia: preparedMedia)
             }
         }
     }
@@ -143,12 +121,9 @@ final class UploadCreationModel: ObservableObject, @unchecked Sendable {
     /// Prepares the selected video as a local file before handing it to the upload SDK.
     func tryToPrepare(from pickerItem: PhotosPickerItem) {
         prepareTask?.cancel()
-        currentUpload = nil
-        uploadProgress = nil
-        uploadResult = nil
-        uploadErrorMessage = nil
-        isStartingUpload = false
-        exportState = .preparing
+        cancelPhotoKitRequests()
+        cancelActiveUpload()
+        workflowState = .preparing
 
         let tempFile = FileManager.default.temporaryDirectory
             .appending(component: "upload-\(Date().timeIntervalSince1970)")
@@ -161,13 +136,7 @@ final class UploadCreationModel: ObservableObject, @unchecked Sendable {
 
         guard let itemIdentifier = pickerItem.itemIdentifier else {
             self.logger.error("No item identifier for chosen video")
-            Task.detached {
-                await MainActor.run {
-                    self.exportState = .failure(
-                        PickerError.assetExportSessionFailed
-                    )
-                }
-            }
+            self.workflowState = .preparationFailed(PickerError.assetExportSessionFailed)
             return
         }
 
@@ -176,7 +145,7 @@ final class UploadCreationModel: ObservableObject, @unchecked Sendable {
         let fetchAssetResult = PHAsset.fetchAssets(withLocalIdentifiers: [itemIdentifier], options: options)
         guard let fetchedAsset = fetchAssetResult.firstObject else {
             self.logger.error("No Asset fetched")
-            self.exportState = .failure(PickerError.missingAssetIdentifier)
+            self.workflowState = .preparationFailed(PickerError.missingAssetIdentifier)
             return
         }
 
@@ -194,7 +163,7 @@ final class UploadCreationModel: ObservableObject, @unchecked Sendable {
                     }
                     guard let exportSession = exportSession else {
                         self.logger.error("!! No Export session")
-                        self.exportState = .failure(UploadCreationModel.PickerError.assetExportSessionFailed)
+                        self.workflowState = .preparationFailed(UploadCreationModel.PickerError.assetExportSessionFailed)
                         return
                     }
                     self.exportToOutFile(session: exportSession, outFile: tempFile)
@@ -204,13 +173,14 @@ final class UploadCreationModel: ObservableObject, @unchecked Sendable {
     }
 
     private func prepareTransferredFileForUpload(from pickerItem: PhotosPickerItem, outFile: URL) {
-        prepareTask?.cancel()
-        prepareTask = Task.detached { [self] in
+        prepareTask = Task { [weak self] in
+            guard let self else {
+                return
+            }
+
             do {
                 guard let uploadInput = try await pickerItem.loadTransferable(type: UploadInput.self) else {
-                    await MainActor.run {
-                        self.exportState = .failure(PickerError.assetExportSessionFailed)
-                    }
+                    self.workflowState = .preparationFailed(PickerError.assetExportSessionFailed)
                     return
                 }
 
@@ -228,15 +198,13 @@ final class UploadCreationModel: ObservableObject, @unchecked Sendable {
 
                 extractThumbnailAsync(asset) { thumbnailImage in
                     self.logger.debug("Yay, Media ready for upload!")
-                    self.exportState = .ready(
+                    self.workflowState = .ready(
                         PreparedUpload(thumbnail: thumbnailImage, localVideoFile: outFile, remoteURL: putURL)
                     )
                 }
             } catch {
                 self.logger.error("Failed to prepare transferred video: \(error.localizedDescription)")
-                await MainActor.run {
-                    self.exportState = .failure(PickerError.assetExportSessionFailed)
-                }
+                self.workflowState = .preparationFailed(PickerError.assetExportSessionFailed)
             }
         }
     }
@@ -244,7 +212,11 @@ final class UploadCreationModel: ObservableObject, @unchecked Sendable {
     private func exportToOutFile(session: AVAssetExportSession, outFile: URL) {
         session.outputURL = outFile
         session.outputFileType = AVFileType.mp4
-        prepareTask = Task.detached { [self] in
+        prepareTask = Task { [weak self] in
+            guard let self else {
+                return
+            }
+
             await session.export()
             if Task.isCancelled {
                 return
@@ -258,21 +230,15 @@ final class UploadCreationModel: ObservableObject, @unchecked Sendable {
                 }
 
                 extractThumbnailAsync(session.asset) { thumbnailImage in
-                    // This is already on the main thread
                     self.logger.debug("Yay, Media exported & ready for upload!")
                     self.assetRequestId = nil
-                    // Deliver result
-                    self.exportState = .ready(
+                    self.workflowState = .ready(
                         PreparedUpload(thumbnail: thumbnailImage, localVideoFile: outFile, remoteURL: putURL)
                     )
                 }
             } catch {
                 self.logger.error("Failed to create Upload: \(error.localizedDescription)")
-                Task.detached {
-                    await MainActor.run {
-                        self.exportState = .failure(PickerError.createUploadFailed)
-                    }
-                }
+                self.workflowState = .preparationFailed(PickerError.createUploadFailed)
             }
         }
     }
@@ -290,25 +256,45 @@ final class UploadCreationModel: ObservableObject, @unchecked Sendable {
             result,
             error
             in
-            switch result {
-            case .cancelled: do {
-                self.logger.debug("Thumbnail request canceled")
-            }
-            case .failed: do {
-                self.logger.error("Failed to extract thumnail: \(error?.localizedDescription ?? "unknown")")
-            }
-            case .succeeded: do {
-                Task.detached {
-                    await MainActor.run {
-                        thenDo(image)
-                    }
+            Task { @MainActor in
+                switch result {
+                case .cancelled: do {
+                    self.logger.debug("Thumbnail request canceled")
                 }
-            }
-            @unknown default:
-                self.logger.error("Unknown thumbnail generation result")
+                case .failed: do {
+                    self.logger.error("Failed to extract thumnail: \(error?.localizedDescription ?? "unknown")")
+                }
+                case .succeeded: do {
+                    thenDo(image)
+                }
+                @unknown default:
+                    self.logger.error("Unknown thumbnail generation result")
+                }
             }
         }
 
+    }
+
+    private func cancelPhotoKitRequests() {
+        if let assetRequestId {
+            PHImageManager.default().cancelImageRequest(assetRequestId)
+        }
+        assetRequestId = nil
+        thumbnailGenerator?.cancelAllCGImageGeneration()
+    }
+
+    private func cancelActiveUpload() {
+        guard case .uploading(let upload, _, _) = workflowState else {
+            return
+        }
+        upload.cancel()
+    }
+
+    private func isCurrentUpload(_ upload: DirectUpload) -> Bool {
+        guard case .uploading(let currentUpload, _, _) = workflowState else {
+            return false
+        }
+        return upload === currentUpload
     }
 
 }
@@ -319,17 +305,19 @@ struct PreparedUpload {
     let remoteURL: URL
 }
 
-enum ExportState {
-    case not_started
+enum WorkflowState {
+    case idle
     case preparing
-    case failure(UploadCreationModel.PickerError)
+    case preparationFailed(UploadCreationModel.PickerError)
     case ready(PreparedUpload)
+    case uploading(DirectUpload, progress: DirectUpload.TransportStatus?, preparedMedia: PreparedUpload)
+    case completed(DirectUploadResult, preparedMedia: PreparedUpload)
 }
 
 enum PhotosAuthState {
     case notDetermined
-    case cant_auth(PHAuthorizationStatus)
-    case can_auth(PHAuthorizationStatus)
+    case cantAuth(PHAuthorizationStatus)
+    case canAuth(PHAuthorizationStatus)
     case authorized(PHAuthorizationStatus)
 }
 
@@ -338,7 +326,7 @@ extension PhotosAuthState {
         switch self {
         case .authorized:
             return true
-        case .notDetermined, .can_auth, .cant_auth:
+        case .notDetermined, .canAuth, .cantAuth:
             return false
         }
     }
@@ -348,11 +336,11 @@ extension PHAuthorizationStatus {
     func asAppAuthState() -> PhotosAuthState {
         switch self {
         case .authorized: return PhotosAuthState.authorized(self)
-        case .limited: return PhotosAuthState.can_auth(self)
+        case .limited: return PhotosAuthState.canAuth(self)
         case .notDetermined: return PhotosAuthState.notDetermined
-        case .restricted: return  PhotosAuthState.cant_auth(self)
-        case .denied: return PhotosAuthState.cant_auth(self)
-        @unknown default: return PhotosAuthState.can_auth(self) // It's for future compat, why not be optimistic?
+        case .restricted: return PhotosAuthState.cantAuth(self)
+        case .denied: return PhotosAuthState.cantAuth(self)
+        @unknown default: return PhotosAuthState.canAuth(self) // It's for future compat, why not be optimistic?
         }
     }
 }

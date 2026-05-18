@@ -11,7 +11,7 @@ import OSLog
 @main
 struct SwiftUploadSDKExample: App {
     
-    static var logger = Logger(
+    static let logger = Logger(
         subsystem: "UploadExample",
         category: "diagnostics"
     )
