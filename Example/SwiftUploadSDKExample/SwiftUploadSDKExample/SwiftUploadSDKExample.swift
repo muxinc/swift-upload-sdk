@@ -17,13 +17,11 @@ struct SwiftUploadSDKExample: App {
     )
     static let thumbnailHeight = 228.0
     
-    @StateObject var uploadListModel = UploadListModel()
     @StateObject var uploadCreationModel = UploadCreationModel()
 
     var body: some Scene {
         WindowGroup {
             ContentView()
-                .environmentObject(uploadListModel)
                 .environmentObject(uploadCreationModel)
         }
     }

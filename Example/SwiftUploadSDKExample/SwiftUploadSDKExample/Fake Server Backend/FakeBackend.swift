@@ -7,33 +7,41 @@
 
 import Foundation
 
-/// This class "fakes" the server backend necessary to compvare an upload workflow.
+/// This class "fakes" the server backend necessary to complete an upload workflow.
 /// In your production use case, a backend server should take care of creating upload URLs
 ///
-/// **You should never build Mux server API ceredentials into a real app**. We do it in this example for brevity only
+/// **You should never build Mux server API credentials into a real app**. We do it in this example for brevity only
 class FakeBackend {
     
     func createDirectUpload() async throws -> URL {
         let request = try {
-            var req = try URLRequest(url:fullURL(forEndpoint: "uploads"))
+            var req = try URLRequest(url: fullURL(forEndpoint: "uploads"))
             req.httpBody = try jsonEncoder.encode(CreateUploadPost())
             req.httpMethod = "POST"
             req.addValue("application/json", forHTTPHeaderField: "Content-Type")
             req.addValue("application/json", forHTTPHeaderField: "accept")
             
-            let basicAuthCredential = "\(MUX_ACCESS_TOKEN_ID):\(MUX_ACCESS_SECRET_KEY)".data(using: .utf8)!.base64EncodedString()
+            guard let basicAuthCredentialData = "\(MUX_ACCESS_TOKEN_ID):\(MUX_ACCESS_SECRET_KEY)".data(using: .utf8) else {
+                throw CreateUploadError(message: "failed to encode authorization credentials")
+            }
+            let basicAuthCredential = basicAuthCredentialData.base64EncodedString()
             req.addValue("Basic \(basicAuthCredential)", forHTTPHeaderField: "Authorization")
             
             return req
         }()
-        
+
         let (data, response) = try await urlSession.data(for: request)
-        let httpResponse = response as! HTTPURLResponse
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw CreateUploadError(message: "invalid response type")
+        }
+
         if (200...299).contains(httpResponse.statusCode) {
             let responseData = try jsonDecoder.decode(CreateUploadResponseContainer.self, from: data).data
             guard let uploadURL = URL(string:responseData.url) else {
                 throw CreateUploadError(message: "invalid upload url")
             }
+            self.logger.notice("Created direct upload id=\(responseData.id, privacy: .public) status=\(responseData.status, privacy: .public)")
             return uploadURL
         } else {
             self.logger.error("Upload POST failed: HTTP \(httpResponse.statusCode):\n\(String(decoding: data, as: UTF8.self))")
@@ -50,14 +58,15 @@ class FakeBackend {
     }
     
     private let logger = SwiftUploadSDKExample.logger
-    
+
+    // The example app uses this backend helper to create the direct upload URL passed to DirectUpload.
     let urlSession: URLSession
     let jsonEncoder: JSONEncoder
     let jsonDecoder: JSONDecoder
     
     let MUX_ACCESS_TOKEN_ID = "YOUR ACCESS TOKEN ID HERE"
     let MUX_ACCESS_SECRET_KEY = "YOUR SECRET KEY HERE"
-    
+
     init(urlSession: URLSession) {
         self.urlSession = urlSession
         self.jsonEncoder = JSONEncoder()
@@ -71,10 +80,9 @@ class FakeBackend {
     }
 }
 
-struct CreateUploadError : Error {
+struct CreateUploadError: Error {
     let message: String
 }
-
 
 fileprivate struct CreateUploadPost: Codable {
     var newAssetSettings: NewAssetSettings = NewAssetSettings()
