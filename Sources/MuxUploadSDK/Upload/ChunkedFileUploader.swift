@@ -158,7 +158,7 @@ class ChunkedFileUploader {
         if error is CancellationError {
             SDKLogger.logger?.debug("Task finished due to cancellation in state \(String(describing: self.currentState))")
             if case let .uploading(update) = self.currentState {
-                self.currentState = .paused(update)
+                self.currentState = .paused(update.withCompletedUnitCount(lastSuccessfulByte))
             }
         } else {
             SDKLogger.logger?.debug("Task finished due to error in state \(String(describing: self.currentState))")
@@ -235,7 +235,7 @@ class ChunkedFileUploader {
                 if error is CancellationError {
                     SDKLogger.logger?.debug("Task finished due to cancellation in state \(String(describing: self.currentState))")
                     if case let .uploading(update) = self.currentState {
-                        self.currentState = .paused(update)
+                        self.currentState = .paused(update.withCompletedUnitCount(lastSuccessfulByte))
                     }
                 } else {
                     SDKLogger.logger?.debug("Task finished due to error in state \(String(describing: self.currentState))")
