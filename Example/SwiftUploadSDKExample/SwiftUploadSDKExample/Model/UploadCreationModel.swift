@@ -44,6 +44,7 @@ final class UploadCreationModel: ObservableObject {
 
     private var assetRequestId: PHImageRequestID? = nil
     private var prepareTask: Task<Void, Never>? = nil
+    private var resumeTask: Task<Void, Never>? = nil
     private var thumbnailGenerator: AVAssetImageGenerator? = nil
 
     private let logger = SwiftUploadSDKExample.logger
@@ -68,6 +69,7 @@ final class UploadCreationModel: ObservableObject {
 
     func resetSelection() {
         prepareTask?.cancel()
+        resumeTask?.cancel()
         cancelPhotoKitRequests()
         cancelActiveUpload()
         pickedItem = []
@@ -84,9 +86,10 @@ final class UploadCreationModel: ObservableObject {
     }
 
     func resumeManagedUpload(for preparedMedia: PreparedUpload) {
+        resumeTask?.cancel()
         workflowState = .restoring(preparedMedia)
 
-        Task { [weak self] in
+        resumeTask = Task { [weak self] in
             guard let self else {
                 return
             }
@@ -96,10 +99,16 @@ final class UploadCreationModel: ObservableObject {
             guard let upload = await DirectUploadManager.shared.resumeDirectUpload(
                 ofFile: preparedMedia.localVideoFile
             ) else {
+                guard !Task.isCancelled else {
+                    return
+                }
                 self.workflowState = .restoreFailed(
                     "No persisted upload was found for this local video file.",
                     preparedMedia: preparedMedia
                 )
+                return
+            }
+            guard !Task.isCancelled else {
                 return
             }
 
@@ -150,6 +159,7 @@ final class UploadCreationModel: ObservableObject {
     /// Prepares the selected video as a local file before handing it to the upload SDK.
     func tryToPrepare(from pickerItem: PhotosPickerItem) {
         prepareTask?.cancel()
+        resumeTask?.cancel()
         cancelPhotoKitRequests()
         cancelActiveUpload()
         workflowState = .preparing

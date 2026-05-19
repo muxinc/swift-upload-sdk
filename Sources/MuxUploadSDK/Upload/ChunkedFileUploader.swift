@@ -289,7 +289,7 @@ class ChunkedFileUploader {
             inputFileURL: inputFileURL,
             chunkedFile: file,
             progress: overallProgress,
-            startByte: lastReadCount
+            startByte: lastSuccessfulByte
         ) { [self] progress, startTime, eventTime, completedChunkByte in
             let update = Update(
                 progress: progress,
@@ -297,10 +297,11 @@ class ChunkedFileUploader {
                 updateTime: eventTime
             )
 
+            if let completedChunkByte {
+                self.recordSuccessfulChunk(endByte: completedChunkByte)
+            }
+
             let notify = {
-                if let completedChunkByte {
-                    self.recordSuccessfulChunk(endByte: completedChunkByte)
-                }
                 self.notifyStateFromMain(.uploading(update))
             }
 
