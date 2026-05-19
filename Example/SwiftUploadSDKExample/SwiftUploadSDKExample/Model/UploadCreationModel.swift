@@ -83,7 +83,36 @@ final class UploadCreationModel: ObservableObject {
         startUpload(preparedMedia: preparedMedia)
     }
 
-    // TODO: Add pause/resume/restore controls when building the interrupted-upload test harness.
+    func resumeManagedUpload(for preparedMedia: PreparedUpload) {
+        workflowState = .restoring(preparedMedia)
+
+        Task { [weak self] in
+            guard let self else {
+                return
+            }
+
+            // This is the SDK's managed-upload restore path. If it returns nil, the SDK
+            // could not find persisted state for the selected local file.
+            guard let upload = await DirectUploadManager.shared.resumeDirectUpload(
+                ofFile: preparedMedia.localVideoFile
+            ) else {
+                self.workflowState = .restoreFailed(
+                    "No persisted upload was found for this local video file.",
+                    preparedMedia: preparedMedia
+                )
+                return
+            }
+
+            self.attachHandlers(to: upload, preparedMedia: preparedMedia)
+            self.workflowState = .uploading(
+                upload,
+                progress: upload.uploadStatus,
+                preparedMedia: preparedMedia
+            )
+            upload.start(forceRestart: false)
+        }
+    }
+
     private func startUpload(preparedMedia: PreparedUpload) {
         // DirectUpload is the SDK entry point: pass the Mux direct upload URL and the local media asset.
         let upload = DirectUpload(
@@ -311,6 +340,8 @@ enum WorkflowState {
     case preparationFailed(UploadCreationModel.PickerError)
     case ready(PreparedUpload)
     case uploading(DirectUpload, progress: DirectUpload.TransportStatus?, preparedMedia: PreparedUpload)
+    case restoring(PreparedUpload)
+    case restoreFailed(String, preparedMedia: PreparedUpload)
     case completed(DirectUploadResult, preparedMedia: PreparedUpload)
 }
 

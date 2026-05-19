@@ -23,6 +23,13 @@ struct UploadInfo : Codable {
     var uploadURL: URL
 
     /**
+     Original local file selected by the caller. The SDK may upload a
+     standardized temporary file instead, but public resume APIs receive the
+     caller's original file URL.
+     */
+    var sourceFileURL: URL?
+
+    /**
      Options selected for the upload
      */
     var options: DirectUploadOptions

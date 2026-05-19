@@ -154,6 +154,8 @@ extension UploadInput {
         asset: AVURLAsset,
         info: UploadInfo
     ) {
-        self.status = .ready(asset, info)
+        var uploadInfo = info
+        uploadInfo.sourceFileURL = asset.url
+        self.status = .ready(asset, uploadInfo)
     }
 }

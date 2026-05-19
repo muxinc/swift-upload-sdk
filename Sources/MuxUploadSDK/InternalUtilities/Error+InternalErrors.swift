@@ -28,4 +28,14 @@ extension Error {
     func asCancellationError() -> CancellationError? {
         return self as? CancellationError
     }
+
+    var isCancellation: Bool {
+        if self is CancellationError {
+            return true
+        }
+        if let urlError = self as? URLError {
+            return urlError.code == .cancelled
+        }
+        return false
+    }
 }

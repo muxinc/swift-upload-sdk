@@ -269,7 +269,7 @@ public final class DirectUpload {
         self.init(
             input: UploadInput(
                 status: .uploadInProgress(
-                    AVURLAsset(url: uploader.inputFileURL),
+                    AVURLAsset(url: uploader.uploadInfo.sourceFileURL ?? uploader.inputFileURL),
                     uploader.uploadInfo,
                     TransportStatus(
                         progress: uploader.currentState.progress ?? Progress(),
@@ -279,7 +279,7 @@ public final class DirectUpload {
                     )
                 )
             ),
-            uploadManager: .shared,
+            uploadManager: uploadManager,
             inputInspector: .shared
         )
         self.fileWorker = uploader
@@ -364,7 +364,7 @@ public final class DirectUpload {
     /// restarted. If false the upload will resume from where
     /// it left off if paused, otherwise the upload will change.
     public func start(forceRestart: Bool = false) {
-        if self.manageBySDK {
+        if self.manageBySDK && fileWorker == nil {
             // See if there's anything in progress already
             fileWorker = uploadManager.findChunkedFileUploader(
                 inputFileURL: input.sourceAsset.url
