@@ -61,6 +61,8 @@ class ChunkWorker {
         let repsonseValidator = ChunkResponseValidator()
         
         repeat {
+            try Task.checkCancellation()
+
             do {
                 let chunkActor = ChunkActor(
                     uploadURL: uploadURL,
@@ -95,6 +97,10 @@ class ChunkWorker {
                 }
                 } // switch responseValidator.validate()
             } catch {
+                if Task.isCancelled || error.isCancellation {
+                    throw CancellationError()
+                }
+
                 SDKLogger.logger?.error("Failed to upload a chunk with error: \(error.localizedDescription)")
                 retries += 1
                 requestError = error

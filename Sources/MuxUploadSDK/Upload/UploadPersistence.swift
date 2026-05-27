@@ -113,8 +113,12 @@ class UploadPersistence {
     
     /// Configures and initlaizes an ``UploadPersistence`` for normal production use
     init() throws {
-        let dirpath = FileManager.default.currentDirectoryPath + "/mux"
-        self.fileURL = URL(string: "file:/\(dirpath)/uploads.json")!
+        let baseDirectory = FileManager.default.urls(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask
+        ).first ?? FileManager.default.temporaryDirectory
+        let directoryURL = baseDirectory.appendingPathComponent("mux", isDirectory: true)
+        self.fileURL = directoryURL.appendingPathComponent("uploads.json")
         self.uploadsFile = try UploadsFileImpl(fromFile: fileURL)
     }
     
@@ -161,7 +165,18 @@ struct PersistenceEntry : Codable {
     ) -> PersistenceEntry? {
         switch state {
             // Cases that aren't stored also aren't parsed
-        case .success(_), .canceled, .failure(_): return nil
+        case .success(_), .canceled: return nil
+        case .failure(let error):
+            guard let uploadError = error as? InternalUploaderError else {
+                return nil
+            }
+            return PersistenceEntry(
+                savedAt: Date().timeIntervalSince1970,
+                stateCode: .wasInProgress,
+                lastSuccessfulByte: uploadError.lastByte,
+                uploadInfo: upload,
+                inputFileURL: inputFileURL
+            )
             // Can start again but from the beginning
         case .starting, .ready: return PersistenceEntry(
             savedAt: Date().timeIntervalSince1970,
@@ -184,12 +199,6 @@ struct PersistenceEntry : Codable {
             uploadInfo: upload,
             inputFileURL: inputFileURL
         )
-//        case .failure(let error): return PersistenceEntry(
-//            savedAt: Date().timeIntervalSince1970,
-//            stateCode: .was_in_progress,
-//            lastSuccessfulByte: (error as? InternalUploaderError)?.lastByte ?? 0,
-//            uploadInfo: upload
-//        )
         }
     }
 }
@@ -233,10 +242,8 @@ fileprivate struct UploadsFileImpl : UploadsFile {
     }
     
     func writeContents(of jsonData: UploadsFileContents) throws {
-        let fileHandle = try FileHandle(forWritingTo: fileURL)
         let data = try JSONEncoder().encode(jsonData)
-        try fileHandle.write(contentsOf: data)
-        try fileHandle.close()
+        try data.write(to: fileURL, options: .atomic)
     }
     
     func readContents() throws -> UploadsFileContents {

@@ -22,6 +22,7 @@ class ChunkedFileUploader {
     private var currentWorkTask: Task<(), Never>? = nil
     private var overallProgress: Progress = Progress()
     private var lastReadCount: UInt64 = 0
+    private var lastSuccessfulByte: UInt64 = 0
     private let reporter: Reporter
     
     func addDelegate(withToken token: String, _ delegate: ChunkedFileUploaderDelegate) {
@@ -51,7 +52,8 @@ class ChunkedFileUploader {
         case .uploading(let update): do {
             currentWorkTask?.cancel()
             currentWorkTask = nil
-            notifyStateFromMain(.paused(update))
+            recordSuccessfulChunk(endByte: lastSuccessfulByte)
+            notifyStateFromMain(.paused(update.withCompletedUnitCount(lastSuccessfulByte)))
         }
         default: do {}
         }
@@ -156,11 +158,11 @@ class ChunkedFileUploader {
         if error is CancellationError {
             SDKLogger.logger?.debug("Task finished due to cancellation in state \(String(describing: self.currentState))")
             if case let .uploading(update) = self.currentState {
-                self.currentState = .paused(update)
+                self.currentState = .paused(update.withCompletedUnitCount(lastSuccessfulByte))
             }
         } else {
             SDKLogger.logger?.debug("Task finished due to error in state \(String(describing: self.currentState))")
-            let uploadError = InternalUploaderError(reason: error, lastByte: lastReadCount)
+            let uploadError = InternalUploaderError(reason: error, lastByte: lastSuccessfulByte)
 
             let lastUpdate: Update?
             if case InternalUploadState.uploading(let update) = currentState {
@@ -233,11 +235,11 @@ class ChunkedFileUploader {
                 if error is CancellationError {
                     SDKLogger.logger?.debug("Task finished due to cancellation in state \(String(describing: self.currentState))")
                     if case let .uploading(update) = self.currentState {
-                        self.currentState = .paused(update)
+                        self.currentState = .paused(update.withCompletedUnitCount(lastSuccessfulByte))
                     }
                 } else {
                     SDKLogger.logger?.debug("Task finished due to error in state \(String(describing: self.currentState))")
-                    let uploadError = InternalUploaderError(reason: error, lastByte: lastReadCount)
+                    let uploadError = InternalUploaderError(reason: error, lastByte: lastSuccessfulByte)
 
                     let lastUpdate: Update?
                     if case InternalUploadState.uploading(let update) = currentState {
@@ -287,15 +289,27 @@ class ChunkedFileUploader {
             inputFileURL: inputFileURL,
             chunkedFile: file,
             progress: overallProgress,
-            startByte: lastReadCount
-        ) { progress, startTime, eventTime in
+            startByte: lastSuccessfulByte
+        ) { [self] progress, startTime, eventTime, completedChunkByte in
             let update = Update(
                 progress: progress,
                 startTime: startTime,
                 updateTime: eventTime
             )
-            // ChunkWorker delivers callbacks on the main dispatch queue, making this safe
-            self.notifyStateFromMain(.uploading(update))
+
+            if let completedChunkByte {
+                self.recordSuccessfulChunk(endByte: completedChunkByte)
+            }
+
+            let notify = {
+                self.notifyStateFromMain(.uploading(update))
+            }
+
+            if Thread.isMainThread {
+                notify()
+            } else {
+                DispatchQueue.main.sync(execute: notify)
+            }
         }
     }
     
@@ -316,9 +330,25 @@ class ChunkedFileUploader {
             let count = update.progress.completedUnitCount
             lastReadCount = UInt64(count)
         }
-        
+
         for delegate in delegates.values {
             delegate.chunkedFileUploader(self, stateUpdated: state)
+        }
+    }
+
+    private func recordSuccessfulChunk(endByte: UInt64) {
+        lastReadCount = endByte
+        lastSuccessfulByte = endByte
+    }
+
+    func persistenceState(for state: InternalUploadState) -> InternalUploadState {
+        switch state {
+        case .uploading(let update):
+            return .uploading(update.withCompletedUnitCount(lastSuccessfulByte))
+        case .paused(let update):
+            return .paused(update.withCompletedUnitCount(lastSuccessfulByte))
+        case .ready, .starting, .canceled, .success, .failure:
+            return state
         }
     }
     
@@ -349,6 +379,7 @@ class ChunkedFileUploader {
         self.uploadInfo = uploadInfo
         self.file = file
         self.lastReadCount = startingByte
+        self.lastSuccessfulByte = startingByte
         self.inputFileURL = inputFileURL
         self.reporter = Reporter.shared
     }
@@ -382,6 +413,19 @@ class ChunkedFileUploader {
         let progress: Progress
         let startTime: TimeInterval
         let updateTime: TimeInterval
+
+        func withCompletedUnitCount(_ completedUnitCount: UInt64) -> Update {
+            let safeProgress = Progress(totalUnitCount: progress.totalUnitCount)
+            safeProgress.completedUnitCount = min(
+                Int64(completedUnitCount),
+                progress.totalUnitCount
+            )
+            return Update(
+                progress: safeProgress,
+                startTime: startTime,
+                updateTime: updateTime
+            )
+        }
     }
 }
 
@@ -457,16 +501,31 @@ fileprivate actor Worker {
             )
             chunkWorker.addDelegate {[self] update in
                 // Called on the main thread
-                overallProgress.completedUnitCount += update.bytesSinceLastUpdate
+                let chunkStartByte = Int64(chunk.startByte)
+                let absoluteCompletedByte = chunkStartByte + update.progress.completedUnitCount
+                overallProgress.completedUnitCount = min(
+                    absoluteCompletedByte,
+                    Int64(chunk.totalFileSize)
+                )
                 progressHandler(
                     self.overallProgress,
                     startTime,
-                    update.eventTime
+                    update.eventTime,
+                    nil
                 )
             }
             
             // Do not use task in a loop it will create an memory consumption issue.
-            let chunkResult = try await chunkWorker.directUpload(chunk: chunk)
+            guard let chunkResult = try await chunkWorker.directUpload(chunk: chunk) as? ChunkWorker.Success else {
+                throw ChunkedFileUploaderError.unexpectedChunkResult
+            }
+            overallProgress.completedUnitCount = Int64(chunk.endByte)
+            progressHandler(
+                self.overallProgress,
+                startTime,
+                chunkResult.finalState.eventTime,
+                chunk.endByte
+            )
             SDKLogger.logger?.info("Completed Chunk:\n \(String(describing: chunkResult))")
         } while (readBytes == uploadInfo.options.transport.chunkSizeInBytes)
 
@@ -480,7 +539,7 @@ fileprivate actor Worker {
         return finalState
     }
     
-    typealias ProgressHandler = (Progress, TimeInterval, TimeInterval) ->  Void
+    typealias ProgressHandler = (Progress, TimeInterval, TimeInterval, UInt64?) ->  Void
     
     init(
         uploadInfo: UploadInfo,
@@ -497,4 +556,8 @@ fileprivate actor Worker {
         self.overallProgress = progress
         self.startingReadCount = startByte
     }
+}
+
+enum ChunkedFileUploaderError: Error {
+    case unexpectedChunkResult
 }

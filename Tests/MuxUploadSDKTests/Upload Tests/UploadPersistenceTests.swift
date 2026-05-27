@@ -169,6 +169,75 @@ final class UploadPersistenceTests: XCTestCase {
             "The newer entry should be saved but not the older"
         )
     }
+
+    func testFailureWithLastBytePreservesEntryForResume() throws {
+        let persistence = UploadPersistence(innerFile: makeSimulatedUploadsFile(), atURL: makeDummyFileURL(basename: "fake-cache-file"))
+        let uploadInfo = renameDummyUploadInfo(basename: "failed-upload")
+        let inputFileURL = makeDummyFileURL(basename: "failed-upload")
+
+        persistence.update(
+            uploadState: .failure(InternalUploaderError(reason: DummyError(), lastByte: 1234)),
+            for: uploadInfo,
+            fileInputURL: inputFileURL
+        )
+
+        let entry = try XCTUnwrap(persistence.readEntry(uploadID: uploadInfo.id))
+        XCTAssertEqual(entry.inputFileURL, inputFileURL)
+        XCTAssertEqual(entry.lastSuccessfulByte, 1234)
+        XCTAssertEqual(entry.stateCode, .wasInProgress)
+    }
+
+    func testPausedStatePersistsSafeCheckpoint() throws {
+        let safeProgress = Progress(totalUnitCount: 10_000)
+        safeProgress.completedUnitCount = 1_000
+        let update = ChunkedFileUploader.Update(
+            progress: safeProgress,
+            startTime: 0,
+            updateTime: 0
+        )
+        let persistence = UploadPersistence(innerFile: makeSimulatedUploadsFile(), atURL: makeDummyFileURL(basename: "fake-cache-file"))
+        let uploadInfo = renameDummyUploadInfo(basename: "paused-upload")
+        let inputFileURL = makeDummyFileURL(basename: "paused-upload")
+
+        persistence.update(
+            uploadState: .paused(update),
+            for: uploadInfo,
+            fileInputURL: inputFileURL
+        )
+
+        let entry = try XCTUnwrap(persistence.readEntry(uploadID: uploadInfo.id))
+        XCTAssertEqual(entry.lastSuccessfulByte, 1_000)
+        XCTAssertEqual(entry.stateCode, .wasPaused)
+    }
+
+    func testDefaultPersistenceCreatesBackingFileOnFirstWrite() throws {
+        let applicationSupportDirectory = try XCTUnwrap(
+            FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+        )
+        let uploadCacheDirectory = applicationSupportDirectory.appendingPathComponent("mux", isDirectory: true)
+        let uploadCacheFile = uploadCacheDirectory.appendingPathComponent("uploads.json")
+        defer {
+            try? FileManager.default.removeItem(at: uploadCacheFile)
+        }
+
+        try? FileManager.default.removeItem(at: uploadCacheFile)
+
+        let uploadInfo = renameDummyUploadInfo(basename: "default-persistence")
+        let inputFileURL = makeDummyFileURL(basename: "default-persistence")
+        let persistence = try UploadPersistence()
+
+        XCTAssertNoThrow(
+            persistence.update(
+                uploadState: .failure(InternalUploaderError(reason: DummyError(), lastByte: 1234)),
+                for: uploadInfo,
+                fileInputURL: inputFileURL
+            )
+        )
+
+        let entry = try XCTUnwrap(persistence.readEntry(uploadID: uploadInfo.id))
+        XCTAssertEqual(entry.lastSuccessfulByte, 1234)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: uploadCacheFile.path))
+    }
     
     private func makeSimulatedUploadsFile() -> UploadsFile {
         return FakeUploadsFile.simiulatedStorage()

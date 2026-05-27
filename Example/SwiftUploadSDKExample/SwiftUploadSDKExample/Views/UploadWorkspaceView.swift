@@ -25,6 +25,8 @@ struct UploadWorkspaceView: View {
         switch uploadCreationModel.workflowState {
         case .ready(let preparedUpload),
              .uploading(_, _, let preparedUpload),
+             .restoring(let preparedUpload),
+             .restoreFailed(_, let preparedUpload),
              .completed(_, let preparedUpload):
             UploadPreview(thumbnail: preparedUpload.thumbnail)
         case .preparing:
@@ -83,7 +85,7 @@ struct UploadWorkspaceView: View {
                 Text(progressText)
                     .uploadProgressTextStyle()
             }
-        case .idle, .preparing, .preparationFailed, .ready, .completed:
+        case .idle, .preparing, .preparationFailed, .ready, .restoring, .restoreFailed, .completed:
             EmptyView()
         }
     }
@@ -99,12 +101,29 @@ struct UploadWorkspaceView: View {
                     Text("Cancel")
                         .controlButtonStyle()
                 }
+            case .completed(.failure(_), let preparedUpload),
+                 .restoreFailed(_, let preparedUpload):
+                Button {
+                    uploadCreationModel.resumeManagedUpload(for: preparedUpload)
+                } label: {
+                    Text("Resume upload")
+                        .primaryControlButtonStyle()
+                }
+                videoPicker {
+                    Text("Upload another video")
+                        .controlButtonStyle()
+                }
+            case .completed(.success, _):
+                videoPicker {
+                    Text("Upload another video")
+                        .primaryControlButtonStyle()
+                }
             case .preparing, .ready, .preparationFailed:
                 videoPicker {
                     Text("Change video")
                         .controlButtonStyle()
                 }
-            case .idle, .completed:
+            case .idle, .restoring, .completed:
                 EmptyView()
             }
 
@@ -133,6 +152,10 @@ struct UploadWorkspaceView: View {
             return "Preparing upload"
         case .uploading:
             return "Uploading"
+        case .restoring:
+            return "Looking for resumable upload"
+        case .restoreFailed:
+            return "Resume unavailable"
         case .completed(let result, _):
             switch result {
             case .success:
@@ -157,6 +180,10 @@ struct UploadWorkspaceView: View {
             return "Inspecting the selected video and starting network upload."
         case .uploading:
             return "Uploading selected video."
+        case .restoring:
+            return "Checking the SDK-managed upload cache for this local video file."
+        case .restoreFailed(let message, _):
+            return message
         case .completed(let result, _):
             switch result {
             case .success:
@@ -171,13 +198,17 @@ struct UploadWorkspaceView: View {
         switch uploadCreationModel.workflowState {
         case .uploading:
             return true
-        case .idle, .preparing, .preparationFailed, .ready, .completed:
+        case .idle, .preparing, .preparationFailed, .ready, .restoring, .restoreFailed, .completed:
             return false
         }
     }
 
     private var progressText: String {
-        guard case .uploading(_, let status, _) = uploadCreationModel.workflowState else {
+        let status: DirectUpload.TransportStatus?
+        switch uploadCreationModel.workflowState {
+        case .uploading(_, let uploadStatus, _):
+            status = uploadStatus
+        case .idle, .preparing, .preparationFailed, .ready, .restoring, .restoreFailed, .completed:
             return ""
         }
 
