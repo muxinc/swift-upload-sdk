@@ -16,7 +16,7 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: sersoft-gmbh/swifty-docs-action@v2
         with:
           output: docs
@@ -27,8 +27,8 @@ jobs:
           hosting-base-path: swift-upload-sdk
       - name: Post Process Docc Archive
         run: ./scripts/post-process-docc-archive-for-github-pages.sh swift-upload-sdk muxuploadsdk
-      - uses: actions/upload-pages-artifact@v1
+      - uses: actions/upload-pages-artifact@v3
         with:
           path: docs
-      - uses: actions/deploy-pages@v1.2.3
+      - uses: actions/deploy-pages@v4
         id: deployment
