@@ -308,7 +308,7 @@ class ChunkedFileUploader {
             if Thread.isMainThread {
                 notify()
             } else {
-                DispatchQueue.main.async(execute: notify)
+                DispatchQueue.main.sync(execute: notify)
             }
         }
     }
