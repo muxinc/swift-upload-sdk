@@ -77,3 +77,7 @@ A simple example of how to use the SDK in a realistic app can be found [here](ht
 This SDK is a swift package that can be opened by Xcode. To edit this SDK, clone it and open the root folder in Xcode.
 
 This SDK has a sample/test app in the `TestApp/` folder. You can run/edit the sample app by opening `Example/SwiftUploadSDKExample/SwiftUploadSDKExample.xcodeproj`
+
+## Releasing
+
+Maintainer release instructions live in [RELEASING.md](RELEASING.md).
