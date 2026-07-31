@@ -5,7 +5,19 @@
 import AVFoundation
 import Foundation
 
-class UploadInputStandardizer {
+protocol UploadInputStandardizing {
+    func standardize(
+        id: String,
+        sourceAsset: AVURLAsset,
+        rescalingDetails: UploadInputFormatInspectionResult.RescalingDetails,
+        outputURL: URL,
+        completion: @escaping (AVURLAsset, AVAsset?, Error?) -> ()
+    )
+
+    func acknowledgeCompletion(id: String)
+}
+
+class UploadInputStandardizer: UploadInputStandardizing {
     var workers: [String: UploadInputStandardizationWorker] = [:]
 
     func standardize(
@@ -16,6 +28,7 @@ class UploadInputStandardizer {
         completion: @escaping (AVURLAsset, AVAsset?, Error?) -> ()
     ) {
         let worker = UploadInputStandardizationWorker()
+        workers[id] = worker
 
         worker.standardize(
             sourceAsset: sourceAsset,
@@ -23,7 +36,6 @@ class UploadInputStandardizer {
             outputURL: outputURL,
             completion: completion
         )
-        workers[id] = worker
     }
 
     // Storing the worker might not be necessary if an

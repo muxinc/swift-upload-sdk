@@ -45,6 +45,12 @@ struct UploadInputFormatInspectionResult {
                 } else {
                     return false
                 }
+            case .preset2560x1440:
+                if max(recordedResolution.width, recordedResolution.height) > 2560 {
+                    return true
+                } else {
+                    return false
+                }
             case .preset3840x2160:
                 if max(recordedResolution.width, recordedResolution.height) > 3840 {
                     return true

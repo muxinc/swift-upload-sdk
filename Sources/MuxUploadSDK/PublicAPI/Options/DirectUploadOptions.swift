@@ -94,13 +94,17 @@ public struct DirectUploadOptions {
         /// If requested the SDK will attempt to detect
         /// non-standard input formats and if so detected
         /// will attempt to standardize to a standard input
-        /// format. ``true`` by default
+        /// format. `true` by default
         public var isRequested: Bool = true
 
         /// Preset to control the maximum resolution of a
         /// standardized input. Inputs with smaller dimensions
         /// won't be scaled up.
         ///
+        /// Selecting a 1440p or 2160p tier controls only the
+        /// on-device output. Configure the matching
+        /// `new_asset_settings.max_resolution_tier` separately
+        /// when creating the Mux Direct Upload.
         public enum MaximumResolution {
             /// By default the standardized input will be
             /// scaled down to 1920x1080 (1080p) from a larger
@@ -116,10 +120,26 @@ public struct DirectUploadOptions {
             /// with smaller dimensions won't be scaled up.
             case preset1920x1080 // 1080p
             /// The standardized input will be scaled down
+            /// to 2560x1440 (1440p) from a larger size. Inputs
+            /// with smaller dimensions won't be scaled up.
+            case preset2560x1440 // 1440p
+            /// The standardized input will be scaled down
             /// to 3840x2160 (2160p/4K) from a larger size.
             /// Inputs with smaller dimensions won't be scaled
             /// up.
             case preset3840x2160 // 2160p
+        }
+
+        /// Controls how the SDK handles HDR input during
+        /// input standardization.
+        public enum HDRHandling: Codable, Equatable {
+            /// Preserve eligible HDR input for server-side
+            /// processing. This is the default behavior and
+            /// does not guarantee end-to-end HDR playback.
+            case preserve
+            /// Convert supported HDR input to BT.709 SDR on
+            /// the device.
+            case toneMapToSDR
         }
 
         /// The maximum resolution of the standardized direct
@@ -130,7 +150,7 @@ public struct DirectUploadOptions {
         /// Example 1: a direct upload input with 1440 x 1080
         /// resolution encoded using Apple ProRes and with
         /// no other non-standard input parameters with
-        /// ``MaximumResolution.default`` selected.
+        /// ``MaximumResolution/default`` selected.
         ///
         /// If input standardization is requested, the SDK
         /// will attempt standardize the input into an H.264
@@ -140,7 +160,7 @@ public struct DirectUploadOptions {
         /// Example 2: a direct upload input with 1440 x 1080
         /// resolution encoded using H.264 and with no other
         /// non-standard input format parameters with
-        /// ``MaximumResolution.preset1280x720`` selected.
+        /// ``MaximumResolution/preset1280x720`` selected.
         ///
         /// If input standardization is requested, the SDK
         /// will attempt standardize the input into an H.264
@@ -148,11 +168,16 @@ public struct DirectUploadOptions {
         ///
         public var maximumResolution: MaximumResolution = .default
 
+        /// The requested behavior for HDR input.
+        public var hdrHandling: HDRHandling = .preserve
+
         /// Default options where input standardization is
-        /// requested and the maximum resolution is set to 1080p.
+        /// requested, the maximum resolution is set to 1080p,
+        /// and eligible HDR input is preserved.
         public static let `default`: InputStandardization = InputStandardization(
             isRequested: true,
-            maximumResolution: .default
+            maximumResolution: .default,
+            hdrHandling: .preserve
         )
 
         /// Skip all local input standardization by the SDK.
@@ -165,29 +190,37 @@ public struct DirectUploadOptions {
         /// on the server when it is ingested.
         public static let skipped: InputStandardization = InputStandardization(
             isRequested: false,
-            maximumResolution: .default
+            maximumResolution: .default,
+            hdrHandling: .preserve
         )
 
         // Kept private to avoid an invalid combination of
         // parameters being used for initialization
         private init(
             isRequested: Bool,
-            maximumResolution: MaximumResolution
+            maximumResolution: MaximumResolution,
+            hdrHandling: HDRHandling
         ) {
             self.isRequested = isRequested
             self.maximumResolution = maximumResolution
+            self.hdrHandling = hdrHandling
         }
 
         /// Initializes options that request input
         /// standardization with a custom maximum resolution
+        /// and HDR behavior.
         /// - Parameters:
         ///     - maximumResolution: the maximum resolution
         ///     of the standardized input
+        ///     - hdrHandling: how eligible HDR input is handled.
+        ///     Defaults to ``HDRHandling/preserve``.
         public init(
-            maximumResolution: MaximumResolution
+            maximumResolution: MaximumResolution,
+            hdrHandling: HDRHandling = .preserve
         ) {
             self.isRequested = true
             self.maximumResolution = maximumResolution
+            self.hdrHandling = hdrHandling
         }
     }
 
@@ -334,6 +367,8 @@ extension DirectUploadOptions.InputStandardization.MaximumResolution: CustomStri
             return "preset1280x720"
         case .preset1920x1080:
             return "preset1920x1080"
+        case .preset2560x1440:
+            return "preset2560x1440"
         case .preset3840x2160:
             return "preset3840x2160"
         case .default:
@@ -346,7 +381,36 @@ extension DirectUploadOptions: Codable { }
 
 extension DirectUploadOptions.EventTracking: Codable { }
 
-extension DirectUploadOptions.InputStandardization: Codable { }
+extension DirectUploadOptions.InputStandardization: Codable {
+    enum CodingKeys: String, CodingKey {
+        case isRequested
+        case maximumResolution
+        case hdrHandling
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.isRequested = try container.decode(
+            Bool.self,
+            forKey: .isRequested
+        )
+        self.maximumResolution = try container.decode(
+            MaximumResolution.self,
+            forKey: .maximumResolution
+        )
+        self.hdrHandling = try container.decodeIfPresent(
+            HDRHandling.self,
+            forKey: .hdrHandling
+        ) ?? .preserve
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(isRequested, forKey: .isRequested)
+        try container.encode(maximumResolution, forKey: .maximumResolution)
+        try container.encode(hdrHandling, forKey: .hdrHandling)
+    }
+}
 
 extension DirectUploadOptions.InputStandardization.MaximumResolution: Codable { }
 

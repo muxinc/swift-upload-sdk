@@ -19,11 +19,19 @@ enum StandardizationStrategy {
     case exportSession
 }
 
-struct StandardizationError: Error {
+struct StandardizationError: LocalizedError {
     var localizedDescription: String
+
+    var errorDescription: String? {
+        localizedDescription
+    }
 
     static var missingExportPreset = StandardizationError(
         localizedDescription: "Missing export session preset"
+    )
+
+    static var unsupportedResolutionTier = StandardizationError(
+        localizedDescription: "Resolution tier is not supported by the export-session standardizer"
     )
 
     static var exportSessionInitializationFailure = StandardizationError(
@@ -59,6 +67,11 @@ class UploadInputStandardizationWorker {
             exportPreset = AVAssetExportPreset1280x720
         case .preset1920x1080:
             exportPreset = AVAssetExportPreset1920x1080
+        case .preset2560x1440:
+            // AVAssetExportSession has no 1440p preset. The
+            // reader/writer standardizer will implement this tier.
+            completion(sourceAsset, nil, StandardizationError.unsupportedResolutionTier)
+            return
         case .preset3840x2160:
             exportPreset = AVAssetExportPreset3840x2160
         }
