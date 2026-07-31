@@ -49,7 +49,7 @@ SIMULATOR_DETAILS=$(xcrun simctl list devices available --json | jq -r '
         | select(.eligibleDevices | length > 0)
     ]
     | sort_by(.runtimeVersion)
-    | last
+    | last // empty
     | .eligibleDevices[0] as $device
     | [$device.udid, $device.name, .runtimeName]
     | @tsv
