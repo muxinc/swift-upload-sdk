@@ -170,13 +170,15 @@ public final class DirectUpload {
     /// the upload changes
     public var inputStatusHandler: InputStatusHandler?
 
-    /// Confirms if upload should proceed when input
+    /// Determines whether to cancel the upload when input
     /// standardization does not succeed
     public typealias NonStandardInputHandler = () -> Bool
 
     /// Sets a handler that will be executed by the SDK
     /// when input standardization doesn't succeed. Return
-    /// <doc:true> to continue the upload
+    /// `true` to cancel the upload, or `false` to
+    /// upload the original input. Intentionally preserving
+    /// eligible HLG or PQ input does not invoke this handler.
     public var nonStandardInputHandler: NonStandardInputHandler?
 
     private let manageBySDK: Bool
@@ -185,7 +187,7 @@ public final class DirectUpload {
     }
     private let uploadManager: DirectUploadManager
     private let inputInspector: UploadInputInspector
-    private let inputStandardizer: UploadInputStandardizer = UploadInputStandardizer()
+    private let inputStandardizer: UploadInputStandardizing
     
     internal var fileWorker: ChunkedFileUploader?
 
@@ -240,26 +242,28 @@ public final class DirectUpload {
         input: UploadInput,
         manage: Bool = true,
         uploadManager: DirectUploadManager,
-        inputInspector: AVFoundationUploadInputInspector = .shared
+        inputInspector: AVFoundationUploadInputInspector = .shared,
+        inputStandardizer: UploadInputStandardizing = UploadInputStandardizer()
     ) {
         self.input = input
         self.manageBySDK = manage
         self.uploadManager = uploadManager
         self.inputInspector = inputInspector
-        // TODO: Same for UploadInputStandardizer when it gets wired in
+        self.inputStandardizer = inputStandardizer
     }
 
     init(
         input: UploadInput,
         manage: Bool = true,
         uploadManager: DirectUploadManager,
-        inputInspector: UploadInputInspector
+        inputInspector: UploadInputInspector,
+        inputStandardizer: UploadInputStandardizing = UploadInputStandardizer()
     ) {
         self.input = input
         self.manageBySDK = manage
         self.uploadManager = uploadManager
         self.inputInspector = inputInspector
-        // TODO: Same for UploadInputStandardizer when it gets wired in
+        self.inputStandardizer = inputStandardizer
     }
 
     internal convenience init(
