@@ -22,6 +22,10 @@ struct UploadInputFormatInspectionResult {
 
     var nonStandardInputReasons: [NonstandardInputReason] = []
 
+    var mediaFacts: StandardInputMediaFacts = StandardInputMediaFacts()
+
+    var metadata: UploadInputMetadataInspection = UploadInputMetadataInspection()
+
     var isStandardInput: Bool {
         nonStandardInputReasons.isEmpty
     }
