@@ -93,16 +93,10 @@ class AVFoundationUploadInputInspector: UploadInputInspector {
                     completionHandler: completionHandler
                 )
             default:
-                let audioResult = AVFoundationUploadInputMetadataReader.inspect(
-                    videoTracks: [],
-                    audioTracks: audioMetadata
-                )
-                var metadata = audioResult.metadata
-                metadata.videoTrackCount = videoTracks.count
                 completionHandler(
-                    UploadInputFormatInspectionResult(
-                        mediaFacts: audioResult.mediaFacts,
-                        metadata: metadata
+                    self.makeVideoInspectionFailureResult(
+                        videoTrackCount: videoTracks.count,
+                        audioMetadata: audioMetadata
                     ),
                     CMTime.zero,
                     UploadInputInspectionError.inspectionFailure
@@ -132,13 +126,9 @@ class AVFoundationUploadInputInspector: UploadInputInspector {
                     as? [CMFormatDescription],
                       let formatDescription = formatDescriptions.first else {
                     completionHandler(
-                        UploadInputFormatInspectionResult(
-                            metadata: UploadInputMetadataInspection(
-                                videoTrackCount: 1,
-                                audioTrackCount: audioMetadata.map {
-                                    .known($0.count)
-                                } ?? .unknown
-                            )
+                        self.makeVideoInspectionFailureResult(
+                            videoTrackCount: 1,
+                            audioMetadata: audioMetadata
                         ),
                         sourceInputDuration,
                         UploadInputInspectionError.inspectionFailure
@@ -182,6 +172,22 @@ class AVFoundationUploadInputInspector: UploadInputInspector {
                 )
             }
         }
+    }
+
+    func makeVideoInspectionFailureResult(
+        videoTrackCount: Int,
+        audioMetadata: [AVFoundationAudioTrackMetadata]?
+    ) -> UploadInputFormatInspectionResult {
+        let audioResult = AVFoundationUploadInputMetadataReader.inspect(
+            videoTracks: [],
+            audioTracks: audioMetadata
+        )
+        var metadata = audioResult.metadata
+        metadata.videoTrackCount = videoTrackCount
+        return UploadInputFormatInspectionResult(
+            mediaFacts: audioResult.mediaFacts,
+            metadata: metadata
+        )
     }
 
     private func loadAudioMetadata(

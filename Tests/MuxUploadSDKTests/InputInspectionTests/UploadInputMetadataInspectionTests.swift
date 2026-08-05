@@ -440,6 +440,28 @@ final class UploadInputMetadataInspectionTests: XCTestCase {
         XCTAssertEqual(result.mediaFacts.pixelFormat, .unknown)
     }
 
+    func testVideoInspectionFailurePreservesKnownAudioFacts() throws {
+        let audioFormatDescription = try makeAudioFormatDescription(
+            formatID: kAudioFormatMPEG4AAC,
+            channelCount: 2
+        )
+
+        let result = AVFoundationUploadInputInspector()
+            .makeVideoInspectionFailureResult(
+                videoTrackCount: 1,
+                audioMetadata: [
+                    AVFoundationAudioTrackMetadata(
+                        formatDescriptions: [audioFormatDescription]
+                    )
+                ]
+            )
+
+        XCTAssertEqual(result.mediaFacts.audio, .known(.aac(.stereo)))
+        XCTAssertEqual(result.metadata.videoTrackCount, 1)
+        XCTAssertEqual(result.metadata.audioTrackCount, .known(1))
+        XCTAssertEqual(result.mediaFacts.videoCodec, .unknown)
+    }
+
     func testInspectorReturnsTrackCountsWithMultiVideoFallback() {
         let asset = AVMutableComposition()
         XCTAssertNotNil(
