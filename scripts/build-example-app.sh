@@ -19,9 +19,7 @@ fi
 
 echo "▸ Using Xcode Version: ${XCODE}"
 
-# The example app consumes MuxUploadSDK as a local package rooted at the
-# repository, so this compiles the sample app against the working tree and
-# catches public API changes that break SDK consumers.
+# MuxUploadSDK is consumed as a local package, so this builds against the working tree.
 cd Example/SwiftUploadSDKExample
 
 echo "▸ Resolve Package Dependencies"
@@ -34,8 +32,6 @@ xcodebuild -list -json
 
 echo "▸ Build ${SCHEME}"
 
-# A generic destination keeps this off any particular simulator runtime, so the
-# step survives Xcode upgrades on the agent and does not boot a device.
 xcodebuild clean build \
 	-scheme $SCHEME \
 	-destination 'generic/platform=iOS Simulator' \
