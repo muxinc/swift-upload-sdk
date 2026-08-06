@@ -4,6 +4,8 @@ agents:
 steps:
   - command: "./scripts/run-unit-tests.sh MuxUploadSDK"
     label: ":xcode_simulator: Unit Tests"
+  - command: "./scripts/build-example-app.sh SwiftUploadSDKExample"
+    label: ":iphone: Sample App Build"
   - wait
   - command: "./scripts/version-check.sh"
     label: ":clipboard: Version Check"
