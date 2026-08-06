@@ -19,7 +19,6 @@ fi
 
 echo "▸ Using Xcode Version: ${XCODE}"
 
-# MuxUploadSDK is consumed as a local package, so this builds against the working tree.
 cd Example/SwiftUploadSDKExample
 
 echo "▸ Resolve Package Dependencies"
