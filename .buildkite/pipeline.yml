@@ -4,6 +4,10 @@ agents:
 steps:
   - command: "./scripts/run-unit-tests.sh MuxUploadSDK"
     label: ":xcode_simulator: Unit Tests"
+  # Compiles the sample app against the working tree. Independent of the unit
+  # tests, so it runs alongside them rather than after.
+  - command: "./scripts/build-example-app.sh SwiftUploadSDKExample"
+    label: ":iphone: Sample App Build"
   - wait
   - command: "./scripts/version-check.sh"
     label: ":clipboard: Version Check"
