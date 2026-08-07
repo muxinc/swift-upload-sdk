@@ -44,10 +44,40 @@ public final class DirectUploadManager {
         }
     }
     
+    /// Guards ``uploadsByID`` and ``uploadsUpdateDelegatesByToken``. Both are
+    /// touched from arbitrary threads: uploads register themselves from
+    /// AVFoundation's inspection queue, while readers like
+    /// ``allManagedDirectUploads()`` are usually called from the main thread.
+    ///
+    /// The lock is not recursive. Nothing that calls back out of this class,
+    /// including delegate callbacks and ``ChunkedFileUploader`` methods, may
+    /// run while it is held.
+    private let lock = NSLock()
+
+    /// Runs `body` holding ``lock``.
+    ///
+    /// Always synchronous, and deliberately so: taking the lock directly in an
+    /// `async` function risks suspending while holding it, which the Swift 6
+    /// language mode rejects outright. Keep `body` to plain state access, and
+    /// call out to anything else after this returns.
+    @discardableResult
+    private func withLock<T>(_ body: () -> T) -> T {
+        lock.lock()
+        defer { lock.unlock() }
+        return body()
+    }
+
     private var uploadsByID: [String : UploadStorage] = [:]
     private var uploadsUpdateDelegatesByToken: [ObjectIdentifier : any DirectUploadManagerDelegate] = [:]
     private let uploadActor: UploadCacheActor
-    private lazy var uploaderDelegate: FileUploaderDelegate = FileUploaderDelegate(manager: self)
+
+    /// Deliberately not a `lazy var`: lazy initialization is not atomic, so
+    /// concurrent registrations could race on first access.
+    /// ``FileUploaderDelegate`` is a single-field struct, so making a new one
+    /// per call costs nothing and keeps this free of shared mutable state.
+    private var uploaderDelegate: FileUploaderDelegate {
+        FileUploaderDelegate(manager: self)
+    }
 
     init(uploadActor: UploadCacheActor = UploadCacheActor()) {
         self.uploadActor = uploadActor
@@ -57,13 +87,15 @@ public final class DirectUploadManager {
     /// to track and control its state.
     /// Returns nil if there was no upload in progress for the given file.
     public func startedDirectUpload(ofFile url: URL) -> DirectUpload? {
-        for upload in uploadsByID.values.map(\.upload) {
-            if upload.videoFile == url {
-                return upload
+        withLock {
+            for upload in uploadsByID.values.map(\.upload) {
+                if upload.videoFile == url {
+                    return upload
+                }
             }
-        }
 
-        return nil
+            return nil
+        }
     }
     
     /// Returns all currently-managed uploads that are
@@ -72,7 +104,9 @@ public final class DirectUploadManager {
     /// application termination are omitted.
     public func allManagedDirectUploads() -> [DirectUpload] {
         // Sort upload list for consistent ordering
-        return Array(uploadsByID.values.map(\.upload))
+        withLock {
+            Array(uploadsByID.values.map(\.upload))
+        }
     }
 
     /// Attempts to resume an upload that was previously paused or interrupted by process death.
@@ -82,7 +116,11 @@ public final class DirectUploadManager {
         if let nonNilUploader = fileUploader {
             nonNilUploader.addDelegate(withToken: UUID().uuidString, uploaderDelegate)
             let upload = DirectUpload(wrapping: nonNilUploader, uploadManager: self)
-            uploadsByID.updateValue(UploadStorage(upload: upload), forKey: upload.id)
+
+            withLock {
+                uploadsByID.updateValue(UploadStorage(upload: upload), forKey: upload.id)
+            }
+
             notifyDelegates()
             return upload
         } else {
@@ -113,19 +151,27 @@ public final class DirectUploadManager {
     
     /// Adds a ``DirectUploadManagerDelegate``. You can add as many of these as you like.
     public func addDelegate<Delegate: DirectUploadManagerDelegate>(_ delegate: Delegate) {
-        uploadsUpdateDelegatesByToken[ObjectIdentifier(delegate)] = delegate
+        withLock {
+            uploadsUpdateDelegatesByToken[ObjectIdentifier(delegate)] = delegate
+        }
     }
-    
+
     /// Removes an ``DirectUploadManagerDelegate``
     public func removeDelegate<Delegate: DirectUploadManagerDelegate>(_ delegate: Delegate) {
-        uploadsUpdateDelegatesByToken.removeValue(forKey: ObjectIdentifier(delegate))
-    }
-    
-    internal func acknowledgeUpload(id: String) {
-        if let upload = uploadsByID[id]?.upload {
-            uploadsByID.removeValue(forKey: id)
-            upload.fileWorker?.cancel()
+        withLock {
+            uploadsUpdateDelegatesByToken.removeValue(forKey: ObjectIdentifier(delegate))
         }
+    }
+
+    internal func acknowledgeUpload(id: String) {
+        let upload = withLock {
+            uploadsByID.removeValue(forKey: id)?.upload
+        }
+
+        // Cancelling reenters this class by way of the uploader's delegate
+        // callbacks, so it has to happen after unlocking.
+        upload?.fileWorker?.cancel()
+
         Task.detached {
             await self.uploadActor.remove(uploadID: id)
             self.notifyDelegates()
@@ -150,7 +196,10 @@ public final class DirectUploadManager {
             return
         }
 
-        uploadsByID.updateValue(UploadStorage(upload: upload), forKey: upload.id)
+        withLock {
+            uploadsByID.updateValue(UploadStorage(upload: upload), forKey: upload.id)
+        }
+
         fileWorker.addDelegate(withToken: UUID().uuidString, uploaderDelegate)
         self.notifyDelegates()
         Task.detached {
@@ -164,10 +213,18 @@ public final class DirectUploadManager {
     
     private func notifyDelegates() {
         Task.detached {
-            await MainActor.run {
-                let delegates = self.uploadsUpdateDelegatesByToken.values
-                let allManagedUploads = self.allManagedDirectUploads()
+            // Snapshot both collections in one critical section so delegates
+            // always see a list of uploads consistent with the notification,
+            // then release the lock before calling out: delegate callbacks are
+            // arbitrary caller code and must not run while it is held.
+            let (delegates, allManagedUploads) = self.withLock {
+                (
+                    Array(self.uploadsUpdateDelegatesByToken.values),
+                    Array(self.uploadsByID.values.map(\.upload))
+                )
+            }
 
+            await MainActor.run {
                 for delegate in delegates {
                     delegate.didUpdate(managedDirectUploads: allManagedUploads)
                 }
