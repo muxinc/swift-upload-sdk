@@ -220,6 +220,73 @@ class UploadManagerThreadSafetyTests: XCTestCase {
         )
     }
 
+    /// Delegates are told about every change, so the sequence they observe has
+    /// to make sense. In a workload that only ever adds uploads, the list they
+    /// receive must never shrink.
+    ///
+    /// `notifyDelegates()` guarantees this by snapshotting and delivering in
+    /// one main-actor step: the main actor is serial, so the notification that
+    /// reaches it last also took the most recent snapshot. Snapshotting before
+    /// the hop would let two notifications snapshot in one order and deliver in
+    /// the other.
+    ///
+    /// A caveat worth knowing before trusting this test: it does *not* fail
+    /// against the snapshot-before-hop version. Registrations serialize behind
+    /// ``UploadCacheActor``, so each notification is enqueued before the next
+    /// is created and the order comes out right by accident. Adding main-actor
+    /// contention did not change that. It is a guard on the invariant, not a
+    /// reproducer for the bug.
+    func testDelegateNotificationsNeverGoBackwards() async throws {
+        let inputFileURLs = try inputFileURLs(
+            count: Self.concurrentOperationCount
+        )
+        let uploadManager = DirectUploadManager(
+            uploadActor: UploadCacheActor(
+                persistence: try makePersistence(inputFileURLs: inputFileURLs)
+            )
+        )
+
+        let recorder = RecordingDirectUploadManagerDelegate()
+        uploadManager.addDelegate(recorder)
+
+        await withTaskGroup(of: Void.self) { group in
+            for inputFileURL in inputFileURLs {
+                group.addTask {
+                    _ = await uploadManager.resumeDirectUpload(ofFile: inputFileURL)
+                }
+            }
+        }
+
+        // Notifications are delivered asynchronously, so wait for the stream to
+        // reach the final count, then keep waiting briefly: a late-arriving
+        // stale notification is precisely the failure being tested for.
+        var observed = await recorder.observedUploadCounts()
+        for _ in 0..<200 where observed.last != inputFileURLs.count {
+            try await Task.sleep(nanoseconds: 10_000_000)
+            observed = await recorder.observedUploadCounts()
+        }
+        try await Task.sleep(nanoseconds: 100_000_000)
+        observed = await recorder.observedUploadCounts()
+
+        XCTAssertFalse(
+            observed.isEmpty,
+            "Delegate should have been notified at least once"
+        )
+        XCTAssertEqual(
+            observed.last,
+            inputFileURLs.count,
+            "The last notification should reflect every registered upload"
+        )
+
+        let firstRegression = zip(observed, observed.dropFirst())
+            .enumerated()
+            .first { $0.element.0 > $0.element.1 }
+        XCTAssertNil(
+            firstRegression,
+            "Upload count went backwards. Full sequence: \(observed)"
+        )
+    }
+
 }
 
 private class CountingDirectUploadManagerDelegate: DirectUploadManagerDelegate {
@@ -227,4 +294,22 @@ private class CountingDirectUploadManagerDelegate: DirectUploadManagerDelegate {
         // Body intentionally empty. These tests are about the manager's
         // internal state, not what it reports.
     }
+}
+
+/// Records the size of every upload list it is handed, in delivery order.
+///
+/// `didUpdate(managedDirectUploads:)` is always called on the main actor, so
+/// `counts` is only ever touched there.
+private class RecordingDirectUploadManagerDelegate: DirectUploadManagerDelegate {
+
+    private var counts: [Int] = []
+
+    func didUpdate(managedDirectUploads: [DirectUpload]) {
+        counts.append(managedDirectUploads.count)
+    }
+
+    func observedUploadCounts() async -> [Int] {
+        await MainActor.run { counts }
+    }
+
 }

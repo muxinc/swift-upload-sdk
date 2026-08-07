@@ -212,11 +212,15 @@ public final class DirectUploadManager {
     }
     
     private func notifyDelegates() {
-        Task.detached {
-            // Snapshot both collections in one critical section so delegates
-            // always see a list of uploads consistent with the notification,
-            // then release the lock before calling out: delegate callbacks are
-            // arbitrary caller code and must not run while it is held.
+        Task { @MainActor in
+            // Snapshot and deliver without an await in between. The main actor
+            // runs these serially, so whichever notification reaches it last
+            // also took the most recent snapshot, and delegates never see the
+            // upload list move backwards.
+            //
+            // Snapshotting before the hop to the main actor would reintroduce
+            // that: two notifications could snapshot in one order and deliver
+            // in the other.
             let (delegates, allManagedUploads) = self.withLock {
                 (
                     Array(self.uploadsUpdateDelegatesByToken.values),
@@ -224,10 +228,10 @@ public final class DirectUploadManager {
                 )
             }
 
-            await MainActor.run {
-                for delegate in delegates {
-                    delegate.didUpdate(managedDirectUploads: allManagedUploads)
-                }
+            // The lock is released by this point, so a delegate is free to
+            // call back into the manager.
+            for delegate in delegates {
+                delegate.didUpdate(managedDirectUploads: allManagedUploads)
             }
         }
     }
