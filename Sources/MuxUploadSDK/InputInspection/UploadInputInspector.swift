@@ -76,6 +76,62 @@ final class UploadInputInspectionOperation {
     }
 }
 
+final class UploadInputInspectionOperationRegistry: @unchecked Sendable {
+    struct Token: Equatable, Sendable {
+        private let id: UUID
+
+        init() {
+            self.id = UUID()
+        }
+    }
+
+    private struct Registration {
+        let token: Token
+        let operation: UploadInputInspectionOperation
+    }
+
+    private let lock = NSLock()
+    private var registration: Registration?
+
+    func register(
+        _ operation: UploadInputInspectionOperation,
+        for token: Token
+    ) {
+        lock.lock()
+        let previousOperation = registration?.operation
+        registration = Registration(
+            token: token,
+            operation: operation
+        )
+        lock.unlock()
+
+        previousOperation?.cancel()
+    }
+
+    @discardableResult
+    func claimCompletion(for token: Token) -> Bool {
+        lock.lock()
+        guard registration?.token == token else {
+            lock.unlock()
+            return false
+        }
+        registration = nil
+        lock.unlock()
+        return true
+    }
+
+    @discardableResult
+    func cancelActive() -> Bool {
+        lock.lock()
+        let operation = registration?.operation
+        registration = nil
+        lock.unlock()
+
+        operation?.cancel()
+        return operation != nil
+    }
+}
+
 protocol UploadInputInspector {
     func performInspection(
         sourceInput: AVAsset,

@@ -130,6 +130,35 @@ class DirectUploadTests: XCTestCase {
         )
     }
 
+    func testConcurrentInspectionCancellationAndCompletionAreMutuallyExclusive() async {
+        for _ in 0..<250 {
+            let registry = UploadInputInspectionOperationRegistry()
+            let token = UploadInputInspectionOperationRegistry.Token()
+            let operation = UploadInputInspectionOperation { _, _, _ in }
+            registry.register(operation, for: token)
+
+            let completionTask = Task.detached {
+                registry.claimCompletion(for: token)
+            }
+            let cancellationTask = Task.detached {
+                registry.cancelActive()
+            }
+            let completionClaimed = await completionTask.value
+            let cancellationClaimed = await cancellationTask.value
+
+            XCTAssertNotEqual(
+                completionClaimed,
+                cancellationClaimed,
+                "Exactly one concurrent caller must claim the active inspection"
+            )
+            XCTAssertEqual(
+                operation.isCancelled,
+                cancellationClaimed,
+                "Cancellation must reach the operation only when it wins the claim"
+            )
+        }
+    }
+
     func testInputInspectionFailure() throws {
         let input = try UploadInput.mockReadyInput()
 
