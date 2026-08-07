@@ -8,22 +8,11 @@ import XCTest
 
 @testable import MuxUploadSDK
 
-/// Regression tests for the data race described in
-/// https://github.com/muxinc/swift-upload-sdk/issues/122.
+/// Regression tests for https://github.com/muxinc/swift-upload-sdk/issues/122,
+/// where unsynchronized access to the manager's dictionaries crashed.
 ///
-/// `DirectUploadManager` keeps its uploads and its delegates in plain
-/// dictionaries that are reached from arbitrary threads: uploads register
-/// themselves from AVFoundation's inspection queue, while readers like
-/// `allManagedDirectUploads()` are typically called from the main thread.
-/// Without synchronization, concurrent access crashed inside
-/// `swift_isUniquelyReferenced_nonNull_native` — the copy-on-write uniqueness
-/// check `Dictionary.updateValue` performs before mutating.
-///
-/// These tests are only meaningful with Thread Sanitizer enabled:
-///
-///     swift test --sanitize=thread
-///
-/// Without TSan a surviving race is timing-dependent and will usually pass.
+/// Only meaningful under `swift test --sanitize=thread`. Without TSan a
+/// surviving race is timing-dependent and will usually pass.
 class UploadManagerThreadSafetyTests: XCTestCase {
 
     private static let concurrentOperationCount = 50
@@ -67,8 +56,7 @@ class UploadManagerThreadSafetyTests: XCTestCase {
         }
     }
 
-    /// Registers many uploads concurrently. This is the crashing path from the
-    /// original report, minus the network transport.
+    /// The crashing path from the original report, minus network transport.
     func testConcurrentRegistrationDoesNotRaceOnUploadStorage() async throws {
         let inputFileURLs = try inputFileURLs(
             count: Self.concurrentOperationCount
@@ -94,8 +82,7 @@ class UploadManagerThreadSafetyTests: XCTestCase {
         )
     }
 
-    /// Interleaves registration with the reads a UI layer would be making at
-    /// the same time. A read racing a write is as much a crash as two writes.
+    /// A read racing a write is as much a crash as two writes.
     func testConcurrentRegistrationAndReadsDoNotRace() async throws {
         let inputFileURLs = try inputFileURLs(
             count: Self.concurrentOperationCount
@@ -126,9 +113,8 @@ class UploadManagerThreadSafetyTests: XCTestCase {
         )
     }
 
-    /// `uploadsUpdateDelegatesByToken` has the same exposure: `notifyDelegates()`
-    /// reads it from a detached task while `addDelegate`/`removeDelegate` can be
-    /// called from any thread.
+    /// The delegate map is exposed too: `notifyDelegates()` reads it off-main
+    /// while `addDelegate`/`removeDelegate` run on any thread.
     func testConcurrentDelegateMutationDoesNotRace() async throws {
         let inputFileURLs = try inputFileURLs(
             count: Self.concurrentOperationCount
@@ -139,8 +125,7 @@ class UploadManagerThreadSafetyTests: XCTestCase {
             )
         )
 
-        // Held for the duration so the delegates stay registered while
-        // registrations are notifying them.
+        // Held for the duration so they stay registered while notifying.
         let delegates = (0..<Self.concurrentOperationCount).map { _ in
             CountingDirectUploadManagerDelegate()
         }
@@ -170,8 +155,8 @@ class UploadManagerThreadSafetyTests: XCTestCase {
         )
     }
 
-    /// Acknowledgement removes from the same dictionary registration writes to,
-    /// and is reached off-main from uploader state callbacks.
+    /// Acknowledgement removes from the dictionary registration writes to, and
+    /// is reached off-main from uploader state callbacks.
     func testConcurrentRegistrationAndAcknowledgementDoNotRace() async throws {
         let inputFileURLs = try inputFileURLs(
             count: Self.concurrentOperationCount
@@ -220,22 +205,12 @@ class UploadManagerThreadSafetyTests: XCTestCase {
         )
     }
 
-    /// Delegates are told about every change, so the sequence they observe has
-    /// to make sense. In a workload that only ever adds uploads, the list they
-    /// receive must never shrink.
+    /// In an add-only workload the list delegates receive must never shrink.
     ///
-    /// `notifyDelegates()` guarantees this by snapshotting and delivering in
-    /// one main-actor step: the main actor is serial, so the notification that
-    /// reaches it last also took the most recent snapshot. Snapshotting before
-    /// the hop would let two notifications snapshot in one order and deliver in
-    /// the other.
-    ///
-    /// A caveat worth knowing before trusting this test: it does *not* fail
-    /// against the snapshot-before-hop version. Registrations serialize behind
-    /// ``UploadCacheActor``, so each notification is enqueued before the next
-    /// is created and the order comes out right by accident. Adding main-actor
-    /// contention did not change that. It is a guard on the invariant, not a
-    /// reproducer for the bug.
+    /// Caveat: this does *not* fail against the snapshot-before-hop version.
+    /// Registrations serialize behind ``UploadCacheActor``, so notifications
+    /// are enqueued in order anyway. It guards the invariant, it does not
+    /// reproduce the bug.
     func testDelegateNotificationsNeverGoBackwards() async throws {
         let inputFileURLs = try inputFileURLs(
             count: Self.concurrentOperationCount
@@ -257,9 +232,8 @@ class UploadManagerThreadSafetyTests: XCTestCase {
             }
         }
 
-        // Notifications are delivered asynchronously, so wait for the stream to
-        // reach the final count, then keep waiting briefly: a late-arriving
-        // stale notification is precisely the failure being tested for.
+        // Wait for the final count, then a little longer: a late stale
+        // notification is the failure being tested for.
         var observed = await recorder.observedUploadCounts()
         for _ in 0..<200 where observed.last != inputFileURLs.count {
             try await Task.sleep(nanoseconds: 10_000_000)
@@ -291,15 +265,12 @@ class UploadManagerThreadSafetyTests: XCTestCase {
 
 private class CountingDirectUploadManagerDelegate: DirectUploadManagerDelegate {
     func didUpdate(managedDirectUploads: [DirectUpload]) {
-        // Body intentionally empty. These tests are about the manager's
-        // internal state, not what it reports.
+        // Intentionally empty; these tests check internal state, not reports.
     }
 }
 
-/// Records the size of every upload list it is handed, in delivery order.
-///
-/// `didUpdate(managedDirectUploads:)` is always called on the main actor, so
-/// `counts` is only ever touched there.
+/// Records the size of every upload list handed over, in delivery order.
+/// `didUpdate` always runs on the main actor, so `counts` is only touched there.
 private class RecordingDirectUploadManagerDelegate: DirectUploadManagerDelegate {
 
     private var counts: [Int] = []

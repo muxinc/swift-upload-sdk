@@ -44,22 +44,13 @@ public final class DirectUploadManager {
         }
     }
     
-    /// Guards ``uploadsByID`` and ``uploadsUpdateDelegatesByToken``. Both are
-    /// touched from arbitrary threads: uploads register themselves from
-    /// AVFoundation's inspection queue, while readers like
-    /// ``allManagedDirectUploads()`` are usually called from the main thread.
-    ///
-    /// The lock is not recursive. Nothing that calls back out of this class,
-    /// including delegate callbacks and ``ChunkedFileUploader`` methods, may
-    /// run while it is held.
+    /// Guards ``uploadsByID`` and ``uploadsUpdateDelegatesByToken``, both of
+    /// which are touched from arbitrary threads. Not recursive: never call out
+    /// of this class while holding it.
     private let lock = NSLock()
 
-    /// Runs `body` holding ``lock``.
-    ///
-    /// Always synchronous, and deliberately so: taking the lock directly in an
-    /// `async` function risks suspending while holding it, which the Swift 6
-    /// language mode rejects outright. Keep `body` to plain state access, and
-    /// call out to anything else after this returns.
+    /// Synchronous on purpose. Taking the lock inside an `async` function risks
+    /// suspending while holding it, which Swift 6 rejects outright.
     @discardableResult
     private func withLock<T>(_ body: () -> T) -> T {
         lock.lock()
@@ -71,10 +62,9 @@ public final class DirectUploadManager {
     private var uploadsUpdateDelegatesByToken: [ObjectIdentifier : any DirectUploadManagerDelegate] = [:]
     private let uploadActor: UploadCacheActor
 
-    /// Deliberately not a `lazy var`: lazy initialization is not atomic, so
-    /// concurrent registrations could race on first access.
-    /// ``FileUploaderDelegate`` is a single-field struct, so making a new one
-    /// per call costs nothing and keeps this free of shared mutable state.
+    /// Not a `lazy var`: lazy initialization is not atomic, so concurrent
+    /// registrations raced on first access. The struct is one field, so
+    /// rebuilding it per call is free.
     private var uploaderDelegate: FileUploaderDelegate {
         FileUploaderDelegate(manager: self)
     }
@@ -168,8 +158,8 @@ public final class DirectUploadManager {
             uploadsByID.removeValue(forKey: id)?.upload
         }
 
-        // Cancelling reenters this class by way of the uploader's delegate
-        // callbacks, so it has to happen after unlocking.
+        // Reenters this class via the uploader's delegate callbacks, so it has
+        // to happen after unlocking.
         upload?.fileWorker?.cancel()
 
         Task.detached {
@@ -213,14 +203,10 @@ public final class DirectUploadManager {
     
     private func notifyDelegates() {
         Task { @MainActor in
-            // Snapshot and deliver without an await in between. The main actor
-            // runs these serially, so whichever notification reaches it last
-            // also took the most recent snapshot, and delegates never see the
-            // upload list move backwards.
-            //
-            // Snapshotting before the hop to the main actor would reintroduce
-            // that: two notifications could snapshot in one order and deliver
-            // in the other.
+            // No await between snapshot and delivery: the main actor is serial,
+            // so the last notification to arrive also holds the newest
+            // snapshot. Snapshotting before the hop lets notifications deliver
+            // out of order and the upload list appear to move backwards.
             let (delegates, allManagedUploads) = self.withLock {
                 (
                     Array(self.uploadsUpdateDelegatesByToken.values),
@@ -228,8 +214,7 @@ public final class DirectUploadManager {
                 )
             }
 
-            // The lock is released by this point, so a delegate is free to
-            // call back into the manager.
+            // Unlocked by now, so a delegate may call back in.
             for delegate in delegates {
                 delegate.didUpdate(managedDirectUploads: allManagedUploads)
             }
