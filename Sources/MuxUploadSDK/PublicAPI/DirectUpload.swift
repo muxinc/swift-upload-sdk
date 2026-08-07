@@ -187,6 +187,7 @@ public final class DirectUpload {
     }
     private let uploadManager: DirectUploadManager
     private let inputInspector: UploadInputInspector
+    private var inputInspectionOperation: UploadInputInspectionOperation?
     private let inputStandardizer: UploadInputStandardizing
     
     internal var fileWorker: ChunkedFileUploader?
@@ -416,10 +417,10 @@ public final class DirectUpload {
             )) ?? 0
 
             input.status = .underInspection(input.sourceAsset, uploadInfo)
-            inputInspector.performInspection(
-                sourceInput: input.sourceAsset, 
-                maximumResolution: uploadInfo.options.inputStandardization.maximumResolution
-            ) { inspectionResult, inputDuration, inspectionError in
+            let operation = UploadInputInspectionOperation {
+                [weak self] inspectionResult, inputDuration, inspectionError in
+                guard let self else { return }
+                self.inputInspectionOperation = nil
                 self.inspectionResult = inspectionResult
 
                 switch (inspectionResult, inspectionError) {
@@ -579,6 +580,12 @@ public final class DirectUpload {
                     )
                 }
             }
+            inputInspectionOperation = operation
+            inputInspector.performInspection(
+                sourceInput: input.sourceAsset,
+                maximumResolution: uploadInfo.options.inputStandardization.maximumResolution,
+                operation: operation
+            )
         }
     }
 
@@ -742,6 +749,8 @@ public final class DirectUpload {
             ))
         }
         
+        inputInspectionOperation?.cancel()
+        inputInspectionOperation = nil
         fileWorker?.cancel()
         uploadManager.acknowledgeUpload(id: id)
         input.processUploadCancellation()

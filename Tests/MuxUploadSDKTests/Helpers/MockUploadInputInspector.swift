@@ -22,6 +22,8 @@ class MockUploadInputInspector: UploadInputInspector {
     var mockInspectionError: Error?
     var mockInspectionResult: UploadInputFormatInspectionResult
     var duration: CMTime
+    var shouldDeferCompletion = false
+    private(set) var operation: UploadInputInspectionOperation?
 
     init() {
         self.mockInspectionResult = UploadInputFormatInspectionResult(
@@ -43,9 +45,26 @@ class MockUploadInputInspector: UploadInputInspector {
     func performInspection(
         sourceInput: AVAsset,
         maximumResolution: DirectUploadOptions.InputStandardization.MaximumResolution,
-        completionHandler: @escaping UploadInputInspectionCompletionHandler
+        operation: UploadInputInspectionOperation
     ) {
-        completionHandler(mockInspectionResult, duration, mockInspectionError)
+        if shouldDeferCompletion {
+            self.operation = operation
+        } else {
+            operation.complete(
+                mockInspectionResult,
+                duration: duration,
+                error: mockInspectionError
+            )
+        }
+    }
+
+    func completeDeferredInspection() {
+        operation?.complete(
+            mockInspectionResult,
+            duration: duration,
+            error: mockInspectionError
+        )
+        operation = nil
     }
 
 }

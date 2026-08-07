@@ -81,6 +81,55 @@ class DirectUploadTests: XCTestCase {
         )
     }
 
+    func testCancelDuringInspectionCancelsOperationAndSuppressesCompletion() throws {
+        let input = try UploadInput.mockReadyInput()
+        let inspector = MockUploadInputInspector()
+        inspector.shouldDeferCompletion = true
+        let upload = DirectUpload(
+            input: input,
+            uploadManager: DirectUploadManager(),
+            inputInspector: inspector
+        )
+        let cancellationExpectation = expectation(
+            description: "Expected cancellation result during inspection"
+        )
+        let transportExpectation = expectation(
+            description: "Cancelled inspection must not start transport"
+        )
+        transportExpectation.isInverted = true
+        upload.resultHandler = { result in
+            guard case .failure = result else {
+                return XCTFail("Expected cancellation failure")
+            }
+            cancellationExpectation.fulfill()
+        }
+        upload.inputStatusHandler = { status in
+            if case .transportInProgress = status {
+                transportExpectation.fulfill()
+            }
+        }
+
+        upload.start()
+
+        guard case .preparing = upload.inputStatus else {
+            return XCTFail("Expected inspection to remain in progress")
+        }
+        let operation = try XCTUnwrap(inspector.operation)
+
+        upload.cancel()
+        inspector.completeDeferredInspection()
+
+        XCTAssertTrue(operation.isCancelled)
+        XCTAssertNil(upload.fileWorker)
+        guard case .ready = upload.inputStatus else {
+            return XCTFail("Expected cancellation to reset the upload to ready")
+        }
+        wait(
+            for: [cancellationExpectation, transportExpectation],
+            timeout: 0.1
+        )
+    }
+
     func testInputInspectionFailure() throws {
         let input = try UploadInput.mockReadyInput()
 
