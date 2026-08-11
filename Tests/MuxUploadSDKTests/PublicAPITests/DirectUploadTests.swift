@@ -175,6 +175,9 @@ class DirectUploadTests: XCTestCase {
         let cancellationFinished = expectation(
             description: "Cancellation finished"
         )
+        let cancellationReported = expectation(
+            description: "Cancellation was reported after cleanup"
+        )
         let allowWorkerCreation = DispatchSemaphore(value: 0)
         let upload = DirectUpload(
             input: input,
@@ -191,6 +194,17 @@ class DirectUploadTests: XCTestCase {
                 )
             }
         )
+        upload.resultHandler = { result in
+            guard case .failure(let error) = result,
+                  error.kind == .cancelled else {
+                return XCTFail("Expected cancellation failure")
+            }
+            XCTAssertNil(upload.fileWorker)
+            guard case .ready = upload.inputStatus else {
+                return XCTFail("Expected cleanup before cancellation reporting")
+            }
+            cancellationReported.fulfill()
+        }
 
         upload.start()
 
@@ -208,7 +222,7 @@ class DirectUploadTests: XCTestCase {
         wait(for: [cancellationAttempted], timeout: 1.0)
         allowWorkerCreation.signal()
         wait(
-            for: [completionFinished, cancellationFinished],
+            for: [completionFinished, cancellationFinished, cancellationReported],
             timeout: 1.0
         )
 

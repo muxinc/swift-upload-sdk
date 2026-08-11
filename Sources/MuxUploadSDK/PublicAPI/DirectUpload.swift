@@ -189,7 +189,8 @@ public final class DirectUpload {
     private let inputInspector: UploadInputInspector
     private let inputInspectionOperations = UploadInputInspectionOperationRegistry()
     private let inputStandardizer: UploadInputStandardizing
-    private let lifecycleLock = NSRecursiveLock()
+    private let lifecycleLock = NSLock()
+    private var cancellationRequested = false
     private let fileWorkerFactory: FileWorkerFactory
 
     typealias FileWorkerFactory = (
@@ -417,6 +418,9 @@ public final class DirectUpload {
         // Start a new upload
 
         if case UploadInput.Status.ready = input.status {
+            lifecycleLock.lock()
+            cancellationRequested = false
+            lifecycleLock.unlock()
             input.status = .started(input.sourceAsset, uploadInfo)
             startInspection(sourceAsset: input.sourceAsset)
         } else if forceRestart {
@@ -681,9 +685,6 @@ public final class DirectUpload {
     func startNetworkTransport(
         videoFile: URL
     ) {
-        lifecycleLock.lock()
-        defer { lifecycleLock.unlock() }
-
         guard readyForTransport() else {
             SDKLogger.logger?.info("Tried to start network transport before being ready")
             return
@@ -699,13 +700,22 @@ public final class DirectUpload {
             ChunkedFile(chunkSize: input.uploadInfo.options.transport.chunkSizeInBytes),
             completedUnitCount
         )
+
+        lifecycleLock.lock()
+        guard !cancellationRequested && readyForTransport() else {
+            lifecycleLock.unlock()
+            fileWorker.cancel()
+            return
+        }
         fileWorker.addDelegate(
             withToken: id,
             InternalUploaderDelegate { [self] state in handleStateUpdate(state) }
         )
         self.fileWorker = fileWorker
-        uploadManager.registerUpload(self)
         fileWorker.start()
+        lifecycleLock.unlock()
+
+        uploadManager.registerUpload(self)
         let transportStatus = TransportStatus(
             progress: fileWorker.currentState.progress ?? Progress(),
             updatedTime: Date().timeIntervalSince1970,
@@ -715,16 +725,12 @@ public final class DirectUpload {
         self.input.processStartNetworkTransport(
             startingTransportStatus: transportStatus
         )
-        inputStatusHandler?(inputStatus)
     }
 
     func startNetworkTransport(
         videoFile: URL,
         duration: CMTime
     ) {
-        lifecycleLock.lock()
-        defer { lifecycleLock.unlock() }
-
         guard readyForTransport() else {
             return
         }
@@ -737,13 +743,22 @@ public final class DirectUpload {
             ChunkedFile(chunkSize: input.uploadInfo.options.transport.chunkSizeInBytes),
             completedUnitCount
         )
+
+        lifecycleLock.lock()
+        guard !cancellationRequested && readyForTransport() else {
+            lifecycleLock.unlock()
+            fileWorker.cancel()
+            return
+        }
         fileWorker.addDelegate(
             withToken: id,
             InternalUploaderDelegate { [self] state in handleStateUpdate(state) }
         )
         self.fileWorker = fileWorker
-        uploadManager.registerUpload(self)
         fileWorker.start(duration: duration)
+        lifecycleLock.unlock()
+
+        uploadManager.registerUpload(self)
         let transportStatus = TransportStatus(
             progress: fileWorker.currentState.progress ?? Progress(),
             updatedTime: Date().timeIntervalSince1970,
@@ -753,7 +768,6 @@ public final class DirectUpload {
         self.input.processStartNetworkTransport(
             startingTransportStatus: transportStatus
         )
-        inputStatusHandler?(inputStatus)
     }
     
     
@@ -776,28 +790,31 @@ public final class DirectUpload {
     }
     
     private func cancel(notifyCaller: Bool) {
-        if notifyCaller && !isUploadComplete() && isUploadStarted() {
-            resultHandler?(.failure(
-                DirectUploadError(
-                    lastStatus: uploadStatus,
-                    kind: .cancelled,
-                    message: "Upload was cancelled by caller",
-                    reason: nil
-                )
-            ))
-        }
+        let cancellationHandler = notifyCaller && !isUploadComplete() && isUploadStarted()
+            ? resultHandler
+            : nil
+        let cancellationError = DirectUploadError(
+            lastStatus: uploadStatus,
+            kind: .cancelled,
+            message: "Upload was cancelled by caller",
+            reason: nil
+        )
+
+        progressHandler = nil
+        resultHandler = nil
 
         lifecycleLock.lock()
-        defer { lifecycleLock.unlock() }
+        cancellationRequested = true
+        let fileWorker = self.fileWorker
+        self.fileWorker = nil
+        lifecycleLock.unlock()
 
         inputInspectionOperations.cancelActive()
         fileWorker?.cancel()
-        fileWorker = nil
         uploadManager.acknowledgeUpload(id: id)
         input.processUploadCancellation()
-        
-        progressHandler = nil
-        resultHandler = nil
+
+        cancellationHandler?(.failure(cancellationError))
     }
     
     private func isUploadStarted() -> Bool {
