@@ -189,6 +189,15 @@ public final class DirectUpload {
     private let inputInspector: UploadInputInspector
     private let inputInspectionOperations = UploadInputInspectionOperationRegistry()
     private let inputStandardizer: UploadInputStandardizing
+    private let lifecycleLock = NSRecursiveLock()
+    private let fileWorkerFactory: FileWorkerFactory
+
+    typealias FileWorkerFactory = (
+        UploadInfo,
+        URL,
+        ChunkedFile,
+        UInt64
+    ) -> ChunkedFileUploader
     
     internal var fileWorker: ChunkedFileUploader?
 
@@ -244,13 +253,15 @@ public final class DirectUpload {
         manage: Bool = true,
         uploadManager: DirectUploadManager,
         inputInspector: AVFoundationUploadInputInspector = .shared,
-        inputStandardizer: UploadInputStandardizing = UploadInputStandardizer()
+        inputStandardizer: UploadInputStandardizing = UploadInputStandardizer(),
+        fileWorkerFactory: @escaping FileWorkerFactory = DirectUpload.makeFileWorker
     ) {
         self.input = input
         self.manageBySDK = manage
         self.uploadManager = uploadManager
         self.inputInspector = inputInspector
         self.inputStandardizer = inputStandardizer
+        self.fileWorkerFactory = fileWorkerFactory
     }
 
     init(
@@ -258,13 +269,29 @@ public final class DirectUpload {
         manage: Bool = true,
         uploadManager: DirectUploadManager,
         inputInspector: UploadInputInspector,
-        inputStandardizer: UploadInputStandardizing = UploadInputStandardizer()
+        inputStandardizer: UploadInputStandardizing = UploadInputStandardizer(),
+        fileWorkerFactory: @escaping FileWorkerFactory = DirectUpload.makeFileWorker
     ) {
         self.input = input
         self.manageBySDK = manage
         self.uploadManager = uploadManager
         self.inputInspector = inputInspector
         self.inputStandardizer = inputStandardizer
+        self.fileWorkerFactory = fileWorkerFactory
+    }
+
+    private static func makeFileWorker(
+        uploadInfo: UploadInfo,
+        inputFileURL: URL,
+        file: ChunkedFile,
+        startingByte: UInt64
+    ) -> ChunkedFileUploader {
+        ChunkedFileUploader(
+            uploadInfo: uploadInfo,
+            inputFileURL: inputFileURL,
+            file: file,
+            startingByte: startingByte
+        )
     }
 
     internal convenience init(
@@ -654,6 +681,9 @@ public final class DirectUpload {
     func startNetworkTransport(
         videoFile: URL
     ) {
+        lifecycleLock.lock()
+        defer { lifecycleLock.unlock() }
+
         guard readyForTransport() else {
             SDKLogger.logger?.info("Tried to start network transport before being ready")
             return
@@ -663,11 +693,11 @@ public final class DirectUpload {
 
         let completedUnitCount = UInt64(uploadStatus?.progress?.completedUnitCount ?? 0)
 
-        let fileWorker = ChunkedFileUploader(
-            uploadInfo: input.uploadInfo,
-            inputFileURL: videoFile,
-            file: ChunkedFile(chunkSize: input.uploadInfo.options.transport.chunkSizeInBytes),
-            startingByte: completedUnitCount
+        let fileWorker = fileWorkerFactory(
+            input.uploadInfo,
+            videoFile,
+            ChunkedFile(chunkSize: input.uploadInfo.options.transport.chunkSizeInBytes),
+            completedUnitCount
         )
         fileWorker.addDelegate(
             withToken: id,
@@ -692,18 +722,20 @@ public final class DirectUpload {
         videoFile: URL,
         duration: CMTime
     ) {
-        
+        lifecycleLock.lock()
+        defer { lifecycleLock.unlock() }
+
         guard readyForTransport() else {
             return
         }
 
         let completedUnitCount = UInt64(uploadStatus?.progress?.completedUnitCount ?? 0)
 
-        let fileWorker = ChunkedFileUploader(
-            uploadInfo: input.uploadInfo,
-            inputFileURL: videoFile,
-            file: ChunkedFile(chunkSize: input.uploadInfo.options.transport.chunkSizeInBytes),
-            startingByte: completedUnitCount
+        let fileWorker = fileWorkerFactory(
+            input.uploadInfo,
+            videoFile,
+            ChunkedFile(chunkSize: input.uploadInfo.options.transport.chunkSizeInBytes),
+            completedUnitCount
         )
         fileWorker.addDelegate(
             withToken: id,
@@ -754,9 +786,13 @@ public final class DirectUpload {
                 )
             ))
         }
-        
+
+        lifecycleLock.lock()
+        defer { lifecycleLock.unlock() }
+
         inputInspectionOperations.cancelActive()
         fileWorker?.cancel()
+        fileWorker = nil
         uploadManager.acknowledgeUpload(id: id)
         input.processUploadCancellation()
         

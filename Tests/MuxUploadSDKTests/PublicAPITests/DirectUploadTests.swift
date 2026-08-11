@@ -159,6 +159,65 @@ class DirectUploadTests: XCTestCase {
         }
     }
 
+    func testCancelWaitsForClaimedInspectionTransportTransition() throws {
+        let input = try UploadInput.mockReadyInput()
+        let inspector = MockUploadInputInspector()
+        inspector.shouldDeferCompletion = true
+        let factoryEntered = expectation(
+            description: "Transport passed its readiness check"
+        )
+        let completionFinished = expectation(
+            description: "Inspection completion finished"
+        )
+        let cancellationAttempted = expectation(
+            description: "Cancellation was invoked"
+        )
+        let cancellationFinished = expectation(
+            description: "Cancellation finished"
+        )
+        let allowWorkerCreation = DispatchSemaphore(value: 0)
+        let upload = DirectUpload(
+            input: input,
+            uploadManager: DirectUploadManager(),
+            inputInspector: inspector,
+            fileWorkerFactory: { uploadInfo, inputFileURL, file, startingByte in
+                factoryEntered.fulfill()
+                allowWorkerCreation.wait()
+                return ChunkedFileUploader(
+                    uploadInfo: uploadInfo,
+                    inputFileURL: inputFileURL,
+                    file: file,
+                    startingByte: startingByte
+                )
+            }
+        )
+
+        upload.start()
+
+        DispatchQueue.global().async {
+            inspector.completeDeferredInspection()
+            completionFinished.fulfill()
+        }
+        wait(for: [factoryEntered], timeout: 1.0)
+
+        DispatchQueue.global().async {
+            cancellationAttempted.fulfill()
+            upload.cancel()
+            cancellationFinished.fulfill()
+        }
+        wait(for: [cancellationAttempted], timeout: 1.0)
+        allowWorkerCreation.signal()
+        wait(
+            for: [completionFinished, cancellationFinished],
+            timeout: 1.0
+        )
+
+        XCTAssertNil(upload.fileWorker)
+        guard case .ready = upload.inputStatus else {
+            return XCTFail("Expected cancellation to reset the upload to ready")
+        }
+    }
+
     func testInputInspectionFailure() throws {
         let input = try UploadInput.mockReadyInput()
 
