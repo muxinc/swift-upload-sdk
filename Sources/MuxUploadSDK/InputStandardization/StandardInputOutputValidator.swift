@@ -52,7 +52,7 @@ struct StandardInputOutputValidator {
     static let maximumAudioVideoStartOffsetDelta: TimeInterval = 0.050
 
     /// Video encoders commonly align dimensions to even pixel counts. Permit
-    /// that rounding on both projected output axes without accepting a material
+    /// that rounding on both output axes without accepting a material
     /// aspect-ratio change.
     static let maximumAspectRatioDimensionError = 2.0
 
@@ -260,13 +260,20 @@ struct StandardInputOutputValidator {
         source: StandardInputDisplayDimensions,
         output: StandardInputDisplayDimensions
     ) -> Bool {
-        let projectedWidth = Double(source.width) * Double(output.height)
-            / Double(source.height)
-        let projectedHeight = Double(source.height) * Double(output.width)
-            / Double(source.width)
-        return abs(projectedWidth - Double(output.width))
-                <= Self.maximumAspectRatioDimensionError
-            && abs(projectedHeight - Double(output.height))
-                <= Self.maximumAspectRatioDimensionError
+        let dimensionError = Self.maximumAspectRatioDimensionError
+        let widthScaleRange = (
+            lower: (Double(output.width) - dimensionError) / Double(source.width),
+            upper: (Double(output.width) + dimensionError) / Double(source.width)
+        )
+        let heightScaleRange = (
+            lower: (Double(output.height) - dimensionError) / Double(source.height),
+            upper: (Double(output.height) + dimensionError) / Double(source.height)
+        )
+        let minimumScale = max(
+            0,
+            max(widthScaleRange.lower, heightScaleRange.lower)
+        )
+        let maximumScale = min(widthScaleRange.upper, heightScaleRange.upper)
+        return minimumScale <= maximumScale
     }
 }

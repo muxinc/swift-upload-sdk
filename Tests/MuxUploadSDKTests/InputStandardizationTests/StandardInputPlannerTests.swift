@@ -599,6 +599,26 @@ final class StandardInputOutputValidatorTests: XCTestCase {
         XCTAssertEqual(validation.disposition, .accepted)
     }
 
+    func testGeneratedOutputAcceptsPortraitAlignmentWithinPixelBudget() throws {
+        var sourceFacts = compliantFacts(
+            dimensions: .init(width: 1080, height: 1920)
+        )
+        sourceFacts.maximumKeyframeInterval = .known(21)
+        let conversion = try XCTUnwrap(makeConversion(facts: sourceFacts))
+        let outputFacts = compliantFacts(
+            dimensions: .init(width: 718, height: 1280)
+        )
+
+        let validation = validator.validateGeneratedOutput(
+            facts: outputFacts,
+            sourceTimeline: validTimeline(),
+            outputTimeline: validTimeline(),
+            for: conversion
+        )
+
+        XCTAssertEqual(validation.disposition, .accepted)
+    }
+
     func testGeneratedOutputRejectsMissingSourceAspectRatioEvidence() throws {
         var sourceFacts = compliantFacts()
         sourceFacts.displayDimensions = .unknown
