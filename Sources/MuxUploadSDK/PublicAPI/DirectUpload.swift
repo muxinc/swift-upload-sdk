@@ -195,6 +195,7 @@ public final class DirectUpload {
 
     private struct UploadAttempt: Equatable {
         let id = UUID()
+        let inspectionToken = UploadInputInspectionOperationRegistry.Token()
     }
 
     typealias FileWorkerFactory = (
@@ -496,12 +497,11 @@ public final class DirectUpload {
                 atPath: input.sourceAsset.url.absoluteString
             )) ?? 0
 
-            let inspectionToken = UploadInputInspectionOperationRegistry.Token()
             let operation = UploadInputInspectionOperation {
                 [weak self] inspectionResult, inputDuration, inspectionError in
                 guard let self else { return }
                 guard self.inputInspectionOperations.claimCompletion(
-                    for: inspectionToken
+                    for: attempt.inspectionToken
                 ) else { return }
                 guard self.isActive(attempt) else { return }
                 self.inspectionResult = inspectionResult
@@ -689,7 +689,7 @@ public final class DirectUpload {
             }
             inputInspectionOperations.register(
                 operation,
-                for: inspectionToken
+                for: attempt.inspectionToken
             )
             lifecycleLock.unlock()
 
@@ -909,6 +909,7 @@ public final class DirectUpload {
         progressHandler = nil
         resultHandler = nil
 
+        let cancelledAttempt = activeAttempt
         activeAttempt = nil
         let fileWorker = self.fileWorker
         self.fileWorker = nil
@@ -918,7 +919,9 @@ public final class DirectUpload {
         }
         lifecycleLock.unlock()
 
-        inputInspectionOperations.cancelActive()
+        if let cancelledAttempt {
+            inputInspectionOperations.cancel(for: cancelledAttempt.inspectionToken)
+        }
         fileWorker?.cancel()
         cancellationNotification?()
 

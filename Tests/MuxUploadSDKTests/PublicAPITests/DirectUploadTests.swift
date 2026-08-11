@@ -141,7 +141,7 @@ class DirectUploadTests: XCTestCase {
                 registry.claimCompletion(for: token)
             }
             let cancellationTask = Task.detached {
-                registry.cancelActive()
+                registry.cancel(for: token)
             }
             let completionClaimed = await completionTask.value
             let cancellationClaimed = await cancellationTask.value
@@ -157,6 +157,23 @@ class DirectUploadTests: XCTestCase {
                 "Cancellation must reach the operation only when it wins the claim"
             )
         }
+    }
+
+    func testCancellingPreviousInspectionDoesNotCancelReplacement() {
+        let registry = UploadInputInspectionOperationRegistry()
+        let previousToken = UploadInputInspectionOperationRegistry.Token()
+        let replacementToken = UploadInputInspectionOperationRegistry.Token()
+        let previousOperation = UploadInputInspectionOperation { _, _, _ in }
+        let replacementOperation = UploadInputInspectionOperation { _, _, _ in }
+
+        registry.register(previousOperation, for: previousToken)
+        registry.register(replacementOperation, for: replacementToken)
+
+        XCTAssertFalse(registry.cancel(for: previousToken))
+        XCTAssertTrue(previousOperation.isCancelled)
+        XCTAssertFalse(replacementOperation.isCancelled)
+        XCTAssertTrue(registry.cancel(for: replacementToken))
+        XCTAssertTrue(replacementOperation.isCancelled)
     }
 
     func testCancelAndRestartInvalidateClaimedInspectionTransportTransition() throws {

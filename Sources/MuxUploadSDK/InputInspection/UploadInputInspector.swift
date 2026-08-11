@@ -121,8 +121,12 @@ final class UploadInputInspectionOperationRegistry: @unchecked Sendable {
     }
 
     @discardableResult
-    func cancelActive() -> Bool {
+    func cancel(for token: Token) -> Bool {
         lock.lock()
+        guard registration?.token == token else {
+            lock.unlock()
+            return false
+        }
         let operation = registration?.operation
         registration = nil
         lock.unlock()
