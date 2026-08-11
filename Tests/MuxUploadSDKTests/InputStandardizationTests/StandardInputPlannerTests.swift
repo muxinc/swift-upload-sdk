@@ -431,7 +431,7 @@ final class StandardInputOutputValidatorTests: XCTestCase {
         )
     }
 
-    func testGeneratedOutputAcceptsDurationAndAVOffsetWithinNAT480Bounds() throws {
+    func testGeneratedOutputAcceptsDurationAndAVOffsetWithinBounds() throws {
         var sourceFacts = compliantFacts(codec: .hevc)
         sourceFacts.maximumKeyframeInterval = .known(11)
         let conversion = try XCTUnwrap(makeConversion(facts: sourceFacts))
@@ -446,7 +446,7 @@ final class StandardInputOutputValidatorTests: XCTestCase {
         XCTAssertEqual(validation.disposition, .accepted)
     }
 
-    func testGeneratedOutputRejectsDurationOutsideNAT480Bound() throws {
+    func testGeneratedOutputRejectsDurationOutsideBound() throws {
         var sourceFacts = compliantFacts(codec: .hevc)
         sourceFacts.maximumKeyframeInterval = .known(11)
         let conversion = try XCTUnwrap(makeConversion(facts: sourceFacts))
@@ -479,7 +479,7 @@ final class StandardInputOutputValidatorTests: XCTestCase {
         XCTAssertEqual(validation.disposition, .accepted)
     }
 
-    func testGeneratedOutputRejectsAVOffsetOutsideNAT480Bound() throws {
+    func testGeneratedOutputRejectsAVOffsetOutsideBound() throws {
         var sourceFacts = compliantFacts(codec: .hevc)
         sourceFacts.maximumKeyframeInterval = .known(11)
         let conversion = try XCTUnwrap(makeConversion(facts: sourceFacts))

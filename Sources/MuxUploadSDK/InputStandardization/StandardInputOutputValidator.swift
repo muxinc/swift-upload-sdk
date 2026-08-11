@@ -46,8 +46,8 @@ struct StandardInputOutputValidation: Equatable {
 }
 
 struct StandardInputOutputValidator {
-    /// NAT-480 accepted duration changes within one output frame or 50ms,
-    /// whichever is larger. A/V-start-offset changes remain bounded at 50ms.
+    /// Duration may change by one output frame or 50ms, whichever is larger.
+    /// A/V-start-offset changes remain bounded at 50ms.
     static let minimumDurationDelta: TimeInterval = 0.050
     static let maximumAudioVideoStartOffsetDelta: TimeInterval = 0.050
 
