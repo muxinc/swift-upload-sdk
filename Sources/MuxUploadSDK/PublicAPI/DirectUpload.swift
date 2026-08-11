@@ -187,6 +187,7 @@ public final class DirectUpload {
     }
     private let uploadManager: DirectUploadManager
     private let inputInspector: UploadInputInspector
+    private let inputInspectionOperations = UploadInputInspectionOperationRegistry()
     private let inputStandardizer: UploadInputStandardizing
     
     internal var fileWorker: ChunkedFileUploader?
@@ -416,10 +417,13 @@ public final class DirectUpload {
             )) ?? 0
 
             input.status = .underInspection(input.sourceAsset, uploadInfo)
-            inputInspector.performInspection(
-                sourceInput: input.sourceAsset, 
-                maximumResolution: uploadInfo.options.inputStandardization.maximumResolution
-            ) { inspectionResult, inputDuration, inspectionError in
+            let inspectionToken = UploadInputInspectionOperationRegistry.Token()
+            let operation = UploadInputInspectionOperation {
+                [weak self] inspectionResult, inputDuration, inspectionError in
+                guard let self else { return }
+                guard self.inputInspectionOperations.claimCompletion(
+                    for: inspectionToken
+                ) else { return }
                 self.inspectionResult = inspectionResult
 
                 switch (inspectionResult, inspectionError) {
@@ -579,6 +583,15 @@ public final class DirectUpload {
                     )
                 }
             }
+            inputInspectionOperations.register(
+                operation,
+                for: inspectionToken
+            )
+            inputInspector.performInspection(
+                sourceInput: input.sourceAsset,
+                maximumResolution: uploadInfo.options.inputStandardization.maximumResolution,
+                operation: operation
+            )
         }
     }
 
@@ -742,6 +755,7 @@ public final class DirectUpload {
             ))
         }
         
+        inputInspectionOperations.cancelActive()
         fileWorker?.cancel()
         uploadManager.acknowledgeUpload(id: id)
         input.processUploadCancellation()
