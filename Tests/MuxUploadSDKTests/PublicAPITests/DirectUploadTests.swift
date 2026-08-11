@@ -141,7 +141,7 @@ class DirectUploadTests: XCTestCase {
                 registry.claimCompletion(for: token)
             }
             let cancellationTask = Task.detached {
-                registry.cancelActive()
+                registry.cancel(for: token)
             }
             let completionClaimed = await completionTask.value
             let cancellationClaimed = await cancellationTask.value
@@ -157,6 +157,106 @@ class DirectUploadTests: XCTestCase {
                 "Cancellation must reach the operation only when it wins the claim"
             )
         }
+    }
+
+    func testCancellingPreviousInspectionDoesNotCancelReplacement() {
+        let registry = UploadInputInspectionOperationRegistry()
+        let previousToken = UploadInputInspectionOperationRegistry.Token()
+        let replacementToken = UploadInputInspectionOperationRegistry.Token()
+        let previousOperation = UploadInputInspectionOperation { _, _, _ in }
+        let replacementOperation = UploadInputInspectionOperation { _, _, _ in }
+
+        registry.register(previousOperation, for: previousToken)
+        registry.register(replacementOperation, for: replacementToken)
+
+        XCTAssertFalse(registry.cancel(for: previousToken))
+        XCTAssertTrue(previousOperation.isCancelled)
+        XCTAssertFalse(replacementOperation.isCancelled)
+        XCTAssertTrue(registry.cancel(for: replacementToken))
+        XCTAssertTrue(replacementOperation.isCancelled)
+    }
+
+    func testCancelAndRestartInvalidateClaimedInspectionTransportTransition() throws {
+        let input = try UploadInput.mockReadyInput()
+        let inspector = MockUploadInputInspector()
+        inspector.shouldDeferCompletion = true
+        let factoryEntered = expectation(
+            description: "Old attempt began worker creation"
+        )
+        let completionFinished = expectation(
+            description: "Inspection completion finished"
+        )
+        let cancellationAttempted = expectation(
+            description: "Cancellation was invoked"
+        )
+        let cancellationFinished = expectation(
+            description: "Cancellation finished"
+        )
+        let cancellationReported = expectation(
+            description: "Cancellation was reported after cleanup"
+        )
+        let allowWorkerCreation = DispatchSemaphore(value: 0)
+        let uploadManager = DirectUploadManager()
+        let upload = DirectUpload(
+            input: input,
+            uploadManager: uploadManager,
+            inputInspector: inspector,
+            fileWorkerFactory: { uploadInfo, inputFileURL, file, startingByte in
+                factoryEntered.fulfill()
+                allowWorkerCreation.wait()
+                return ChunkedFileUploader(
+                    uploadInfo: uploadInfo,
+                    inputFileURL: inputFileURL,
+                    file: file,
+                    startingByte: startingByte
+                )
+            }
+        )
+        upload.resultHandler = { result in
+            guard case .failure(let error) = result,
+                  error.kind == .cancelled else {
+                return XCTFail("Expected cancellation failure")
+            }
+            XCTAssertNil(upload.fileWorker)
+            guard case .ready = upload.inputStatus else {
+                return XCTFail("Expected cleanup before cancellation reporting")
+            }
+            cancellationReported.fulfill()
+        }
+
+        upload.start()
+
+        DispatchQueue.global().async {
+            inspector.completeDeferredInspection()
+            completionFinished.fulfill()
+        }
+        wait(for: [factoryEntered], timeout: 1.0)
+
+        DispatchQueue.global().async {
+            cancellationAttempted.fulfill()
+            upload.cancel()
+            cancellationFinished.fulfill()
+        }
+        wait(for: [cancellationAttempted], timeout: 1.0)
+        wait(
+            for: [cancellationFinished, cancellationReported],
+            timeout: 1.0
+        )
+
+        upload.start()
+        guard case .preparing = upload.inputStatus else {
+            return XCTFail("Expected the new attempt to remain under inspection")
+        }
+
+        allowWorkerCreation.signal()
+        wait(for: [completionFinished], timeout: 1.0)
+
+        XCTAssertNil(upload.fileWorker)
+        XCTAssertTrue(uploadManager.allManagedDirectUploads().isEmpty)
+        guard case .preparing = upload.inputStatus else {
+            return XCTFail("Expected the old attempt not to advance the new attempt")
+        }
+        upload.cancel()
     }
 
     func testInputInspectionFailure() throws {

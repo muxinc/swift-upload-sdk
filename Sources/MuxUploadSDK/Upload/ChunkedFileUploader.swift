@@ -91,6 +91,9 @@ class ChunkedFileUploader {
         case .uploading(_): do {
             notifyStateFromMain(.canceled)
         }
+        case .ready: fallthrough
+        case .paused:
+            currentState = .canceled
         default: do {}
         }
     }

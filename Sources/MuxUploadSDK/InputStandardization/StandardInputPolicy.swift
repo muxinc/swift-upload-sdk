@@ -239,7 +239,7 @@ extension StandardInputPolicyProfile {
 }
 
 struct StandardInputPolicyEvaluation: Equatable {
-    enum Requirement: CaseIterable, Equatable {
+    enum Requirement: CaseIterable, Hashable {
         case videoCodec
         case videoResolution
         case frameRate
