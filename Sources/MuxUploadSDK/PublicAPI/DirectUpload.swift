@@ -190,8 +190,12 @@ public final class DirectUpload {
     private let inputInspectionOperations = UploadInputInspectionOperationRegistry()
     private let inputStandardizer: UploadInputStandardizing
     private let lifecycleLock = NSLock()
-    private var cancellationRequested = false
+    private var activeAttempt: UploadAttempt?
     private let fileWorkerFactory: FileWorkerFactory
+
+    private struct UploadAttempt: Equatable {
+        let id = UUID()
+    }
 
     typealias FileWorkerFactory = (
         UploadInfo,
@@ -293,6 +297,31 @@ public final class DirectUpload {
             file: file,
             startingByte: startingByte
         )
+    }
+
+    private func isActive(_ attempt: UploadAttempt) -> Bool {
+        lifecycleLock.lock()
+        defer { lifecycleLock.unlock() }
+        return activeAttempt == attempt
+    }
+
+    /// Mutates input state while lifecycle ownership is locked, then returns
+    /// the corresponding client notification for delivery after unlocking.
+    private func transitionInputWithoutNotifying(
+        _ transition: (inout UploadInput) -> Void
+    ) -> (() -> Void)? {
+        let previousStatus = input.status
+        let statusHandler = inputStatusHandler
+        inputStatusHandler = nil
+        transition(&input)
+        inputStatusHandler = statusHandler
+
+        guard previousStatus != input.status, let statusHandler else {
+            return nil
+        }
+
+        let status = inputStatus
+        return { statusHandler(status) }
     }
 
     internal convenience init(
@@ -417,22 +446,42 @@ public final class DirectUpload {
 
         // Start a new upload
 
+        let attempt = UploadAttempt()
+        lifecycleLock.lock()
+        let canStart: Bool
+        let startNotification: (() -> Void)?
         if case UploadInput.Status.ready = input.status {
-            lifecycleLock.lock()
-            cancellationRequested = false
-            lifecycleLock.unlock()
-            input.status = .started(input.sourceAsset, uploadInfo)
-            startInspection(sourceAsset: input.sourceAsset)
+            activeAttempt = attempt
+            startNotification = transitionInputWithoutNotifying { input in
+                input.status = .started(input.sourceAsset, input.uploadInfo)
+            }
+            canStart = true
+        } else {
+            startNotification = nil
+            canStart = false
+        }
+        lifecycleLock.unlock()
+
+        if canStart {
+            startNotification?()
+            startInspection(
+                sourceAsset: input.sourceAsset,
+                attempt: attempt
+            )
         } else if forceRestart {
             cancel(notifyCaller: false)
         }
     }
 
-    func startInspection(
-        sourceAsset: AVURLAsset
+    private func startInspection(
+        sourceAsset: AVURLAsset,
+        attempt: UploadAttempt
     ) {
         if !uploadInfo.options.inputStandardization.isRequested {
-            startNetworkTransport(videoFile: sourceAsset.url)
+            startNetworkTransport(
+                videoFile: sourceAsset.url,
+                attempt: attempt
+            )
         } else {
             let inputStandardizationStartTime = Date()
             let reporter = Reporter.shared
@@ -447,7 +496,6 @@ public final class DirectUpload {
                 atPath: input.sourceAsset.url.absoluteString
             )) ?? 0
 
-            input.status = .underInspection(input.sourceAsset, uploadInfo)
             let inspectionToken = UploadInputInspectionOperationRegistry.Token()
             let operation = UploadInputInspectionOperation {
                 [weak self] inspectionResult, inputDuration, inspectionError in
@@ -455,6 +503,7 @@ public final class DirectUpload {
                 guard self.inputInspectionOperations.claimCompletion(
                     for: inspectionToken
                 ) else { return }
+                guard self.isActive(attempt) else { return }
                 self.inspectionResult = inspectionResult
 
                 switch (inspectionResult, inspectionError) {
@@ -465,7 +514,8 @@ public final class DirectUpload {
                         inputDuration: inputDuration,
                         inputSize: inputSize,
                         inputStandardizationStartTime: inputStandardizationStartTime,
-                        sourceAsset: sourceAsset
+                        sourceAsset: sourceAsset,
+                        attempt: attempt
                     )
                 case (.none, .some(let error)):
                     self.handleInspectionFailure(
@@ -473,7 +523,8 @@ public final class DirectUpload {
                         inputDuration: inputDuration,
                         inputSize: inputSize,
                         inputStandardizationStartTime: inputStandardizationStartTime,
-                        sourceAsset: sourceAsset
+                        sourceAsset: sourceAsset,
+                        attempt: attempt
                     )
                 case (.some(let result), .none):
                     if result.isStandardInput {
@@ -499,6 +550,11 @@ public final class DirectUpload {
                                 outputURL: outputURL
                             ) { sourceAsset, standardizedAsset, error in
 
+                                guard self.isActive(attempt) else {
+                                    self.inputStandardizer.acknowledgeCompletion(id: self.id)
+                                    return
+                                }
+
                                 if let _ = error {
                                     // Request upload confirmation
                                     // before proceeding. If handler unset,
@@ -508,17 +564,17 @@ public final class DirectUpload {
 
                                     if !shouldCancelUpload {
                                         self.startNetworkTransport(
-                                            videoFile: sourceAsset.url
+                                            videoFile: sourceAsset.url,
+                                            attempt: attempt
                                         )
                                     } else {
-                                        self.fileWorker?.cancel()
-                                        self.uploadManager.acknowledgeUpload(id: self.id)
-                                        self.input.processUploadCancellation()
+                                        self.cancelPreparation(for: attempt)
                                     }
                                 } else {
                                     self.startNetworkTransport(
                                         videoFile: outputURL,
-                                        duration: inputDuration
+                                        duration: inputDuration,
+                                        attempt: attempt
                                     )
                                 }
 
@@ -527,7 +583,8 @@ public final class DirectUpload {
 
                         } else {
                             self.startNetworkTransport(
-                                videoFile: sourceAsset.url
+                                videoFile: sourceAsset.url,
+                                attempt: attempt
                             )
                         }
                     } else {
@@ -556,6 +613,11 @@ public final class DirectUpload {
                             outputURL: outputURL
                         ) { sourceAsset, standardizedAsset, error in
 
+                            guard self.isActive(attempt) else {
+                                self.inputStandardizer.acknowledgeCompletion(id: self.id)
+                                return
+                            }
+
                             if let error {
                                 // Request upload confirmation
                                 // before proceeding. If handler unset,
@@ -577,12 +639,11 @@ public final class DirectUpload {
 
                                 if !shouldCancelUpload {
                                     self.startNetworkTransport(
-                                        videoFile: sourceAsset.url
+                                        videoFile: sourceAsset.url,
+                                        attempt: attempt
                                     )
                                 } else {
-                                    self.fileWorker?.cancel()
-                                    self.uploadManager.acknowledgeUpload(id: self.id)
-                                    self.input.processUploadCancellation()
+                                    self.cancelPreparation(for: attempt)
                                 }
                             } else {
                                 reporter.reportUploadInputStandardizationSuccess(
@@ -597,7 +658,8 @@ public final class DirectUpload {
 
                                 self.startNetworkTransport(
                                     videoFile: outputURL,
-                                    duration: inputDuration
+                                    duration: inputDuration,
+                                    attempt: attempt
                                 )
                             }
 
@@ -610,14 +672,28 @@ public final class DirectUpload {
                         inputDuration: inputDuration,
                         inputSize: inputSize,
                         inputStandardizationStartTime: inputStandardizationStartTime,
-                        sourceAsset: sourceAsset
+                        sourceAsset: sourceAsset,
+                        attempt: attempt
                     )
                 }
+            }
+
+            lifecycleLock.lock()
+            guard activeAttempt == attempt else {
+                lifecycleLock.unlock()
+                operation.cancel()
+                return
+            }
+            let inspectionNotification = transitionInputWithoutNotifying { input in
+                input.status = .underInspection(input.sourceAsset, input.uploadInfo)
             }
             inputInspectionOperations.register(
                 operation,
                 for: inspectionToken
             )
+            lifecycleLock.unlock()
+
+            inspectionNotification?()
             inputInspector.performInspection(
                 sourceInput: input.sourceAsset,
                 maximumResolution: uploadInfo.options.inputStandardization.maximumResolution,
@@ -626,13 +702,15 @@ public final class DirectUpload {
         }
     }
 
-    func handleInspectionFailure(
+    private func handleInspectionFailure(
         inspectionError: Error,
         inputDuration: CMTime,
         inputSize: UInt64,
         inputStandardizationStartTime: Date,
-        sourceAsset: AVURLAsset
+        sourceAsset: AVURLAsset,
+        attempt: UploadAttempt
     ) {
+        guard isActive(attempt) else { return }
         let reporter = Reporter.shared
         // Request upload confirmation
         // before proceeding. If handler unset,
@@ -654,13 +732,32 @@ public final class DirectUpload {
 
         if !shouldCancelUpload {
             self.startNetworkTransport(
-                videoFile: sourceAsset.url
+                videoFile: sourceAsset.url,
+                attempt: attempt
             )
         } else {
-            self.fileWorker?.cancel()
-            self.uploadManager.acknowledgeUpload(id: self.id)
-            self.input.processUploadCancellation()
+            cancelPreparation(for: attempt)
         }
+    }
+
+    private func cancelPreparation(for attempt: UploadAttempt) {
+        lifecycleLock.lock()
+        guard activeAttempt == attempt else {
+            lifecycleLock.unlock()
+            return
+        }
+
+        activeAttempt = nil
+        let fileWorker = self.fileWorker
+        self.fileWorker = nil
+        uploadManager.acknowledgeUpload(id: id)
+        let cancellationNotification = transitionInputWithoutNotifying { input in
+            input.processUploadCancellation()
+        }
+        lifecycleLock.unlock()
+
+        fileWorker?.cancel()
+        cancellationNotification?()
     }
 
     func readyForTransport() -> Bool {
@@ -682,10 +779,11 @@ public final class DirectUpload {
         }
     }
 
-    func startNetworkTransport(
-        videoFile: URL
+    private func startNetworkTransport(
+        videoFile: URL,
+        attempt: UploadAttempt
     ) {
-        guard readyForTransport() else {
+        guard isActive(attempt), readyForTransport() else {
             SDKLogger.logger?.info("Tried to start network transport before being ready")
             return
         }
@@ -702,7 +800,7 @@ public final class DirectUpload {
         )
 
         lifecycleLock.lock()
-        guard !cancellationRequested && readyForTransport() else {
+        guard activeAttempt == attempt && readyForTransport() else {
             lifecycleLock.unlock()
             fileWorker.cancel()
             return
@@ -712,9 +810,6 @@ public final class DirectUpload {
             InternalUploaderDelegate { [self] state in handleStateUpdate(state) }
         )
         self.fileWorker = fileWorker
-        fileWorker.start()
-        lifecycleLock.unlock()
-
         uploadManager.registerUpload(self)
         let transportStatus = TransportStatus(
             progress: fileWorker.currentState.progress ?? Progress(),
@@ -722,16 +817,23 @@ public final class DirectUpload {
             startTime: Date().timeIntervalSince1970,
             isPaused: false
         )
-        self.input.processStartNetworkTransport(
-            startingTransportStatus: transportStatus
-        )
+        let transportNotification = transitionInputWithoutNotifying { input in
+            input.processStartNetworkTransport(
+                startingTransportStatus: transportStatus
+            )
+        }
+        lifecycleLock.unlock()
+
+        fileWorker.start()
+        transportNotification?()
     }
 
-    func startNetworkTransport(
+    private func startNetworkTransport(
         videoFile: URL,
-        duration: CMTime
+        duration: CMTime,
+        attempt: UploadAttempt
     ) {
-        guard readyForTransport() else {
+        guard isActive(attempt), readyForTransport() else {
             return
         }
 
@@ -745,7 +847,7 @@ public final class DirectUpload {
         )
 
         lifecycleLock.lock()
-        guard !cancellationRequested && readyForTransport() else {
+        guard activeAttempt == attempt && readyForTransport() else {
             lifecycleLock.unlock()
             fileWorker.cancel()
             return
@@ -755,9 +857,6 @@ public final class DirectUpload {
             InternalUploaderDelegate { [self] state in handleStateUpdate(state) }
         )
         self.fileWorker = fileWorker
-        fileWorker.start(duration: duration)
-        lifecycleLock.unlock()
-
         uploadManager.registerUpload(self)
         let transportStatus = TransportStatus(
             progress: fileWorker.currentState.progress ?? Progress(),
@@ -765,9 +864,15 @@ public final class DirectUpload {
             startTime: Date().timeIntervalSince1970,
             isPaused: false
         )
-        self.input.processStartNetworkTransport(
-            startingTransportStatus: transportStatus
-        )
+        let transportNotification = transitionInputWithoutNotifying { input in
+            input.processStartNetworkTransport(
+                startingTransportStatus: transportStatus
+            )
+        }
+        lifecycleLock.unlock()
+
+        fileWorker.start(duration: duration)
+        transportNotification?()
     }
     
     
@@ -790,6 +895,7 @@ public final class DirectUpload {
     }
     
     private func cancel(notifyCaller: Bool) {
+        lifecycleLock.lock()
         let cancellationHandler = notifyCaller && !isUploadComplete() && isUploadStarted()
             ? resultHandler
             : nil
@@ -803,16 +909,18 @@ public final class DirectUpload {
         progressHandler = nil
         resultHandler = nil
 
-        lifecycleLock.lock()
-        cancellationRequested = true
+        activeAttempt = nil
         let fileWorker = self.fileWorker
         self.fileWorker = nil
+        uploadManager.acknowledgeUpload(id: id)
+        let cancellationNotification = transitionInputWithoutNotifying { input in
+            input.processUploadCancellation()
+        }
         lifecycleLock.unlock()
 
         inputInspectionOperations.cancelActive()
         fileWorker?.cancel()
-        uploadManager.acknowledgeUpload(id: id)
-        input.processUploadCancellation()
+        cancellationNotification?()
 
         cancellationHandler?(.failure(cancellationError))
     }
