@@ -43,11 +43,82 @@ public final class DirectUploadManager {
             hasher.combine(ObjectIdentifier(upload))
         }
     }
-    
-    private var uploadsByID: [String : UploadStorage] = [:]
-    private var uploadsUpdateDelegatesByToken: [ObjectIdentifier : any DirectUploadManagerDelegate] = [:]
+
+    private struct NotificationSnapshot {
+        let delegates: [any DirectUploadManagerDelegate]
+        let uploads: [DirectUpload]
+    }
+
+    /// Owns the manager's shared in-memory state and makes synchronized access
+    /// the only available access. The lock is not recursive, so methods return
+    /// snapshots and never call upload workers or delegates while holding it.
+    private final class LockedStorage {
+        private let lock = NSLock()
+        private var _unsafeUploadsByID: [String: UploadStorage] = [:]
+        private var _unsafeDelegatesByToken: [ObjectIdentifier: any DirectUploadManagerDelegate] = [:]
+
+        func upload(ofFile url: URL) -> DirectUpload? {
+            allUploads().first { $0.videoFile == url }
+        }
+
+        func allUploads() -> [DirectUpload] {
+            withLock {
+                Array(_unsafeUploadsByID.values.map(\.upload))
+            }
+        }
+
+        func insert(_ upload: DirectUpload) {
+            withLock {
+                _unsafeUploadsByID[upload.id] = UploadStorage(upload: upload)
+            }
+        }
+
+        func removeUpload(forID id: String) -> DirectUpload? {
+            withLock {
+                _unsafeUploadsByID.removeValue(forKey: id)?.upload
+            }
+        }
+
+        func addDelegate(_ delegate: any DirectUploadManagerDelegate) {
+            withLock {
+                _unsafeDelegatesByToken[ObjectIdentifier(delegate)] = delegate
+            }
+        }
+
+        func removeDelegate(_ delegate: any DirectUploadManagerDelegate) {
+            withLock {
+                _unsafeDelegatesByToken.removeValue(
+                    forKey: ObjectIdentifier(delegate)
+                )
+            }
+        }
+
+        func notificationSnapshot() -> NotificationSnapshot {
+            withLock {
+                NotificationSnapshot(
+                    delegates: Array(_unsafeDelegatesByToken.values),
+                    uploads: Array(_unsafeUploadsByID.values.map(\.upload))
+                )
+            }
+        }
+
+        /// Synchronous on purpose. Taking a lock directly in an `async`
+        /// function risks suspending while holding it, which Swift 6 rejects.
+        @discardableResult
+        private func withLock<T>(_ body: () -> T) -> T {
+            lock.withLock(body)
+        }
+    }
+
+    private let storage = LockedStorage()
     private let uploadActor: UploadCacheActor
-    private lazy var uploaderDelegate: FileUploaderDelegate = FileUploaderDelegate(manager: self)
+
+    /// A function makes it explicit that every call creates a new value. A
+    /// shared `lazy var` would be unsafe because lazy initialization is not
+    /// atomic.
+    private func makeUploaderDelegate() -> FileUploaderDelegate {
+        FileUploaderDelegate(manager: self)
+    }
 
     init(uploadActor: UploadCacheActor = UploadCacheActor()) {
         self.uploadActor = uploadActor
@@ -57,13 +128,7 @@ public final class DirectUploadManager {
     /// to track and control its state.
     /// Returns nil if there was no upload in progress for the given file.
     public func startedDirectUpload(ofFile url: URL) -> DirectUpload? {
-        for upload in uploadsByID.values.map(\.upload) {
-            if upload.videoFile == url {
-                return upload
-            }
-        }
-
-        return nil
+        storage.upload(ofFile: url)
     }
     
     /// Returns all currently-managed uploads that are
@@ -71,8 +136,7 @@ public final class DirectUploadManager {
     /// or uploads that completed before the most recent
     /// application termination are omitted.
     public func allManagedDirectUploads() -> [DirectUpload] {
-        // Sort upload list for consistent ordering
-        return Array(uploadsByID.values.map(\.upload))
+        storage.allUploads()
     }
 
     /// Attempts to resume an upload that was previously paused or interrupted by process death.
@@ -80,9 +144,14 @@ public final class DirectUploadManager {
     public func resumeDirectUpload(ofFile url: URL) async -> DirectUpload? {
         let fileUploader = await uploadActor.getUpload(ofFileAt: url)
         if let nonNilUploader = fileUploader {
-            nonNilUploader.addDelegate(withToken: UUID().uuidString, uploaderDelegate)
+            nonNilUploader.addDelegate(
+                withToken: UUID().uuidString,
+                makeUploaderDelegate()
+            )
             let upload = DirectUpload(wrapping: nonNilUploader, uploadManager: self)
-            uploadsByID.updateValue(UploadStorage(upload: upload), forKey: upload.id)
+
+            storage.insert(upload)
+
             notifyDelegates()
             return upload
         } else {
@@ -106,26 +175,31 @@ public final class DirectUploadManager {
     public func resumeAllDirectUploads() {
         Task.detached { [self] in
             for upload in await uploadActor.getAllUploads() {
-                upload.addDelegate(withToken: UUID().uuidString, uploaderDelegate)
+                upload.addDelegate(
+                    withToken: UUID().uuidString,
+                    makeUploaderDelegate()
+                )
             }
         }
     }
     
     /// Adds a ``DirectUploadManagerDelegate``. You can add as many of these as you like.
     public func addDelegate<Delegate: DirectUploadManagerDelegate>(_ delegate: Delegate) {
-        uploadsUpdateDelegatesByToken[ObjectIdentifier(delegate)] = delegate
+        storage.addDelegate(delegate)
     }
-    
+
     /// Removes an ``DirectUploadManagerDelegate``
     public func removeDelegate<Delegate: DirectUploadManagerDelegate>(_ delegate: Delegate) {
-        uploadsUpdateDelegatesByToken.removeValue(forKey: ObjectIdentifier(delegate))
+        storage.removeDelegate(delegate)
     }
-    
+
     internal func acknowledgeUpload(id: String) {
-        if let upload = uploadsByID[id]?.upload {
-            uploadsByID.removeValue(forKey: id)
-            upload.fileWorker?.cancel()
-        }
+        let upload = storage.removeUpload(forID: id)
+
+        // Reenters this class via the uploader's delegate callbacks, so it has
+        // to happen after unlocking.
+        upload?.fileWorker?.cancel()
+
         Task.detached {
             await self.uploadActor.remove(uploadID: id)
             self.notifyDelegates()
@@ -150,8 +224,12 @@ public final class DirectUploadManager {
             return
         }
 
-        uploadsByID.updateValue(UploadStorage(upload: upload), forKey: upload.id)
-        fileWorker.addDelegate(withToken: UUID().uuidString, uploaderDelegate)
+        storage.insert(upload)
+
+        fileWorker.addDelegate(
+            withToken: UUID().uuidString,
+            makeUploaderDelegate()
+        )
         self.notifyDelegates()
         Task.detached {
             await self.uploadActor.updateUpload(
@@ -163,14 +241,16 @@ public final class DirectUploadManager {
     }
     
     private func notifyDelegates() {
-        Task.detached {
-            await MainActor.run {
-                let delegates = self.uploadsUpdateDelegatesByToken.values
-                let allManagedUploads = self.allManagedDirectUploads()
+        Task { @MainActor in
+            // No await between snapshot and delivery: the main actor is serial,
+            // so the last notification to arrive also holds the newest
+            // snapshot. Snapshotting before the hop lets notifications deliver
+            // out of order and the upload list appear to move backwards.
+            let snapshot = self.storage.notificationSnapshot()
 
-                for delegate in delegates {
-                    delegate.didUpdate(managedDirectUploads: allManagedUploads)
-                }
+            // Unlocked by now, so a delegate may call back in.
+            for delegate in snapshot.delegates {
+                delegate.didUpdate(managedDirectUploads: snapshot.uploads)
             }
         }
     }
