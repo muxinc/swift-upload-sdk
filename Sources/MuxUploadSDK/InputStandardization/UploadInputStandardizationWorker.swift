@@ -112,12 +112,143 @@ final class UploadInputStandardizationWorker {
         }
     }
 
+    final class TransferGroup {
+        private let lock = NSLock()
+        private let dispatchGroup = DispatchGroup()
+        private var unfinishedTrackIDs: Set<Int>
+        private var stopping = false
+        private var failed = false
+
+        init(trackCount: Int) {
+            unfinishedTrackIDs = Set(0..<trackCount)
+            for _ in 0..<trackCount {
+                dispatchGroup.enter()
+            }
+        }
+
+        var shouldContinue: Bool {
+            lock.lock()
+            defer { lock.unlock() }
+            return !stopping
+        }
+
+        var didFail: Bool {
+            lock.lock()
+            defer { lock.unlock() }
+            return failed
+        }
+
+        func stop(failed: Bool = false) -> [Int] {
+            lock.lock()
+            stopping = true
+            self.failed = self.failed || failed
+            let trackIDs = Array(unfinishedTrackIDs)
+            lock.unlock()
+            return trackIDs
+        }
+
+        func claimFinish(trackID: Int) -> Bool {
+            lock.lock()
+            let claimed = unfinishedTrackIDs.remove(trackID) != nil
+            lock.unlock()
+            return claimed
+        }
+
+        func leave() {
+            dispatchGroup.leave()
+        }
+
+        func notify(queue: DispatchQueue, completion: @escaping () -> Void) {
+            dispatchGroup.notify(queue: queue, execute: completion)
+        }
+    }
+
+    private final class TransferTrack {
+        let id: Int
+        let output: AVAssetReaderOutput
+        let input: AVAssetWriterInput
+        let queue: DispatchQueue
+
+        init(
+            id: Int,
+            output: AVAssetReaderOutput,
+            input: AVAssetWriterInput,
+            queue: DispatchQueue
+        ) {
+            self.id = id
+            self.output = output
+            self.input = input
+            self.queue = queue
+        }
+    }
+
+    private final class TransferCoordinator {
+        let group: TransferGroup
+        private let tracks: [TransferTrack]
+
+        init(tracks: [TransferTrack]) {
+            self.tracks = tracks
+            group = TransferGroup(trackCount: tracks.count)
+        }
+
+        func start() {
+            for track in tracks {
+                let trackBox = UncheckedSendableBox(track)
+                let coordinatorBox = UncheckedSendableBox(self)
+                track.input.requestMediaDataWhenReady(on: track.queue) {
+                    let track = trackBox.value
+                    let coordinator = coordinatorBox.value
+                    guard coordinator.group.shouldContinue else { return }
+
+                    while track.input.isReadyForMoreMediaData,
+                          coordinator.group.shouldContinue {
+                        guard let sampleBuffer = track.output.copyNextSampleBuffer() else {
+                            coordinator.finish(track: track)
+                            return
+                        }
+                        guard track.input.append(sampleBuffer) else {
+                            coordinator.stop(failed: true)
+                            return
+                        }
+                    }
+                }
+            }
+        }
+
+        func stop(failed: Bool = false) {
+            let unfinishedTrackIDs = group.stop(failed: failed)
+            for track in tracks where unfinishedTrackIDs.contains(track.id) {
+                let trackBox = UncheckedSendableBox(track)
+                let coordinatorBox = UncheckedSendableBox(self)
+                track.queue.async {
+                    coordinatorBox.value.finish(track: trackBox.value)
+                }
+            }
+        }
+
+        private func finish(track: TransferTrack) {
+            guard group.claimFinish(trackID: track.id) else { return }
+            track.input.markAsFinished()
+            group.leave()
+        }
+    }
+
     private let stateLock = NSLock()
+    private let lifecycleQueue = DispatchQueue(
+        label: "com.mux.upload-sdk.standardization.lifecycle",
+        qos: .userInitiated
+    )
     private var state: State = .active
     private var reader: AVAssetReader?
     private var writer: AVAssetWriter?
+    private var transferCoordinator: TransferCoordinator?
     private var outputURL: URL?
     private var ownsOutputFile = false
+    private let transferDidStart: (() -> Void)?
+
+    init(transferDidStart: (() -> Void)? = nil) {
+        self.transferDidStart = transferDidStart
+    }
 
     func standardize(
         sourceAsset: AVURLAsset,
@@ -239,6 +370,21 @@ final class UploadInputStandardizationWorker {
             return
         }
         state = .cancelled
+        stateLock.unlock()
+
+        let worker = UncheckedSendableBox(self)
+        lifecycleQueue.async {
+            worker.value.cancelOnLifecycleQueue()
+        }
+    }
+
+    private func cancelOnLifecycleQueue() {
+        stateLock.lock()
+        if let transferCoordinator {
+            stateLock.unlock()
+            transferCoordinator.stop()
+            return
+        }
         let reader = self.reader
         let writer = self.writer
         let outputURL = self.outputURL
@@ -300,6 +446,34 @@ final class UploadInputStandardizationWorker {
     }
 
     private func convert(
+        sourceAsset: AVURLAsset,
+        videoTrack: AVAssetTrack,
+        audioTrack: AVAssetTrack?,
+        audioProperties: AudioProperties?,
+        properties: LoadedAssetProperties,
+        rescalingDetails: UploadInputFormatInspectionResult.RescalingDetails,
+        outputURL: URL,
+        completion: @escaping Completion
+    ) {
+        let work = UncheckedSendableBox { [weak self] in
+            guard let self, self.isActive else { return }
+            self.convertOnLifecycleQueue(
+                sourceAsset: sourceAsset,
+                videoTrack: videoTrack,
+                audioTrack: audioTrack,
+                audioProperties: audioProperties,
+                properties: properties,
+                rescalingDetails: rescalingDetails,
+                outputURL: outputURL,
+                completion: completion
+            )
+        }
+        lifecycleQueue.async {
+            work.value()
+        }
+    }
+
+    private func convertOnLifecycleQueue(
         sourceAsset: AVURLAsset,
         videoTrack: AVAssetTrack,
         audioTrack: AVAssetTrack?,
@@ -443,90 +617,129 @@ final class UploadInputStandardizationWorker {
         audioInput: AVAssetWriterInput?,
         completion: @escaping Completion
     ) {
-        let group = DispatchGroup()
-        let readerBox = UncheckedSendableBox(reader)
-
-        Self.transfer(
-            output: videoOutput,
-            input: videoInput,
-            reader: readerBox,
-            queue: DispatchQueue(
-                label: "com.mux.upload-sdk.standardization.video",
-                qos: .userInitiated
-            ),
-            group: group
-        )
+        var tracks = [
+            TransferTrack(
+                id: 0,
+                output: videoOutput,
+                input: videoInput,
+                queue: DispatchQueue(
+                    label: "com.mux.upload-sdk.standardization.video",
+                    qos: .userInitiated
+                )
+            )
+        ]
 
         if let audioOutput, let audioInput {
-            Self.transfer(
-                output: audioOutput,
-                input: audioInput,
-                reader: readerBox,
-                queue: DispatchQueue(
-                    label: "com.mux.upload-sdk.standardization.audio",
-                    qos: .userInitiated
-                ),
-                group: group
+            tracks.append(
+                TransferTrack(
+                    id: tracks.count,
+                    output: audioOutput,
+                    input: audioInput,
+                    queue: DispatchQueue(
+                        label: "com.mux.upload-sdk.standardization.audio",
+                        qos: .userInitiated
+                    )
+                )
             )
         }
 
-        group.notify(queue: .global(qos: .userInitiated)) { [weak self] in
-            guard let self, self.isActive else { return }
-            guard reader.status == .completed else {
-                writer.cancelWriting()
-                self.complete(
-                    sourceAsset: sourceAsset,
-                    error: reader.error ?? StandardizationError.conversionFailure,
-                    completion: completion
-                )
-                return
+        let coordinator = TransferCoordinator(tracks: tracks)
+        stateLock.lock()
+        let shouldStart = state == .active
+        if shouldStart {
+            transferCoordinator = coordinator
+        }
+        stateLock.unlock()
+
+        guard shouldStart else {
+            cancelOnLifecycleQueue()
+            return
+        }
+
+        let worker = UncheckedSendableBox(self)
+        let coordinatorBox = UncheckedSendableBox(coordinator)
+        coordinator.group.notify(queue: lifecycleQueue) {
+            worker.value.transferDidFinish(
+                coordinator: coordinatorBox.value,
+                sourceAsset: sourceAsset,
+                reader: reader,
+                writer: writer,
+                completion: completion
+            )
+        }
+        coordinator.start()
+        transferDidStart?()
+    }
+
+    private func transferDidFinish(
+        coordinator: TransferCoordinator,
+        sourceAsset: AVURLAsset,
+        reader: AVAssetReader,
+        writer: AVAssetWriter,
+        completion: @escaping Completion
+    ) {
+        stateLock.lock()
+        if transferCoordinator === coordinator {
+            transferCoordinator = nil
+        }
+        let state = self.state
+        stateLock.unlock()
+
+        guard state == .active else {
+            if state == .cancelled {
+                cancelOnLifecycleQueue()
             }
-            writer.finishWriting {
-                guard self.isActive else { return }
-                guard writer.status == .completed else {
-                    self.complete(
-                        sourceAsset: sourceAsset,
-                        error: writer.error ?? StandardizationError.conversionFailure,
-                        completion: completion
-                    )
-                    return
-                }
-                self.complete(
-                    sourceAsset: sourceAsset,
-                    standardizedAsset: AVURLAsset(url: writer.outputURL),
-                    completion: completion
+            return
+        }
+
+        guard !coordinator.group.didFail,
+              reader.status == .completed else {
+            reader.cancelReading()
+            writer.cancelWriting()
+            complete(
+                sourceAsset: sourceAsset,
+                error: writer.error
+                    ?? reader.error
+                    ?? StandardizationError.conversionFailure,
+                completion: completion
+            )
+            return
+        }
+
+        let worker = UncheckedSendableBox(self)
+        let sourceAssetBox = UncheckedSendableBox(sourceAsset)
+        let writerBox = UncheckedSendableBox(writer)
+        let completionBox = UncheckedSendableBox(completion)
+        writer.finishWriting {
+            worker.value.lifecycleQueue.async {
+                worker.value.finishWritingDidComplete(
+                    sourceAsset: sourceAssetBox.value,
+                    writer: writerBox.value,
+                    completion: completionBox.value
                 )
             }
         }
     }
 
-    private static func transfer(
-        output: AVAssetReaderOutput,
-        input: AVAssetWriterInput,
-        reader: UncheckedSendableBox<AVAssetReader>,
-        queue: DispatchQueue,
-        group: DispatchGroup
+    private func finishWritingDidComplete(
+        sourceAsset: AVURLAsset,
+        writer: AVAssetWriter,
+        completion: @escaping Completion
     ) {
-        let outputBox = UncheckedSendableBox(output)
-        let inputBox = UncheckedSendableBox(input)
-        group.enter()
-        input.requestMediaDataWhenReady(on: queue) {
-            let output = outputBox.value
-            let input = inputBox.value
-            while input.isReadyForMoreMediaData {
-                guard let sampleBuffer = output.copyNextSampleBuffer() else {
-                    input.markAsFinished()
-                    group.leave()
-                    return
-                }
-                guard input.append(sampleBuffer) else {
-                    reader.value.cancelReading()
-                    input.markAsFinished()
-                    group.leave()
-                    return
-                }
-            }
+        guard isActive else { return }
+        guard writer.status == .completed else {
+            complete(
+                sourceAsset: sourceAsset,
+                error: writer.error ?? StandardizationError.conversionFailure,
+                completion: completion
+            )
+            return
         }
+        complete(
+            sourceAsset: sourceAsset,
+            standardizedAsset: AVURLAsset(url: writer.outputURL),
+            completion: completion
+        )
     }
 
     private func complete(

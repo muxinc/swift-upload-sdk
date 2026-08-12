@@ -142,6 +142,40 @@ final class UploadInputStandardizerTests: XCTestCase {
         }
     }
 
+    func testTransferFailureStopsAndDrainsEveryTrackExactlyOnce() {
+        let group = UploadInputStandardizationWorker.TransferGroup(trackCount: 2)
+        let completionExpectation = expectation(
+            description: "All failed transfers drain"
+        )
+        group.notify(queue: .main) {
+            completionExpectation.fulfill()
+        }
+
+        XCTAssertEqual(Set(group.stop(failed: true)), Set([0, 1]))
+        XCTAssertFalse(group.shouldContinue)
+        XCTAssertTrue(group.didFail)
+
+        for trackID in [0, 1] {
+            XCTAssertTrue(group.claimFinish(trackID: trackID))
+            XCTAssertFalse(group.claimFinish(trackID: trackID))
+            group.leave()
+        }
+
+        wait(for: [completionExpectation], timeout: 1)
+    }
+
+    func testTransferCancellationDrainsWithoutReportingFailure() {
+        let group = UploadInputStandardizationWorker.TransferGroup(trackCount: 2)
+
+        XCTAssertEqual(Set(group.stop()), Set([0, 1]))
+        XCTAssertFalse(group.shouldContinue)
+        XCTAssertFalse(group.didFail)
+
+        for trackID in [0, 1] where group.claimFinish(trackID: trackID) {
+            group.leave()
+        }
+    }
+
     func testCancelReleasesWorkerAndSuppressesCompletion() {
         let worker = ControllableWorker()
         let standardizer = UploadInputStandardizer { worker }
@@ -272,6 +306,38 @@ final class UploadInputStandardizerTests: XCTestCase {
         }
     }
 
+    func testCatalogBackedCancellationDrainsActiveTransfers() throws {
+        let inputURL = try catalogFixtureURL(
+            id: "synthetic-standard-hevc-main10-sdr-2160p30-5-1"
+        )
+        let outputURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("nat487-cancel-\(UUID().uuidString).mp4")
+        defer { try? FileManager.default.removeItem(at: outputURL) }
+        let transferStarted = expectation(description: "Transfer starts")
+        let completionExpectation = expectation(
+            description: "Cancelled transfer does not complete"
+        )
+        completionExpectation.isInverted = true
+
+        weak var cancellableWorker: UploadInputStandardizationWorker?
+        let worker = UploadInputStandardizationWorker {
+            transferStarted.fulfill()
+            cancellableWorker?.cancel()
+        }
+        cancellableWorker = worker
+        worker.standardize(
+            sourceAsset: AVURLAsset(url: inputURL),
+            rescalingDetails: .init(),
+            outputURL: outputURL
+        ) { _, _, _ in
+            completionExpectation.fulfill()
+        }
+
+        wait(for: [transferStarted], timeout: 2)
+        wait(for: [completionExpectation], timeout: 0.5)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: outputURL.path))
+    }
+
     private func assertConversion(
         inputURL: URL,
         expectedCodec: AVVideoCodecType,
@@ -368,6 +434,21 @@ final class UploadInputStandardizerTests: XCTestCase {
             }
         }
         wait(for: [inspectionExpectation], timeout: 10)
+    }
+
+    private func catalogFixtureURL(id: String) throws -> URL {
+        let environment = ProcessInfo.processInfo.environment
+        guard let fixtureDirectory = environment["MUX_UPLOAD_MEDIA_FIXTURE_DIRECTORY"],
+              let catalogPath = environment["MUX_UPLOAD_MEDIA_FIXTURE_CATALOG"] else {
+            throw XCTSkip("External media fixture environment is not configured")
+        }
+        let catalog = try JSONDecoder().decode(
+            FixtureCatalog.self,
+            from: Data(contentsOf: URL(fileURLWithPath: catalogPath))
+        )
+        let fixture = try XCTUnwrap(catalog.fixtures.first { $0.id == id })
+        return URL(fileURLWithPath: fixtureDirectory)
+            .appendingPathComponent(fixture.canonicalFilename)
     }
 
     private func makeHEVCFormatDescription(
