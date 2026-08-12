@@ -922,6 +922,7 @@ public final class DirectUpload {
         if let cancelledAttempt {
             inputInspectionOperations.cancel(for: cancelledAttempt.inspectionToken)
         }
+        inputStandardizer.cancel(id: id)
         fileWorker?.cancel()
         cancellationNotification?()
 

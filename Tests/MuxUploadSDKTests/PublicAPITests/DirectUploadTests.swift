@@ -84,11 +84,13 @@ class DirectUploadTests: XCTestCase {
     func testCancelDuringInspectionCancelsOperationAndSuppressesCompletion() throws {
         let input = try UploadInput.mockReadyInput()
         let inspector = MockUploadInputInspector()
+        let standardizer = MockUploadInputStandardizer()
         inspector.shouldDeferCompletion = true
         let upload = DirectUpload(
             input: input,
             uploadManager: DirectUploadManager(),
-            inputInspector: inspector
+            inputInspector: inspector,
+            inputStandardizer: standardizer
         )
         let cancellationExpectation = expectation(
             description: "Expected cancellation result during inspection"
@@ -120,6 +122,7 @@ class DirectUploadTests: XCTestCase {
         inspector.completeDeferredInspection()
 
         XCTAssertTrue(operation.isCancelled)
+        XCTAssertEqual(standardizer.cancelCallCount, 1)
         XCTAssertNil(upload.fileWorker)
         guard case .ready = upload.inputStatus else {
             return XCTFail("Expected cancellation to reset the upload to ready")

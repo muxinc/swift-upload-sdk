@@ -10,10 +10,11 @@ import Foundation
 final class MockUploadInputStandardizer: UploadInputStandardizing {
     private(set) var standardizeCallCount = 0
     private(set) var acknowledgeCompletionCallCount = 0
+    private(set) var cancelCallCount = 0
 
     let error: Error
 
-    init(error: Error = StandardizationError.standardizedAssetExportFailure) {
+    init(error: Error = StandardizationError.conversionFailure) {
         self.error = error
     }
 
@@ -26,6 +27,10 @@ final class MockUploadInputStandardizer: UploadInputStandardizing {
     ) {
         standardizeCallCount += 1
         completion(sourceAsset, nil, error)
+    }
+
+    func cancel(id: String) {
+        cancelCallCount += 1
     }
 
     func acknowledgeCompletion(id: String) {

@@ -270,7 +270,7 @@ enum AVFoundationUploadInputMetadataReader {
         return .unknown
     }
 
-    private static func codecConfiguration(
+    static func codecConfiguration(
         codec: StandardInputVideoCodec,
         extensions: NSDictionary
     ) -> StandardInputPixelFormat? {
