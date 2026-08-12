@@ -106,9 +106,7 @@ public final class DirectUploadManager {
         /// function risks suspending while holding it, which Swift 6 rejects.
         @discardableResult
         private func withLock<T>(_ body: () -> T) -> T {
-            lock.lock()
-            defer { lock.unlock() }
-            return body()
+            lock.withLock(body)
         }
     }
 
