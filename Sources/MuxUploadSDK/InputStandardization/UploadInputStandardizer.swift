@@ -5,28 +5,37 @@
 import AVFoundation
 import Foundation
 
+struct UploadInputStandardizationToken: Equatable, Sendable {
+    private let id = UUID()
+}
+
 protocol UploadInputStandardizing: Sendable {
     func standardize(
         id: String,
+        token: UploadInputStandardizationToken,
         sourceAsset: AVURLAsset,
         rescalingDetails: UploadInputFormatInspectionResult.RescalingDetails,
         outputURL: URL
     ) async throws -> AVURLAsset
 
-    func cancel(id: String) async
+    func cancel(id: String, token: UploadInputStandardizationToken) async
 }
 
 actor UploadInputStandardizer: UploadInputStandardizing {
     private struct Entry {
-        let operationID: UUID
+        let token: UploadInputStandardizationToken
         let worker: UploadInputStandardizationWorking
     }
 
-    private let workerFactory: @Sendable () -> UploadInputStandardizationWorking
+    private let workerFactory: @Sendable (
+        UploadInputStandardizationToken
+    ) -> UploadInputStandardizationWorking
     private var entries: [String: Entry] = [:]
 
     init(
-        workerFactory: @escaping @Sendable () -> UploadInputStandardizationWorking = {
+        workerFactory: @escaping @Sendable (
+            UploadInputStandardizationToken
+        ) -> UploadInputStandardizationWorking = { _ in
             UploadInputStandardizationWorker()
         }
     ) {
@@ -35,14 +44,14 @@ actor UploadInputStandardizer: UploadInputStandardizing {
 
     func standardize(
         id: String,
+        token: UploadInputStandardizationToken,
         sourceAsset: AVURLAsset,
         rescalingDetails: UploadInputFormatInspectionResult.RescalingDetails,
         outputURL: URL
     ) async throws -> AVURLAsset {
-        let worker = workerFactory()
-        let operationID = UUID()
+        let worker = workerFactory(token)
         let previousWorker = entries.updateValue(
-            Entry(operationID: operationID, worker: worker),
+            Entry(token: token, worker: worker),
             forKey: id
         )?.worker
         await previousWorker?.cancel()
@@ -53,15 +62,16 @@ actor UploadInputStandardizer: UploadInputStandardizing {
                 rescalingDetails: rescalingDetails,
                 outputURL: outputURL
             )
-            removeWorker(id: id, operationID: operationID)
+            removeWorker(id: id, token: token)
             return result
         } catch {
-            removeWorker(id: id, operationID: operationID)
+            removeWorker(id: id, token: token)
             throw error
         }
     }
 
-    func cancel(id: String) async {
+    func cancel(id: String, token: UploadInputStandardizationToken) async {
+        guard entries[id]?.token == token else { return }
         let worker = entries.removeValue(forKey: id)?.worker
         await worker?.cancel()
     }
@@ -70,8 +80,8 @@ actor UploadInputStandardizer: UploadInputStandardizing {
         entries[id] != nil
     }
 
-    private func removeWorker(id: String, operationID: UUID) {
-        guard entries[id]?.operationID == operationID else { return }
+    private func removeWorker(id: String, token: UploadInputStandardizationToken) {
+        guard entries[id]?.token == token else { return }
         entries[id] = nil
     }
 }

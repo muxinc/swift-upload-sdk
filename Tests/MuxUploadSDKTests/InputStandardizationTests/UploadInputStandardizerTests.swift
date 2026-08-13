@@ -167,11 +167,13 @@ final class UploadInputStandardizerTests: XCTestCase {
 
     func testCancelReleasesWorkerAndSuppressesCompletion() async {
         let worker = ControllableWorker()
-        let standardizer = UploadInputStandardizer { worker }
+        let standardizer = UploadInputStandardizer { _ in worker }
         let id = UUID().uuidString
+        let token = UploadInputStandardizationToken()
         let task = Task {
             try await standardizer.standardize(
                 id: id,
+                token: token,
                 sourceAsset: AVURLAsset(
                     url: URL(fileURLWithPath: "/tmp/missing-nat487-input.mp4")
                 ),
@@ -180,7 +182,7 @@ final class UploadInputStandardizerTests: XCTestCase {
             )
         }
         await worker.waitUntilStarted()
-        await standardizer.cancel(id: id)
+        await standardizer.cancel(id: id, token: token)
 
         do {
             _ = try await task.value
@@ -194,6 +196,53 @@ final class UploadInputStandardizerTests: XCTestCase {
         let hasActiveWorker = await standardizer.hasWorker(id: id)
         XCTAssertEqual(cancellationCount, 1)
         XCTAssertFalse(hasActiveWorker)
+    }
+
+    func testStaleCancelDoesNotCancelReplacementWorker() async {
+        let firstToken = UploadInputStandardizationToken()
+        let replacementToken = UploadInputStandardizationToken()
+        let firstWorker = ControllableWorker()
+        let replacementWorker = ControllableWorker()
+        let standardizer = UploadInputStandardizer { token in
+            token == firstToken ? firstWorker : replacementWorker
+        }
+        let id = UUID().uuidString
+        let sourceAsset = AVURLAsset(
+            url: URL(fileURLWithPath: "/tmp/missing-nat487-input.mp4")
+        )
+
+        let firstTask = Task {
+            try await standardizer.standardize(
+                id: id,
+                token: firstToken,
+                sourceAsset: sourceAsset,
+                rescalingDetails: .init(),
+                outputURL: URL(fileURLWithPath: "/tmp/missing-nat487-first.mp4")
+            )
+        }
+        await firstWorker.waitUntilStarted()
+
+        let replacementTask = Task {
+            try await standardizer.standardize(
+                id: id,
+                token: replacementToken,
+                sourceAsset: sourceAsset,
+                rescalingDetails: .init(),
+                outputURL: URL(fileURLWithPath: "/tmp/missing-nat487-replacement.mp4")
+            )
+        }
+        await replacementWorker.waitUntilStarted()
+
+        await standardizer.cancel(id: id, token: firstToken)
+
+        let replacementCancellationCount = await replacementWorker.cancellationCount
+        let hasReplacementWorker = await standardizer.hasWorker(id: id)
+        XCTAssertEqual(replacementCancellationCount, 0)
+        XCTAssertTrue(hasReplacementWorker)
+
+        await standardizer.cancel(id: id, token: replacementToken)
+        _ = await firstTask.result
+        _ = await replacementTask.result
     }
 
     func testCancelledWorkerSuppressesCompletion() async {

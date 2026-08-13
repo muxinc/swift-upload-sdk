@@ -197,6 +197,7 @@ public final class DirectUpload {
     private struct UploadAttempt: Equatable {
         let id = UUID()
         let inspectionToken = UploadInputInspectionOperationRegistry.Token()
+        let standardizationToken = UploadInputStandardizationToken()
     }
 
     typealias FileWorkerFactory = (
@@ -573,6 +574,7 @@ public final class DirectUpload {
                                 do {
                                     _ = try await self.inputStandardizer.standardize(
                                         id: self.id,
+                                        token: attempt.standardizationToken,
                                         sourceAsset: sourceAsset,
                                         rescalingDetails: result.rescalingDetails,
                                         outputURL: outputURL
@@ -639,6 +641,7 @@ public final class DirectUpload {
                             do {
                                 _ = try await self.inputStandardizer.standardize(
                                     id: self.id,
+                                    token: attempt.standardizationToken,
                                     sourceAsset: sourceAsset,
                                     rescalingDetails: result.rescalingDetails,
                                     outputURL: outputURL
@@ -791,7 +794,10 @@ public final class DirectUpload {
 
         inputStandardizationTask?.cancel()
         Task {
-            await inputStandardizer.cancel(id: id)
+            await inputStandardizer.cancel(
+                id: id,
+                token: attempt.standardizationToken
+            )
         }
         fileWorker?.cancel()
         cancellationNotification?()
@@ -962,8 +968,13 @@ public final class DirectUpload {
             inputInspectionOperations.cancel(for: cancelledAttempt.inspectionToken)
         }
         inputStandardizationTask?.cancel()
-        Task {
-            await inputStandardizer.cancel(id: id)
+        if let cancelledAttempt {
+            Task {
+                await inputStandardizer.cancel(
+                    id: id,
+                    token: cancelledAttempt.standardizationToken
+                )
+            }
         }
         fileWorker?.cancel()
         cancellationNotification?()

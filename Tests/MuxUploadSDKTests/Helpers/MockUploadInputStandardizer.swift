@@ -24,6 +24,7 @@ actor MockUploadInputStandardizer: UploadInputStandardizing {
 
     func standardize(
         id: String,
+        token: UploadInputStandardizationToken,
         sourceAsset: AVURLAsset,
         rescalingDetails: UploadInputFormatInspectionResult.RescalingDetails,
         outputURL: URL
@@ -32,7 +33,7 @@ actor MockUploadInputStandardizer: UploadInputStandardizing {
         throw error
     }
 
-    func cancel(id: String) {
+    func cancel(id: String, token: UploadInputStandardizationToken) {
         cancelCallCount += 1
     }
 
