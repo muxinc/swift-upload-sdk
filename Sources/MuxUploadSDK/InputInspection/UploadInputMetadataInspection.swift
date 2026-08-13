@@ -41,6 +41,12 @@ struct AVFoundationVideoTrackMetadata {
     let preferredTransform: CGAffineTransform
     let nominalFrameRate: Float
     let estimatedDataRate: Float
+    var segments: [AVFoundationVideoTrackSegmentMetadata]? = nil
+}
+
+struct AVFoundationVideoTrackSegmentMetadata {
+    let timeMapping: CMTimeMapping
+    let isEmpty: Bool
 }
 
 struct AVFoundationAudioTrackMetadata {
@@ -90,6 +96,7 @@ enum AVFoundationUploadInputMetadataReader {
         metadata.videoTransform = inspectVideoTransform(videoTrack.preferredTransform)
         facts.frameRate = positiveFinite(Double(videoTrack.nominalFrameRate))
         facts.averageBitrate = positiveFiniteInteger(Double(videoTrack.estimatedDataRate))
+        facts.editList = inspectEditList(videoTrack.segments)
 
         let extensions = (CMFormatDescriptionGetExtensions(formatDescription)
             as NSDictionary?) ?? NSDictionary()
@@ -104,6 +111,41 @@ enum AVFoundationUploadInputMetadataReader {
         )
 
         return Result(mediaFacts: facts, metadata: metadata)
+    }
+
+    static func inspectEditList(
+        _ segments: [AVFoundationVideoTrackSegmentMetadata]?
+    ) -> StandardInputFact<StandardInputEditList> {
+        guard let segments, !segments.isEmpty else {
+            return .unknown
+        }
+
+        for segment in segments {
+            let mapping = segment.timeMapping
+            guard mapping.source.start.isNumeric,
+                  mapping.source.duration.isNumeric,
+                  mapping.target.start.isNumeric,
+                  mapping.target.duration.isNumeric,
+                  CMTimeCompare(mapping.target.duration, .zero) > 0,
+                  segment.isEmpty
+                    || CMTimeCompare(mapping.source.duration, .zero) > 0 else {
+                return .unknown
+            }
+        }
+
+        guard segments.count == 1, let segment = segments.first else {
+            return .known(.complex)
+        }
+        let mapping = segment.timeMapping
+        guard !segment.isEmpty,
+              CMTimeCompare(mapping.source.duration, mapping.target.duration) == 0,
+              CMTimeCompare(mapping.target.start, .zero) == 0 else {
+            return .known(.complex)
+        }
+
+        return CMTimeCompare(mapping.source.start, .zero) == 0
+            ? .known(.none)
+            : .known(.simple)
     }
 
     private static func inspectVideoCodec(

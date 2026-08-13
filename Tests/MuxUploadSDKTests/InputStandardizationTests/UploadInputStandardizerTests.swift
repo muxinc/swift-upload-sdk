@@ -3,6 +3,7 @@
 //
 
 import AVFoundation
+import VideoToolbox
 import XCTest
 
 @testable import MuxUploadSDK
@@ -98,6 +99,154 @@ final class UploadInputStandardizerTests: XCTestCase {
             ),
             kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange
         )
+    }
+
+    func testEncoderConfigurationNormalizesOnlyUnsupportedFrameRates() {
+        let lowResolution = CGSize(width: 1920, height: 1080)
+        let highResolution = CGSize(width: 2560, height: 1440)
+
+        XCTAssertEqual(
+            UploadInputStandardizationWorker.encoderConfiguration(
+                codec: .h264,
+                renderSize: lowResolution,
+                sourceFrameRate: 5,
+                decoderPixelFormat: kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange
+            ).outputFrameRate,
+            5
+        )
+        XCTAssertEqual(
+            UploadInputStandardizationWorker.encoderConfiguration(
+                codec: .h264,
+                renderSize: lowResolution,
+                sourceFrameRate: 4.999,
+                decoderPixelFormat: kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange
+            ).outputFrameRate,
+            30
+        )
+        XCTAssertEqual(
+            UploadInputStandardizationWorker.encoderConfiguration(
+                codec: .h264,
+                renderSize: lowResolution,
+                sourceFrameRate: 120,
+                decoderPixelFormat: kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange
+            ).outputFrameRate,
+            120
+        )
+        XCTAssertEqual(
+            UploadInputStandardizationWorker.encoderConfiguration(
+                codec: .h264,
+                renderSize: lowResolution,
+                sourceFrameRate: 121,
+                decoderPixelFormat: kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange
+            ).outputFrameRate,
+            30
+        )
+        XCTAssertEqual(
+            UploadInputStandardizationWorker.encoderConfiguration(
+                codec: .hevc,
+                renderSize: highResolution,
+                sourceFrameRate: 60,
+                decoderPixelFormat: kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange
+            ).outputFrameRate,
+            60
+        )
+        XCTAssertEqual(
+            UploadInputStandardizationWorker.encoderConfiguration(
+                codec: .hevc,
+                renderSize: highResolution,
+                sourceFrameRate: 60.001,
+                decoderPixelFormat: kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange
+            ).outputFrameRate,
+            30
+        )
+        XCTAssertEqual(
+            UploadInputStandardizationWorker.encoderConfiguration(
+                codec: .hevc,
+                renderSize: highResolution,
+                sourceFrameRate: .nan,
+                decoderPixelFormat: kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange
+            ).outputFrameRate,
+            30
+        )
+    }
+
+    func testEncoderConfigurationKeepsTargetsBelowPublishedLimits() {
+        let cases: [(
+            codec: AVVideoCodecType,
+            renderSize: CGSize,
+            pixelFormat: OSType,
+            averageBitRate: Int,
+            maximumBitRate: Int,
+            keyFrameInterval: TimeInterval,
+            profileLevel: String
+        )] = [
+            (
+                .h264,
+                CGSize(width: 1280, height: 720),
+                kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange,
+                5_000_000,
+                8_000_000,
+                18,
+                AVVideoProfileLevelH264HighAutoLevel
+            ),
+            (
+                .h264,
+                CGSize(width: 1920, height: 1080),
+                kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange,
+                7_000_000,
+                8_000_000,
+                18,
+                AVVideoProfileLevelH264HighAutoLevel
+            ),
+            (
+                .hevc,
+                CGSize(width: 2560, height: 1440),
+                kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange,
+                16_000_000,
+                20_000_000,
+                5.4,
+                kVTProfileLevel_HEVC_Main_AutoLevel as String
+            ),
+            (
+                .hevc,
+                CGSize(width: 3840, height: 2160),
+                kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange,
+                18_000_000,
+                20_000_000,
+                5.4,
+                kVTProfileLevel_HEVC_Main10_AutoLevel as String
+            )
+        ]
+
+        for testCase in cases {
+            let configuration = UploadInputStandardizationWorker
+                .encoderConfiguration(
+                    codec: testCase.codec,
+                    renderSize: testCase.renderSize,
+                    sourceFrameRate: 30,
+                    decoderPixelFormat: testCase.pixelFormat
+                )
+            XCTAssertEqual(
+                configuration.averageBitRate,
+                testCase.averageBitRate
+            )
+            XCTAssertEqual(
+                configuration.maximumBitRate,
+                testCase.maximumBitRate
+            )
+            XCTAssertLessThan(
+                configuration.averageBitRate,
+                configuration.maximumBitRate
+            )
+            XCTAssertEqual(
+                configuration.maximumKeyFrameInterval,
+                testCase.keyFrameInterval
+            )
+            XCTAssertEqual(
+                configuration.profileLevel,
+                testCase.profileLevel
+            )
+        }
     }
 
     func testRenderSizeDoesNotUpscale() throws {
@@ -337,35 +486,72 @@ final class UploadInputStandardizerTests: XCTestCase {
             id: String,
             codec: AVVideoCodecType,
             bitDepth: Int,
+            maximumResolution: DirectUploadOptions.InputStandardization.MaximumResolution,
             dimensions: CGSize,
+            constantFrameRate: Double?,
             audioChannels: UInt32
         )] = [
             (
                 "synthetic-standard-h264-sdr-2160p30-stereo",
                 .h264,
                 8,
-                CGSize(width: 1920, height: 1080),
+                .preset1280x720,
+                CGSize(width: 1280, height: 720),
+                30,
                 2
             ),
             (
                 "synthetic-standard-hevc-main-sdr-1440p30-stereo",
                 .hevc,
                 8,
-                CGSize(width: 1920, height: 1080),
+                .preset2560x1440,
+                CGSize(width: 2560, height: 1440),
+                30,
                 2
             ),
             (
                 "synthetic-standard-hevc-main10-sdr-2160p30-5-1",
                 .hevc,
                 10,
-                CGSize(width: 1920, height: 1080),
+                .preset3840x2160,
+                CGSize(width: 3840, height: 2160),
+                30,
                 6
             ),
             (
                 "synthetic-unsupported-prores-sdr-720p30-stereo",
                 .h264,
                 8,
+                .default,
                 CGSize(width: 1280, height: 720),
+                30,
+                2
+            ),
+            (
+                "synthetic-nonstandard-h264-sdr-1080p121-stereo",
+                .h264,
+                8,
+                .default,
+                CGSize(width: 1920, height: 1080),
+                30,
+                2
+            ),
+            (
+                "synthetic-nonstandard-h264-sdr-1080p-open-gop-stereo",
+                .h264,
+                8,
+                .default,
+                CGSize(width: 1920, height: 1080),
+                30,
+                2
+            ),
+            (
+                "nat480-hevc-sdr-4k-edit-list",
+                .hevc,
+                8,
+                .preset3840x2160,
+                CGSize(width: 2160, height: 3840),
+                nil,
                 2
             )
         ]
@@ -379,7 +565,9 @@ final class UploadInputStandardizerTests: XCTestCase {
                     .appendingPathComponent(fixture.canonicalFilename),
                 expectedCodec: testCase.codec,
                 expectedBitDepth: testCase.bitDepth,
+                maximumResolution: testCase.maximumResolution,
                 expectedDimensions: testCase.dimensions,
+                expectedConstantFrameRate: testCase.constantFrameRate,
                 expectedAudioChannels: testCase.audioChannels
             )
         }
@@ -418,7 +606,9 @@ final class UploadInputStandardizerTests: XCTestCase {
         inputURL: URL,
         expectedCodec: AVVideoCodecType,
         expectedBitDepth: Int,
+        maximumResolution: DirectUploadOptions.InputStandardization.MaximumResolution,
         expectedDimensions: CGSize,
+        expectedConstantFrameRate: Double?,
         expectedAudioChannels: UInt32
     ) async throws {
         let outputURL = FileManager.default.temporaryDirectory
@@ -429,7 +619,7 @@ final class UploadInputStandardizerTests: XCTestCase {
         let standardizedAsset = try await worker.standardize(
             sourceAsset: AVURLAsset(url: inputURL),
             rescalingDetails: .init(
-                maximumDesiredResolutionPreset: .default,
+                maximumDesiredResolutionPreset: maximumResolution,
                 recordedResolution: .init(width: 0, height: 0)
             ),
             outputURL: outputURL
@@ -463,6 +653,18 @@ final class UploadInputStandardizerTests: XCTestCase {
         }
         XCTAssertEqual(naturalSize, expectedDimensions)
 
+        if let expectedConstantFrameRate {
+            let frameDurations = try await videoSampleDurations(asset: outputAsset)
+            XCTAssertGreaterThan(frameDurations.count, 1)
+            for frameDuration in frameDurations {
+                XCTAssertEqual(
+                    frameDuration,
+                    1 / expectedConstantFrameRate,
+                    accuracy: 0.001
+                )
+            }
+        }
+
         let audioTracks = try await outputAsset.loadTracks(withMediaType: .audio)
         let audioTrack = try XCTUnwrap(audioTracks.first)
         let audioFormat = try await audioTrack.load(.formatDescriptions).first
@@ -479,6 +681,84 @@ final class UploadInputStandardizerTests: XCTestCase {
             },
             expectedAudioChannels
         )
+
+        let inspectionResult = try await inspect(
+            asset: outputAsset,
+            maximumResolution: maximumResolution
+        )
+        if let expectedConstantFrameRate {
+            XCTAssertEqual(
+                inspectionResult.mediaFacts.frameRate.value ?? 0,
+                expectedConstantFrameRate,
+                accuracy: 0.001
+            )
+        }
+        let evaluation = StandardInputPolicyEvaluator().evaluate(
+            inspectionResult.mediaFacts,
+            selection: StandardInputPolicySelection(
+                maximumResolution: maximumResolution
+            ),
+            role: .generatedOutput
+        )
+        XCTAssertTrue(
+            evaluation.nonCompliantRequirements.isEmpty,
+            "Generated output is non-compliant: \(evaluation.nonCompliantRequirements)"
+        )
+        XCTAssertTrue(
+            evaluation.unknownRequirements.isEmpty,
+            "Generated output lacks policy evidence: \(evaluation.unknownRequirements)"
+        )
+        XCTAssertTrue(
+            StandardInputOutputValidator().validatePolicyCompliance(
+                facts: inspectionResult.mediaFacts,
+                maximumResolution: maximumResolution
+            ).isAccepted,
+            "The validator must accept a policy-compliant generated output"
+        )
+    }
+
+    private func inspect(
+        asset: AVAsset,
+        maximumResolution: DirectUploadOptions.InputStandardization.MaximumResolution
+    ) async throws -> UploadInputFormatInspectionResult {
+        try await withCheckedThrowingContinuation { continuation in
+            AVFoundationUploadInputInspector().performInspection(
+                sourceInput: asset,
+                maximumResolution: maximumResolution
+            ) { result, _, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else if let result {
+                    continuation.resume(returning: result)
+                } else {
+                    continuation.resume(
+                        throwing: UploadInputInspectionError.inspectionFailure
+                    )
+                }
+            }
+        }
+    }
+
+    private func videoSampleDurations(asset: AVAsset) async throws -> [Double] {
+        let tracks = try await asset.loadTracks(withMediaType: .video)
+        let track = try XCTUnwrap(tracks.first)
+        let reader = try AVAssetReader(asset: asset)
+        let output = AVAssetReaderTrackOutput(
+            track: track,
+            outputSettings: nil
+        )
+        reader.add(output)
+        XCTAssertTrue(reader.startReading())
+
+        var durations: [Double] = []
+        while let sampleBuffer = output.copyNextSampleBuffer() {
+            let duration = CMSampleBufferGetDuration(sampleBuffer).seconds
+            if duration.isFinite, duration > 0 {
+                durations.append(duration)
+            }
+        }
+        XCTAssertEqual(reader.status, .completed)
+        return durations
     }
 
     private func catalogFixtureURL(id: String) throws -> URL {

@@ -10,6 +10,70 @@ import XCTest
 
 final class UploadInputMetadataInspectionTests: XCTestCase {
 
+    func testClassifiesIdentityTrimAndComplexEditMappings() {
+        let identity = AVFoundationVideoTrackSegmentMetadata(
+            timeMapping: CMTimeMapping(
+                source: CMTimeRange(
+                    start: .zero,
+                    duration: CMTime(seconds: 3, preferredTimescale: 600)
+                ),
+                target: CMTimeRange(
+                    start: .zero,
+                    duration: CMTime(seconds: 3, preferredTimescale: 600)
+                )
+            ),
+            isEmpty: false
+        )
+        XCTAssertEqual(
+            AVFoundationUploadInputMetadataReader.inspectEditList([identity]),
+            .known(.none)
+        )
+
+        let trim = AVFoundationVideoTrackSegmentMetadata(
+            timeMapping: CMTimeMapping(
+                source: CMTimeRange(
+                    start: CMTime(seconds: 0.5, preferredTimescale: 600),
+                    duration: CMTime(seconds: 3, preferredTimescale: 600)
+                ),
+                target: CMTimeRange(
+                    start: .zero,
+                    duration: CMTime(seconds: 3, preferredTimescale: 600)
+                )
+            ),
+            isEmpty: false
+        )
+        XCTAssertEqual(
+            AVFoundationUploadInputMetadataReader.inspectEditList([trim]),
+            .known(.simple)
+        )
+
+        let scaled = AVFoundationVideoTrackSegmentMetadata(
+            timeMapping: CMTimeMapping(
+                source: CMTimeRange(
+                    start: .zero,
+                    duration: CMTime(seconds: 3, preferredTimescale: 600)
+                ),
+                target: CMTimeRange(
+                    start: .zero,
+                    duration: CMTime(seconds: 4, preferredTimescale: 600)
+                )
+            ),
+            isEmpty: false
+        )
+        XCTAssertEqual(
+            AVFoundationUploadInputMetadataReader.inspectEditList([scaled]),
+            .known(.complex)
+        )
+        XCTAssertEqual(
+            AVFoundationUploadInputMetadataReader.inspectEditList([identity, trim]),
+            .known(.complex)
+        )
+        XCTAssertEqual(
+            AVFoundationUploadInputMetadataReader.inspectEditList(nil),
+            .unknown
+        )
+    }
+
     func testReadsH264SDRMetadataIntoPolicyFacts() throws {
         let formatDescription = try makeVideoFormatDescription(
             codecType: fourCharacterCode("avc1"),
