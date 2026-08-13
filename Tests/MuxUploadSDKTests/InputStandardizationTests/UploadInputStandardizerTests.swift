@@ -175,10 +175,10 @@ final class UploadInputStandardizerTests: XCTestCase {
                 id: id,
                 token: token,
                 sourceAsset: AVURLAsset(
-                    url: URL(fileURLWithPath: "/tmp/missing-nat487-input.mp4")
+                    url: URL(fileURLWithPath: "/tmp/missing-standardization-input.mp4")
                 ),
                 rescalingDetails: .init(),
-                outputURL: URL(fileURLWithPath: "/tmp/missing-nat487-output.mp4")
+                outputURL: URL(fileURLWithPath: "/tmp/missing-standardization-output.mp4")
             )
         }
         await worker.waitUntilStarted()
@@ -208,7 +208,7 @@ final class UploadInputStandardizerTests: XCTestCase {
         }
         let id = UUID().uuidString
         let sourceAsset = AVURLAsset(
-            url: URL(fileURLWithPath: "/tmp/missing-nat487-input.mp4")
+            url: URL(fileURLWithPath: "/tmp/missing-standardization-input.mp4")
         )
 
         let firstTask = Task {
@@ -217,7 +217,7 @@ final class UploadInputStandardizerTests: XCTestCase {
                 token: firstToken,
                 sourceAsset: sourceAsset,
                 rescalingDetails: .init(),
-                outputURL: URL(fileURLWithPath: "/tmp/missing-nat487-first.mp4")
+                outputURL: URL(fileURLWithPath: "/tmp/missing-first-output.mp4")
             )
         }
         await firstWorker.waitUntilStarted()
@@ -228,7 +228,7 @@ final class UploadInputStandardizerTests: XCTestCase {
                 token: replacementToken,
                 sourceAsset: sourceAsset,
                 rescalingDetails: .init(),
-                outputURL: URL(fileURLWithPath: "/tmp/missing-nat487-replacement.mp4")
+                outputURL: URL(fileURLWithPath: "/tmp/missing-replacement-output.mp4")
             )
         }
         await replacementWorker.waitUntilStarted()
@@ -251,10 +251,10 @@ final class UploadInputStandardizerTests: XCTestCase {
         do {
             _ = try await worker.standardize(
                 sourceAsset: AVURLAsset(
-                    url: URL(fileURLWithPath: "/tmp/missing-nat487-input.mp4")
+                    url: URL(fileURLWithPath: "/tmp/missing-standardization-input.mp4")
                 ),
                 rescalingDetails: .init(),
-                outputURL: URL(fileURLWithPath: "/tmp/missing-nat487-output.mp4")
+                outputURL: URL(fileURLWithPath: "/tmp/missing-standardization-output.mp4")
             )
             XCTFail("Cancelled worker should throw")
         } catch is CancellationError {
@@ -266,7 +266,7 @@ final class UploadInputStandardizerTests: XCTestCase {
 
     func testCancelDoesNotDeleteAnOutputFileTheWorkerDoesNotOwn() async throws {
         let outputURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("nat487-existing-\(UUID().uuidString).mp4")
+            .appendingPathComponent("standardization-existing-\(UUID().uuidString).mp4")
         let existingData = Data("existing".utf8)
         try existingData.write(to: outputURL)
         defer { try? FileManager.default.removeItem(at: outputURL) }
@@ -275,7 +275,7 @@ final class UploadInputStandardizerTests: XCTestCase {
         await worker.cancel()
         _ = try? await worker.standardize(
             sourceAsset: AVURLAsset(
-                url: URL(fileURLWithPath: "/tmp/missing-nat487-input.mp4")
+                url: URL(fileURLWithPath: "/tmp/missing-standardization-input.mp4")
             ),
             rescalingDetails: .init(),
             outputURL: outputURL
@@ -352,7 +352,7 @@ final class UploadInputStandardizerTests: XCTestCase {
             id: "synthetic-standard-hevc-main10-sdr-2160p30-5-1"
         )
         let outputURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("nat487-cancel-\(UUID().uuidString).mp4")
+            .appendingPathComponent("standardization-cancel-\(UUID().uuidString).mp4")
         defer { try? FileManager.default.removeItem(at: outputURL) }
         let transferStarted = expectation(description: "Transfer starts")
         let worker = UploadInputStandardizationWorker { worker in
@@ -384,7 +384,7 @@ final class UploadInputStandardizerTests: XCTestCase {
         expectedAudioChannels: UInt32
     ) async throws {
         let outputURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("nat487-\(UUID().uuidString).mp4")
+            .appendingPathComponent("standardized-\(UUID().uuidString).mp4")
         defer { try? FileManager.default.removeItem(at: outputURL) }
 
         let worker = UploadInputStandardizationWorker()
