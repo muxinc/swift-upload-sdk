@@ -9,15 +9,14 @@ import CoreVideo
 import Foundation
 import VideoToolbox
 
-protocol UploadInputStandardizationWorking: AnyObject {
+protocol UploadInputStandardizationWorking: AnyObject, Sendable {
     func standardize(
         sourceAsset: AVURLAsset,
         rescalingDetails: UploadInputFormatInspectionResult.RescalingDetails,
-        outputURL: URL,
-        completion: @escaping (AVURLAsset, AVAsset?, Error?) -> ()
-    )
+        outputURL: URL
+    ) async throws -> AVURLAsset
 
-    func cancel()
+    func cancel() async
 }
 
 struct StandardizationError: LocalizedError {
@@ -76,9 +75,7 @@ struct StandardizationError: LocalizedError {
     )
 }
 
-final class UploadInputStandardizationWorker {
-    typealias Completion = (AVURLAsset, AVAsset?, Error?) -> Void
-
+actor UploadInputStandardizationWorker {
     private enum State {
         case active
         case cancelled
@@ -104,345 +101,215 @@ final class UploadInputStandardizationWorker {
         }
     }
 
-    private final class UncheckedSendableBox<Value>: @unchecked Sendable {
-        let value: Value
-
-        init(_ value: Value) {
-            self.value = value
-        }
+    private enum TransferError: Error {
+        case appendFailed
+        case startedMoreThanOnce
     }
 
-    final class TransferGroup {
-        private let lock = NSLock()
-        private let dispatchGroup = DispatchGroup()
-        private var unfinishedTrackIDs: Set<Int>
-        private var stopping = false
-        private var failed = false
-
-        init(trackCount: Int) {
-            unfinishedTrackIDs = Set(0..<trackCount)
-            for _ in 0..<trackCount {
-                dispatchGroup.enter()
-            }
-        }
-
-        var shouldContinue: Bool {
-            lock.lock()
-            defer { lock.unlock() }
-            return !stopping
-        }
-
-        var didFail: Bool {
-            lock.lock()
-            defer { lock.unlock() }
-            return failed
-        }
-
-        func stop(failed: Bool = false) -> [Int] {
-            lock.lock()
-            stopping = true
-            self.failed = self.failed || failed
-            let trackIDs = Array(unfinishedTrackIDs)
-            lock.unlock()
-            return trackIDs
-        }
-
-        func claimFinish(trackID: Int) -> Bool {
-            lock.lock()
-            let claimed = unfinishedTrackIDs.remove(trackID) != nil
-            lock.unlock()
-            return claimed
-        }
-
-        func leave() {
-            dispatchGroup.leave()
-        }
-
-        func notify(queue: DispatchQueue, completion: @escaping () -> Void) {
-            dispatchGroup.notify(queue: queue, execute: completion)
-        }
-    }
-
-    private final class TransferTrack {
-        let id: Int
+    /// `requestMediaDataWhenReady` is the pull-style writer API available on
+    /// the iOS 15 deployment floor. This adapter is the only unchecked
+    /// sendability boundary: it owns its AVFoundation objects, and every
+    /// access to them and to its mutable terminal state occurs on `queue`.
+    private final class LegacySampleTransfer: @unchecked Sendable {
         let output: AVAssetReaderOutput
         let input: AVAssetWriterInput
-        let queue: DispatchQueue
+        private let queue: DispatchQueue
+        private var continuation: CheckedContinuation<Void, Error>?
+        private var terminalResult: Result<Void, Error>?
+        private var didStart = false
 
         init(
-            id: Int,
             output: AVAssetReaderOutput,
             input: AVAssetWriterInput,
             queue: DispatchQueue
         ) {
-            self.id = id
             self.output = output
             self.input = input
             self.queue = queue
         }
-    }
 
-    private final class TransferCoordinator {
-        let group: TransferGroup
-        private let tracks: [TransferTrack]
-
-        init(tracks: [TransferTrack]) {
-            self.tracks = tracks
-            group = TransferGroup(trackCount: tracks.count)
-        }
-
-        func start() {
-            for track in tracks {
-                let trackBox = UncheckedSendableBox(track)
-                let coordinatorBox = UncheckedSendableBox(self)
-                track.input.requestMediaDataWhenReady(on: track.queue) {
-                    let track = trackBox.value
-                    let coordinator = coordinatorBox.value
-                    guard coordinator.group.shouldContinue else { return }
-
-                    while track.input.isReadyForMoreMediaData,
-                          coordinator.group.shouldContinue {
-                        guard let sampleBuffer = track.output.copyNextSampleBuffer() else {
-                            coordinator.finish(track: track)
-                            return
-                        }
-                        guard track.input.append(sampleBuffer) else {
-                            coordinator.stop(failed: true)
-                            return
-                        }
+        func transfer() async throws {
+            try await withTaskCancellationHandler {
+                try await withCheckedThrowingContinuation { continuation in
+                    queue.async { [self] in
+                        start(continuation: continuation)
                     }
                 }
+            } onCancel: {
+                self.cancel()
             }
         }
 
-        func stop(failed: Bool = false) {
-            let unfinishedTrackIDs = group.stop(failed: failed)
-            for track in tracks where unfinishedTrackIDs.contains(track.id) {
-                let trackBox = UncheckedSendableBox(track)
-                let coordinatorBox = UncheckedSendableBox(self)
-                track.queue.async {
-                    coordinatorBox.value.finish(track: trackBox.value)
+        func cancel() {
+            queue.async { [self] in
+                finish(with: .failure(CancellationError()))
+            }
+        }
+
+        private func start(continuation: CheckedContinuation<Void, Error>) {
+            guard !didStart else {
+                continuation.resume(throwing: TransferError.startedMoreThanOnce)
+                return
+            }
+            didStart = true
+
+            if let terminalResult {
+                continuation.resume(with: terminalResult)
+                return
+            }
+
+            self.continuation = continuation
+            input.requestMediaDataWhenReady(on: queue) { [self] in
+                pump()
+            }
+        }
+
+        private func pump() {
+            guard terminalResult == nil else { return }
+
+            while input.isReadyForMoreMediaData, terminalResult == nil {
+                guard let sampleBuffer = output.copyNextSampleBuffer() else {
+                    finish(with: .success(()))
+                    return
+                }
+                guard input.append(sampleBuffer) else {
+                    finish(with: .failure(TransferError.appendFailed))
+                    return
                 }
             }
         }
 
-        private func finish(track: TransferTrack) {
-            guard group.claimFinish(trackID: track.id) else { return }
-            track.input.markAsFinished()
-            group.leave()
+        private func finish(with result: Result<Void, Error>) {
+            guard terminalResult == nil else { return }
+            terminalResult = result
+            input.markAsFinished()
+            continuation?.resume(with: result)
+            continuation = nil
         }
     }
 
-    private let stateLock = NSLock()
-    private let lifecycleQueue = DispatchQueue(
-        label: "com.mux.upload-sdk.standardization.lifecycle",
-        qos: .userInitiated
-    )
     private var state: State = .active
     private var reader: AVAssetReader?
     private var writer: AVAssetWriter?
-    private var transferCoordinator: TransferCoordinator?
+    private var transfers: [LegacySampleTransfer] = []
     private var outputURL: URL?
     private var ownsOutputFile = false
-    private let transferDidStart: (() -> Void)?
+    private let transferDidStart: (
+        @Sendable (UploadInputStandardizationWorker) async -> Void
+    )?
 
-    init(transferDidStart: (() -> Void)? = nil) {
+    init(
+        transferDidStart: (
+            @Sendable (UploadInputStandardizationWorker) async -> Void
+        )? = nil
+    ) {
         self.transferDidStart = transferDidStart
     }
 
     func standardize(
         sourceAsset: AVURLAsset,
         rescalingDetails: UploadInputFormatInspectionResult.RescalingDetails,
-        outputURL: URL,
-        completion: @escaping Completion
-    ) {
-        stateLock.lock()
-        guard state == .active else {
-            stateLock.unlock()
-            return
-        }
+        outputURL: URL
+    ) async throws -> AVURLAsset {
+        try ensureActive()
         self.outputURL = outputURL
-        stateLock.unlock()
-
-        sourceAsset.loadTracks(withMediaType: .video) { [weak self] videoTracks, error in
-            guard let self, self.isActive else { return }
-            guard error == nil, let videoTracks else {
-                self.complete(
-                    sourceAsset: sourceAsset,
-                    error: error ?? StandardizationError.missingVideoTrack,
-                    completion: completion
-                )
-                return
-            }
+        do {
+            let videoTracks = try await sourceAsset.loadTracks(withMediaType: .video)
+            try ensureActive()
             guard videoTracks.count == 1, let videoTrack = videoTracks.first else {
-                self.complete(
-                    sourceAsset: sourceAsset,
-                    error: videoTracks.isEmpty
-                        ? StandardizationError.missingVideoTrack
-                        : StandardizationError.multipleVideoTracks,
-                    completion: completion
-                )
-                return
+                throw videoTracks.isEmpty
+                    ? StandardizationError.missingVideoTrack
+                    : StandardizationError.multipleVideoTracks
             }
 
-            sourceAsset.loadTracks(withMediaType: .audio) { audioTracks, error in
-                guard self.isActive else { return }
-                guard error == nil, let audioTracks else {
-                    self.complete(
-                        sourceAsset: sourceAsset,
-                        error: error ?? StandardizationError.missingAudioFormat,
-                        completion: completion
-                    )
-                    return
-                }
-                let audioTrack = audioTracks.first
-                self.loadAudioProperties(for: audioTrack) { audioResult in
-                    guard self.isActive else { return }
-                    guard case .success(let audioProperties) = audioResult else {
-                        if case .failure(let error) = audioResult {
-                            self.complete(
-                                sourceAsset: sourceAsset,
-                                error: error,
-                                completion: completion
-                            )
-                        }
-                        return
-                    }
-                    self.loadProperties(
-                        sourceAsset: sourceAsset,
-                        videoTrack: videoTrack
-                    ) { result in
-                        guard self.isActive else { return }
-                        switch result {
-                        case .success(let properties):
-                            self.convert(
-                                sourceAsset: sourceAsset,
-                                videoTrack: videoTrack,
-                                audioTrack: audioTrack,
-                                audioProperties: audioProperties,
-                                properties: properties,
-                                rescalingDetails: rescalingDetails,
-                                outputURL: outputURL,
-                                completion: completion
-                            )
-                        case .failure(let error):
-                            self.complete(
-                                sourceAsset: sourceAsset,
-                                error: error,
-                                completion: completion
-                            )
-                        }
-                    }
-                }
+            let audioTracks = try await sourceAsset.loadTracks(withMediaType: .audio)
+            try ensureActive()
+            let audioTrack = audioTracks.first
+            let audioProperties = try await loadAudioProperties(for: audioTrack)
+            let properties = try await loadProperties(
+                sourceAsset: sourceAsset,
+                videoTrack: videoTrack
+            )
+            let standardizedAsset = try await convert(
+                sourceAsset: sourceAsset,
+                videoTrack: videoTrack,
+                audioTrack: audioTrack,
+                audioProperties: audioProperties,
+                properties: properties,
+                rescalingDetails: rescalingDetails,
+                outputURL: outputURL
+            )
+            try ensureActive()
+            finishSuccessfully()
+            return standardizedAsset
+        } catch {
+            let finalError: Error = state == .cancelled
+                ? CancellationError()
+                : error
+            cleanupPartialOutput()
+            if state == .active {
+                state = .completed
             }
-        }
-    }
-
-    private func loadAudioProperties(
-        for track: AVAssetTrack?,
-        completion: @escaping (Result<AudioProperties?, Error>) -> Void
-    ) {
-        guard let track else {
-            completion(.success(nil))
-            return
-        }
-        track.loadValuesAsynchronously(forKeys: ["formatDescriptions"]) {
-            guard self.isActive else { return }
-            do {
-                completion(
-                    .success(
-                        try Self.audioProperties(
-                            formatDescriptions: track.formatDescriptions
-                                as? [CMAudioFormatDescription] ?? []
-                        )
-                    )
-                )
-            } catch {
-                completion(.failure(error))
-            }
+            throw finalError
         }
     }
 
     func cancel() {
-        stateLock.lock()
-        guard state == .active else {
-            stateLock.unlock()
-            return
-        }
+        guard state == .active else { return }
         state = .cancelled
-        stateLock.unlock()
 
-        let worker = UncheckedSendableBox(self)
-        lifecycleQueue.async {
-            worker.value.cancelOnLifecycleQueue()
+        if transfers.isEmpty {
+            reader?.cancelReading()
+            writer?.cancelWriting()
+        } else {
+            transfers.forEach { $0.cancel() }
         }
     }
 
-    private func cancelOnLifecycleQueue() {
-        stateLock.lock()
-        if let transferCoordinator {
-            stateLock.unlock()
-            transferCoordinator.stop()
-            return
-        }
-        let reader = self.reader
-        let writer = self.writer
-        let outputURL = self.outputURL
-        let ownsOutputFile = self.ownsOutputFile
-        self.reader = nil
-        self.writer = nil
-        self.outputURL = nil
-        self.ownsOutputFile = false
-        stateLock.unlock()
-
-        reader?.cancelReading()
-        writer?.cancelWriting()
-        if ownsOutputFile {
-            removePartialOutput(at: outputURL)
+    private func ensureActive() throws {
+        guard state == .active, !Task.isCancelled else {
+            throw CancellationError()
         }
     }
 
-    private var isActive: Bool {
-        stateLock.lock()
-        defer { stateLock.unlock() }
-        return state == .active
+    private func loadAudioProperties(
+        for track: AVAssetTrack?
+    ) async throws -> AudioProperties? {
+        guard let track else { return nil }
+        let formatDescriptions = try await track.load(.formatDescriptions)
+        try ensureActive()
+        return try Self.audioProperties(
+            formatDescriptions: formatDescriptions
+        )
     }
 
     private func loadProperties(
         sourceAsset: AVAsset,
-        videoTrack: AVAssetTrack,
-        completion: @escaping (Result<LoadedAssetProperties, Error>) -> Void
-    ) {
-        sourceAsset.loadValuesAsynchronously(forKeys: ["duration"]) {
-            guard self.isActive else { return }
-            videoTrack.loadValuesAsynchronously(
-                forKeys: [
-                    "naturalSize",
-                    "preferredTransform",
-                    "nominalFrameRate",
-                    "formatDescriptions"
-                ]
-            ) {
-                guard self.isActive else { return }
-                guard let formatDescriptions = videoTrack.formatDescriptions
-                    as? [CMFormatDescription],
-                      !formatDescriptions.isEmpty else {
-                    completion(.failure(StandardizationError.missingVideoFormat))
-                    return
-                }
-                completion(
-                    .success(
-                        LoadedAssetProperties(
-                            duration: sourceAsset.duration,
-                            naturalSize: videoTrack.naturalSize,
-                            preferredTransform: videoTrack.preferredTransform,
-                            nominalFrameRate: videoTrack.nominalFrameRate,
-                            formatDescriptions: formatDescriptions
-                        )
-                    )
-                )
-            }
+        videoTrack: AVAssetTrack
+    ) async throws -> LoadedAssetProperties {
+        let duration = try await sourceAsset.load(.duration)
+        let (
+            naturalSize,
+            preferredTransform,
+            nominalFrameRate,
+            formatDescriptions
+        ) = try await videoTrack.load(
+            .naturalSize,
+            .preferredTransform,
+            .nominalFrameRate,
+            .formatDescriptions
+        )
+        try ensureActive()
+        guard !formatDescriptions.isEmpty else {
+            throw StandardizationError.missingVideoFormat
         }
+        return LoadedAssetProperties(
+            duration: duration,
+            naturalSize: naturalSize,
+            preferredTransform: preferredTransform,
+            nominalFrameRate: nominalFrameRate,
+            formatDescriptions: formatDescriptions
+        )
     }
 
     private func convert(
@@ -452,174 +319,98 @@ final class UploadInputStandardizationWorker {
         audioProperties: AudioProperties?,
         properties: LoadedAssetProperties,
         rescalingDetails: UploadInputFormatInspectionResult.RescalingDetails,
-        outputURL: URL,
-        completion: @escaping Completion
-    ) {
-        let work = UncheckedSendableBox { [weak self] in
-            guard let self, self.isActive else { return }
-            self.convertOnLifecycleQueue(
-                sourceAsset: sourceAsset,
-                videoTrack: videoTrack,
-                audioTrack: audioTrack,
-                audioProperties: audioProperties,
-                properties: properties,
-                rescalingDetails: rescalingDetails,
-                outputURL: outputURL,
-                completion: completion
+        outputURL: URL
+    ) async throws -> AVURLAsset {
+        let renderSize = try Self.renderSize(
+            naturalSize: properties.naturalSize,
+            preferredTransform: properties.preferredTransform,
+            boundingSize: Self.boundingSize(
+                for: rescalingDetails.maximumDesiredResolutionPreset
             )
+        )
+        let reader = try AVAssetReader(asset: sourceAsset)
+        guard !FileManager.default.fileExists(atPath: outputURL.path) else {
+            throw StandardizationError.outputFileAlreadyExists
         }
-        lifecycleQueue.async {
-            work.value()
+        let writer = try AVAssetWriter(outputURL: outputURL, fileType: .mp4)
+        writer.shouldOptimizeForNetworkUse = true
+        self.reader = reader
+        self.writer = writer
+        ownsOutputFile = true
+
+        let sourceFormatDescription = properties.formatDescriptions[0]
+        let decoderPixelFormat = Self.decoderPixelFormat(
+            for: sourceFormatDescription
+        )
+
+        let videoOutput = AVAssetReaderVideoCompositionOutput(
+            videoTracks: [videoTrack],
+            videoSettings: [
+                kCVPixelBufferPixelFormatTypeKey as String:
+                    decoderPixelFormat,
+                kCVPixelBufferIOSurfacePropertiesKey as String: [:]
+            ]
+        )
+        videoOutput.alwaysCopiesSampleData = false
+        videoOutput.videoComposition = Self.videoComposition(
+            track: videoTrack,
+            duration: properties.duration,
+            naturalSize: properties.naturalSize,
+            preferredTransform: properties.preferredTransform,
+            nominalFrameRate: properties.nominalFrameRate,
+            renderSize: renderSize
+        )
+        guard reader.canAdd(videoOutput) else {
+            throw StandardizationError.cannotAddReaderOutput
         }
-    }
+        reader.add(videoOutput)
 
-    private func convertOnLifecycleQueue(
-        sourceAsset: AVURLAsset,
-        videoTrack: AVAssetTrack,
-        audioTrack: AVAssetTrack?,
-        audioProperties: AudioProperties?,
-        properties: LoadedAssetProperties,
-        rescalingDetails: UploadInputFormatInspectionResult.RescalingDetails,
-        outputURL: URL,
-        completion: @escaping Completion
-    ) {
-        do {
-            let renderSize = try Self.renderSize(
-                naturalSize: properties.naturalSize,
-                preferredTransform: properties.preferredTransform,
-                boundingSize: Self.boundingSize(
-                    for: rescalingDetails.maximumDesiredResolutionPreset
-                )
-            )
-            let reader = try AVAssetReader(asset: sourceAsset)
-            guard !FileManager.default.fileExists(atPath: outputURL.path) else {
-                throw StandardizationError.outputFileAlreadyExists
-            }
-            let writer = try AVAssetWriter(outputURL: outputURL, fileType: .mp4)
-            writer.shouldOptimizeForNetworkUse = true
-            guard register(reader: reader, writer: writer) else { return }
+        let videoSettings = Self.videoWriterSettings(
+            codec: Self.outputCodec(
+                for: sourceFormatDescription.mediaSubType
+            ),
+            renderSize: renderSize,
+            decoderPixelFormat: decoderPixelFormat
+        )
+        guard writer.canApply(
+            outputSettings: videoSettings,
+            forMediaType: .video
+        ) else {
+            throw StandardizationError.writerRejectedSettings
+        }
+        let videoInput = AVAssetWriterInput(
+            mediaType: .video,
+            outputSettings: videoSettings
+        )
+        videoInput.expectsMediaDataInRealTime = false
+        guard writer.canAdd(videoInput) else {
+            throw StandardizationError.cannotAddWriterInput
+        }
+        writer.add(videoInput)
 
-            let sourceFormatDescription = properties.formatDescriptions[0]
-            let decoderPixelFormat = Self.decoderPixelFormat(
-                for: sourceFormatDescription
-            )
-
-            let videoOutput = AVAssetReaderVideoCompositionOutput(
-                videoTracks: [videoTrack],
-                videoSettings: [
-                    kCVPixelBufferPixelFormatTypeKey as String:
-                        decoderPixelFormat,
-                    kCVPixelBufferIOSurfacePropertiesKey as String: [:]
-                ]
-            )
-            videoOutput.alwaysCopiesSampleData = false
-            videoOutput.videoComposition = Self.videoComposition(
-                track: videoTrack,
-                duration: properties.duration,
-                naturalSize: properties.naturalSize,
-                preferredTransform: properties.preferredTransform,
-                nominalFrameRate: properties.nominalFrameRate,
-                renderSize: renderSize
-            )
-            guard reader.canAdd(videoOutput) else {
-                throw StandardizationError.cannotAddReaderOutput
+        let audioPair = try audioTrack.map {
+            guard let audioProperties else {
+                throw StandardizationError.missingAudioFormat
             }
-            reader.add(videoOutput)
-
-            let videoSettings = Self.videoWriterSettings(
-                codec: Self.outputCodec(
-                    for: sourceFormatDescription.mediaSubType
-                ),
-                renderSize: renderSize,
-                decoderPixelFormat: decoderPixelFormat
-            )
-            guard writer.canApply(
-                outputSettings: videoSettings,
-                forMediaType: .video
-            ) else {
-                throw StandardizationError.writerRejectedSettings
-            }
-            let videoInput = AVAssetWriterInput(
-                mediaType: .video,
-                outputSettings: videoSettings
-            )
-            videoInput.expectsMediaDataInRealTime = false
-            guard writer.canAdd(videoInput) else {
-                throw StandardizationError.cannotAddWriterInput
-            }
-            writer.add(videoInput)
-
-            let audioPair = try audioTrack.map {
-                guard let audioProperties else {
-                    throw StandardizationError.missingAudioFormat
-                }
-                return try Self.addAudioPipeline(
-                    track: $0,
-                    properties: audioProperties,
-                    reader: reader,
-                    writer: writer
-                )
-            }
-
-            guard writer.startWriting() else {
-                throw writer.error ?? StandardizationError.writerStartFailure
-            }
-            writer.startSession(atSourceTime: .zero)
-            guard reader.startReading() else {
-                writer.cancelWriting()
-                throw reader.error ?? StandardizationError.readerStartFailure
-            }
-
-            pump(
-                sourceAsset: sourceAsset,
+            return try Self.addAudioPipeline(
+                track: $0,
+                properties: audioProperties,
                 reader: reader,
-                writer: writer,
-                videoOutput: videoOutput,
-                videoInput: videoInput,
-                audioOutput: audioPair?.output,
-                audioInput: audioPair?.input,
-                completion: completion
-            )
-        } catch {
-            complete(
-                sourceAsset: sourceAsset,
-                error: error,
-                completion: completion
+                writer: writer
             )
         }
-    }
 
-    private func register(reader: AVAssetReader, writer: AVAssetWriter) -> Bool {
-        stateLock.lock()
-        let shouldStart = state == .active
-        if shouldStart {
-            self.reader = reader
-            self.writer = writer
-            ownsOutputFile = true
+        guard writer.startWriting() else {
+            throw writer.error ?? StandardizationError.writerStartFailure
         }
-        stateLock.unlock()
-
-        if !shouldStart {
-            reader.cancelReading()
+        writer.startSession(atSourceTime: .zero)
+        guard reader.startReading() else {
             writer.cancelWriting()
-            removePartialOutput(at: writer.outputURL)
+            throw reader.error ?? StandardizationError.readerStartFailure
         }
-        return shouldStart
-    }
 
-    private func pump(
-        sourceAsset: AVURLAsset,
-        reader: AVAssetReader,
-        writer: AVAssetWriter,
-        videoOutput: AVAssetReaderOutput,
-        videoInput: AVAssetWriterInput,
-        audioOutput: AVAssetReaderOutput?,
-        audioInput: AVAssetWriterInput?,
-        completion: @escaping Completion
-    ) {
-        var tracks = [
-            TransferTrack(
-                id: 0,
+        var transfers = [
+            LegacySampleTransfer(
                 output: videoOutput,
                 input: videoInput,
                 queue: DispatchQueue(
@@ -628,11 +419,10 @@ final class UploadInputStandardizationWorker {
                 )
             )
         ]
-
-        if let audioOutput, let audioInput {
-            tracks.append(
-                TransferTrack(
-                    id: tracks.count,
+        if let audioOutput = audioPair?.output,
+           let audioInput = audioPair?.input {
+            transfers.append(
+                LegacySampleTransfer(
                     output: audioOutput,
                     input: audioInput,
                     queue: DispatchQueue(
@@ -642,130 +432,65 @@ final class UploadInputStandardizationWorker {
                 )
             )
         }
-
-        let coordinator = TransferCoordinator(tracks: tracks)
-        stateLock.lock()
-        let shouldStart = state == .active
-        if shouldStart {
-            transferCoordinator = coordinator
-        }
-        stateLock.unlock()
-
-        guard shouldStart else {
-            cancelOnLifecycleQueue()
-            return
+        self.transfers = transfers
+        try ensureActive()
+        if let transferDidStart {
+            await transferDidStart(self)
         }
 
-        let worker = UncheckedSendableBox(self)
-        let coordinatorBox = UncheckedSendableBox(coordinator)
-        coordinator.group.notify(queue: lifecycleQueue) {
-            worker.value.transferDidFinish(
-                coordinator: coordinatorBox.value,
-                sourceAsset: sourceAsset,
-                reader: reader,
-                writer: writer,
-                completion: completion
-            )
-        }
-        coordinator.start()
-        transferDidStart?()
-    }
-
-    private func transferDidFinish(
-        coordinator: TransferCoordinator,
-        sourceAsset: AVURLAsset,
-        reader: AVAssetReader,
-        writer: AVAssetWriter,
-        completion: @escaping Completion
-    ) {
-        stateLock.lock()
-        if transferCoordinator === coordinator {
-            transferCoordinator = nil
-        }
-        let state = self.state
-        stateLock.unlock()
-
-        guard state == .active else {
-            if state == .cancelled {
-                cancelOnLifecycleQueue()
+        do {
+            try await withThrowingTaskGroup(of: Void.self) { group in
+                for transfer in transfers {
+                    group.addTask {
+                        try await transfer.transfer()
+                    }
+                }
+                try await group.waitForAll()
             }
-            return
+        } catch {
+            transfers.forEach { $0.cancel() }
+            throw writer.error
+                ?? reader.error
+                ?? error
         }
 
-        guard !coordinator.group.didFail,
-              reader.status == .completed else {
-            reader.cancelReading()
-            writer.cancelWriting()
-            complete(
-                sourceAsset: sourceAsset,
-                error: writer.error
-                    ?? reader.error
-                    ?? StandardizationError.conversionFailure,
-                completion: completion
-            )
-            return
+        self.transfers = []
+        try ensureActive()
+        guard reader.status == .completed else {
+            throw reader.error ?? StandardizationError.conversionFailure
         }
 
-        let worker = UncheckedSendableBox(self)
-        let sourceAssetBox = UncheckedSendableBox(sourceAsset)
-        let writerBox = UncheckedSendableBox(writer)
-        let completionBox = UncheckedSendableBox(completion)
-        writer.finishWriting {
-            worker.value.lifecycleQueue.async {
-                worker.value.finishWritingDidComplete(
-                    sourceAsset: sourceAssetBox.value,
-                    writer: writerBox.value,
-                    completion: completionBox.value
-                )
-            }
-        }
-    }
-
-    private func finishWritingDidComplete(
-        sourceAsset: AVURLAsset,
-        writer: AVAssetWriter,
-        completion: @escaping Completion
-    ) {
-        guard isActive else { return }
+        await writer.finishWriting()
+        try ensureActive()
         guard writer.status == .completed else {
-            complete(
-                sourceAsset: sourceAsset,
-                error: writer.error ?? StandardizationError.conversionFailure,
-                completion: completion
-            )
-            return
+            throw writer.error ?? StandardizationError.conversionFailure
         }
-        complete(
-            sourceAsset: sourceAsset,
-            standardizedAsset: AVURLAsset(url: writer.outputURL),
-            completion: completion
-        )
+        return AVURLAsset(url: writer.outputURL)
     }
 
-    private func complete(
-        sourceAsset: AVURLAsset,
-        standardizedAsset: AVAsset? = nil,
-        error: Error? = nil,
-        completion: @escaping Completion
-    ) {
-        stateLock.lock()
-        guard state == .active else {
-            stateLock.unlock()
-            return
-        }
+    private func finishSuccessfully() {
         state = .completed
+        reader = nil
+        writer = nil
+        transfers = []
+        outputURL = nil
+        ownsOutputFile = false
+    }
+
+    private func cleanupPartialOutput() {
+        transfers.forEach { $0.cancel() }
+        transfers = []
+        reader?.cancelReading()
+        writer?.cancelWriting()
         reader = nil
         writer = nil
         let outputURL = self.outputURL
         let ownsOutputFile = self.ownsOutputFile
         self.outputURL = nil
         self.ownsOutputFile = false
-        stateLock.unlock()
-
-        if error != nil, ownsOutputFile {
+        if ownsOutputFile {
             removePartialOutput(at: outputURL)
         }
-        completion(sourceAsset, standardizedAsset, error)
     }
 
     private func removePartialOutput(at url: URL?) {

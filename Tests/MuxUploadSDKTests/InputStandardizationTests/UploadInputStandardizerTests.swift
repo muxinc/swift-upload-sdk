@@ -8,18 +8,41 @@ import XCTest
 @testable import MuxUploadSDK
 
 final class UploadInputStandardizerTests: XCTestCase {
-    private final class ControllableWorker: UploadInputStandardizationWorking {
+    private actor ControllableWorker: UploadInputStandardizationWorking {
         private(set) var cancellationCount = 0
+        private var isCancelled = false
+        private var continuation: CheckedContinuation<AVURLAsset, Error>?
+        private var didStart = false
+        private var startWaiters: [CheckedContinuation<Void, Never>] = []
 
         func standardize(
             sourceAsset: AVURLAsset,
             rescalingDetails: UploadInputFormatInspectionResult.RescalingDetails,
-            outputURL: URL,
-            completion: @escaping (AVURLAsset, AVAsset?, Error?) -> ()
-        ) {}
+            outputURL: URL
+        ) async throws -> AVURLAsset {
+            if isCancelled {
+                throw CancellationError()
+            }
+            didStart = true
+            startWaiters.forEach { $0.resume() }
+            startWaiters = []
+            return try await withCheckedThrowingContinuation { continuation in
+                self.continuation = continuation
+            }
+        }
+
+        func waitUntilStarted() async {
+            guard !didStart else { return }
+            await withCheckedContinuation { continuation in
+                startWaiters.append(continuation)
+            }
+        }
 
         func cancel() {
             cancellationCount += 1
+            isCancelled = true
+            continuation?.resume(throwing: CancellationError())
+            continuation = nil
         }
     }
 
@@ -142,88 +165,57 @@ final class UploadInputStandardizerTests: XCTestCase {
         }
     }
 
-    func testTransferFailureStopsAndDrainsEveryTrackExactlyOnce() {
-        let group = UploadInputStandardizationWorker.TransferGroup(trackCount: 2)
-        let completionExpectation = expectation(
-            description: "All failed transfers drain"
-        )
-        group.notify(queue: .main) {
-            completionExpectation.fulfill()
-        }
-
-        XCTAssertEqual(Set(group.stop(failed: true)), Set([0, 1]))
-        XCTAssertFalse(group.shouldContinue)
-        XCTAssertTrue(group.didFail)
-
-        for trackID in [0, 1] {
-            XCTAssertTrue(group.claimFinish(trackID: trackID))
-            XCTAssertFalse(group.claimFinish(trackID: trackID))
-            group.leave()
-        }
-
-        wait(for: [completionExpectation], timeout: 1)
-    }
-
-    func testTransferCancellationDrainsWithoutReportingFailure() {
-        let group = UploadInputStandardizationWorker.TransferGroup(trackCount: 2)
-
-        XCTAssertEqual(Set(group.stop()), Set([0, 1]))
-        XCTAssertFalse(group.shouldContinue)
-        XCTAssertFalse(group.didFail)
-
-        for trackID in [0, 1] where group.claimFinish(trackID: trackID) {
-            group.leave()
-        }
-    }
-
-    func testCancelReleasesWorkerAndSuppressesCompletion() {
+    func testCancelReleasesWorkerAndSuppressesCompletion() async {
         let worker = ControllableWorker()
         let standardizer = UploadInputStandardizer { worker }
         let id = UUID().uuidString
-        let completionExpectation = expectation(
-            description: "Cancelled conversion does not complete"
-        )
-        completionExpectation.isInverted = true
-
-        standardizer.standardize(
-            id: id,
-            sourceAsset: AVURLAsset(
-                url: URL(fileURLWithPath: "/tmp/missing-nat487-input.mp4")
-            ),
-            rescalingDetails: .init(),
-            outputURL: URL(fileURLWithPath: "/tmp/missing-nat487-output.mp4")
-        ) { _, _, _ in
-            completionExpectation.fulfill()
+        let task = Task {
+            try await standardizer.standardize(
+                id: id,
+                sourceAsset: AVURLAsset(
+                    url: URL(fileURLWithPath: "/tmp/missing-nat487-input.mp4")
+                ),
+                rescalingDetails: .init(),
+                outputURL: URL(fileURLWithPath: "/tmp/missing-nat487-output.mp4")
+            )
         }
-        standardizer.cancel(id: id)
+        await worker.waitUntilStarted()
+        await standardizer.cancel(id: id)
 
-        wait(for: [completionExpectation], timeout: 0.25)
-        XCTAssertEqual(worker.cancellationCount, 1)
-        XCTAssertNil(standardizer.workers[id])
+        do {
+            _ = try await task.value
+            XCTFail("Cancelled standardization should throw")
+        } catch is CancellationError {
+            // Expected.
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+        let cancellationCount = await worker.cancellationCount
+        let hasActiveWorker = await standardizer.hasWorker(id: id)
+        XCTAssertEqual(cancellationCount, 1)
+        XCTAssertFalse(hasActiveWorker)
     }
 
-    func testCancelledWorkerSuppressesCompletion() {
+    func testCancelledWorkerSuppressesCompletion() async {
         let worker = UploadInputStandardizationWorker()
-        let completionExpectation = expectation(
-            description: "Cancelled worker does not complete"
-        )
-        completionExpectation.isInverted = true
-
-        worker.cancel()
-        worker.standardize(
-            sourceAsset: AVURLAsset(
-                url: URL(fileURLWithPath: "/tmp/missing-nat487-input.mp4")
-            ),
-            rescalingDetails: .init(),
-            outputURL: URL(fileURLWithPath: "/tmp/missing-nat487-output.mp4")
-        ) { _, _, _ in
-            completionExpectation.fulfill()
+        await worker.cancel()
+        do {
+            _ = try await worker.standardize(
+                sourceAsset: AVURLAsset(
+                    url: URL(fileURLWithPath: "/tmp/missing-nat487-input.mp4")
+                ),
+                rescalingDetails: .init(),
+                outputURL: URL(fileURLWithPath: "/tmp/missing-nat487-output.mp4")
+            )
+            XCTFail("Cancelled worker should throw")
+        } catch is CancellationError {
+            // Expected.
+        } catch {
+            XCTFail("Unexpected error: \(error)")
         }
-
-        wait(for: [completionExpectation], timeout: 0.25)
     }
 
-    func testCancelDoesNotDeleteAnOutputFileTheWorkerDoesNotOwn() throws {
+    func testCancelDoesNotDeleteAnOutputFileTheWorkerDoesNotOwn() async throws {
         let outputURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("nat487-existing-\(UUID().uuidString).mp4")
         let existingData = Data("existing".utf8)
@@ -231,19 +223,19 @@ final class UploadInputStandardizerTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: outputURL) }
 
         let worker = UploadInputStandardizationWorker()
-        worker.standardize(
+        await worker.cancel()
+        _ = try? await worker.standardize(
             sourceAsset: AVURLAsset(
                 url: URL(fileURLWithPath: "/tmp/missing-nat487-input.mp4")
             ),
             rescalingDetails: .init(),
             outputURL: outputURL
-        ) { _, _, _ in }
-        worker.cancel()
+        )
 
         XCTAssertEqual(try Data(contentsOf: outputURL), existingData)
     }
 
-    func testCatalogBackedCodecPreservingMP4AACConversion() throws {
+    func testCatalogBackedCodecPreservingMP4AACConversion() async throws {
         let environment = ProcessInfo.processInfo.environment
         guard let fixtureDirectory = environment["MUX_UPLOAD_MEDIA_FIXTURE_DIRECTORY"],
               let catalogPath = environment["MUX_UPLOAD_MEDIA_FIXTURE_CATALOG"] else {
@@ -295,7 +287,7 @@ final class UploadInputStandardizerTests: XCTestCase {
             let fixture = try XCTUnwrap(
                 catalog.fixtures.first { $0.id == testCase.id }
             )
-            try assertConversion(
+            try await assertConversion(
                 inputURL: URL(fileURLWithPath: fixtureDirectory)
                     .appendingPathComponent(fixture.canonicalFilename),
                 expectedCodec: testCase.codec,
@@ -306,7 +298,7 @@ final class UploadInputStandardizerTests: XCTestCase {
         }
     }
 
-    func testCatalogBackedCancellationDrainsActiveTransfers() throws {
+    func testCatalogBackedCancellationDrainsActiveTransfers() async throws {
         let inputURL = try catalogFixtureURL(
             id: "synthetic-standard-hevc-main10-sdr-2160p30-5-1"
         )
@@ -314,27 +306,24 @@ final class UploadInputStandardizerTests: XCTestCase {
             .appendingPathComponent("nat487-cancel-\(UUID().uuidString).mp4")
         defer { try? FileManager.default.removeItem(at: outputURL) }
         let transferStarted = expectation(description: "Transfer starts")
-        let completionExpectation = expectation(
-            description: "Cancelled transfer does not complete"
-        )
-        completionExpectation.isInverted = true
-
-        weak var cancellableWorker: UploadInputStandardizationWorker?
-        let worker = UploadInputStandardizationWorker {
+        let worker = UploadInputStandardizationWorker { worker in
             transferStarted.fulfill()
-            cancellableWorker?.cancel()
+            await worker.cancel()
         }
-        cancellableWorker = worker
-        worker.standardize(
-            sourceAsset: AVURLAsset(url: inputURL),
-            rescalingDetails: .init(),
-            outputURL: outputURL
-        ) { _, _, _ in
-            completionExpectation.fulfill()
+        do {
+            _ = try await worker.standardize(
+                sourceAsset: AVURLAsset(url: inputURL),
+                rescalingDetails: .init(),
+                outputURL: outputURL
+            )
+            XCTFail("Cancelled transfer should throw")
+        } catch is CancellationError {
+            // Expected.
+        } catch {
+            XCTFail("Unexpected error: \(error)")
         }
 
-        wait(for: [transferStarted], timeout: 2)
-        wait(for: [completionExpectation], timeout: 0.5)
+        await fulfillment(of: [transferStarted], timeout: 2)
         XCTAssertFalse(FileManager.default.fileExists(atPath: outputURL.path))
     }
 
@@ -344,96 +333,65 @@ final class UploadInputStandardizerTests: XCTestCase {
         expectedBitDepth: Int,
         expectedDimensions: CGSize,
         expectedAudioChannels: UInt32
-    ) throws {
+    ) async throws {
         let outputURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("nat487-\(UUID().uuidString).mp4")
         defer { try? FileManager.default.removeItem(at: outputURL) }
 
-        let completionExpectation = expectation(
-            description: "Conversion completes for \(inputURL.lastPathComponent)"
-        )
-        var conversionError: Error?
         let worker = UploadInputStandardizationWorker()
-        worker.standardize(
+        let standardizedAsset = try await worker.standardize(
             sourceAsset: AVURLAsset(url: inputURL),
             rescalingDetails: .init(
                 maximumDesiredResolutionPreset: .default,
                 recordedResolution: .init(width: 0, height: 0)
             ),
             outputURL: outputURL
-        ) { _, standardizedAsset, error in
-            conversionError = error
-            XCTAssertNotNil(standardizedAsset)
-            completionExpectation.fulfill()
-        }
-        wait(for: [completionExpectation], timeout: 60)
-        XCTAssertNil(conversionError)
+        )
+        XCTAssertEqual(standardizedAsset.url, outputURL)
 
         let outputAsset = AVURLAsset(url: outputURL)
-        let inspectionExpectation = expectation(
-            description: "Converted tracks can be read"
+        let videoTracks = try await outputAsset.loadTracks(withMediaType: .video)
+        let videoTrack = try XCTUnwrap(videoTracks.first)
+        let (videoFormats, naturalSize) = try await videoTrack.load(
+            .formatDescriptions,
+            .naturalSize
         )
-        outputAsset.loadTracks(withMediaType: .video) { videoTracks, videoError in
-            XCTAssertNil(videoError)
-            guard let videoTrack = videoTracks?.first else {
-                XCTFail("Missing converted video track")
-                inspectionExpectation.fulfill()
-                return
-            }
-            videoTrack.loadValuesAsynchronously(
-                forKeys: ["formatDescriptions", "naturalSize"]
-            ) {
-                let formatDescription = (videoTrack.formatDescriptions
-                    as? [CMFormatDescription])?.first
-                XCTAssertEqual(
-                    formatDescription?.mediaSubType,
-                    expectedCodec == .hevc ? .hevc : .h264
-                )
-                if let formatDescription,
-                   let extensions = CMFormatDescriptionGetExtensions(formatDescription)
-                    as NSDictionary? {
-                    XCTAssertEqual(
-                        AVFoundationUploadInputMetadataReader.codecConfiguration(
-                            codec: expectedCodec == .hevc ? .hevc : .h264,
-                            extensions: extensions
-                        )?.bitDepth,
-                        expectedBitDepth
-                    )
-                } else {
-                    XCTFail("Missing converted video format description")
-                }
-                XCTAssertEqual(videoTrack.naturalSize, expectedDimensions)
-                outputAsset.loadTracks(withMediaType: .audio) { audioTracks, audioError in
-                    XCTAssertNil(audioError)
-                    guard let audioTrack = audioTracks?.first else {
-                        XCTFail("Missing converted audio track")
-                        inspectionExpectation.fulfill()
-                        return
-                    }
-                    audioTrack.loadValuesAsynchronously(
-                        forKeys: ["formatDescriptions"]
-                    ) {
-                        let audioFormat = (audioTrack.formatDescriptions
-                            as? [CMAudioFormatDescription])?.first
-                        XCTAssertEqual(
-                            audioFormat?.mediaSubType,
-                            CMFormatDescription.MediaSubType(
-                                rawValue: kAudioFormatMPEG4AAC
-                            )
-                        )
-                        XCTAssertEqual(
-                            audioFormat.flatMap {
-                                CMAudioFormatDescriptionGetStreamBasicDescription($0)?
-                                    .pointee.mChannelsPerFrame
-                            },
-                            expectedAudioChannels
-                        )
-                        inspectionExpectation.fulfill()
-                    }
-                }
-            }
+        let formatDescription = videoFormats.first
+        XCTAssertEqual(
+            formatDescription?.mediaSubType,
+            expectedCodec == .hevc ? .hevc : .h264
+        )
+        if let formatDescription,
+           let extensions = CMFormatDescriptionGetExtensions(formatDescription)
+            as NSDictionary? {
+            XCTAssertEqual(
+                AVFoundationUploadInputMetadataReader.codecConfiguration(
+                    codec: expectedCodec == .hevc ? .hevc : .h264,
+                    extensions: extensions
+                )?.bitDepth,
+                expectedBitDepth
+            )
+        } else {
+            XCTFail("Missing converted video format description")
         }
-        wait(for: [inspectionExpectation], timeout: 10)
+        XCTAssertEqual(naturalSize, expectedDimensions)
+
+        let audioTracks = try await outputAsset.loadTracks(withMediaType: .audio)
+        let audioTrack = try XCTUnwrap(audioTracks.first)
+        let audioFormat = try await audioTrack.load(.formatDescriptions).first
+        XCTAssertEqual(
+            audioFormat?.mediaSubType,
+            CMFormatDescription.MediaSubType(
+                rawValue: kAudioFormatMPEG4AAC
+            )
+        )
+        XCTAssertEqual(
+            audioFormat.flatMap {
+                CMAudioFormatDescriptionGetStreamBasicDescription($0)?
+                    .pointee.mChannelsPerFrame
+            },
+            expectedAudioChannels
+        )
     }
 
     private func catalogFixtureURL(id: String) throws -> URL {

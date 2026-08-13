@@ -5,27 +5,28 @@
 import AVFoundation
 import Foundation
 
-protocol UploadInputStandardizing {
+protocol UploadInputStandardizing: Sendable {
     func standardize(
         id: String,
         sourceAsset: AVURLAsset,
         rescalingDetails: UploadInputFormatInspectionResult.RescalingDetails,
-        outputURL: URL,
-        completion: @escaping (AVURLAsset, AVAsset?, Error?) -> ()
-    )
+        outputURL: URL
+    ) async throws -> AVURLAsset
 
-    func cancel(id: String)
-
-    func acknowledgeCompletion(id: String)
+    func cancel(id: String) async
 }
 
-class UploadInputStandardizer: UploadInputStandardizing {
-    private let lock = NSLock()
-    private let workerFactory: () -> UploadInputStandardizationWorking
-    private(set) var workers: [String: UploadInputStandardizationWorking] = [:]
+actor UploadInputStandardizer: UploadInputStandardizing {
+    private struct Entry {
+        let operationID: UUID
+        let worker: UploadInputStandardizationWorking
+    }
+
+    private let workerFactory: @Sendable () -> UploadInputStandardizationWorking
+    private var entries: [String: Entry] = [:]
 
     init(
-        workerFactory: @escaping () -> UploadInputStandardizationWorking = {
+        workerFactory: @escaping @Sendable () -> UploadInputStandardizationWorking = {
             UploadInputStandardizationWorker()
         }
     ) {
@@ -36,35 +37,41 @@ class UploadInputStandardizer: UploadInputStandardizing {
         id: String,
         sourceAsset: AVURLAsset,
         rescalingDetails: UploadInputFormatInspectionResult.RescalingDetails,
-        outputURL: URL,
-        completion: @escaping (AVURLAsset, AVAsset?, Error?) -> ()
-    ) {
+        outputURL: URL
+    ) async throws -> AVURLAsset {
         let worker = workerFactory()
-        lock.lock()
-        let previousWorker = workers.updateValue(worker, forKey: id)
-        lock.unlock()
-        previousWorker?.cancel()
+        let operationID = UUID()
+        let previousWorker = entries.updateValue(
+            Entry(operationID: operationID, worker: worker),
+            forKey: id
+        )?.worker
+        await previousWorker?.cancel()
 
-        worker.standardize(
-            sourceAsset: sourceAsset,
-            rescalingDetails: rescalingDetails,
-            outputURL: outputURL,
-            completion: completion
-        )
+        do {
+            let result = try await worker.standardize(
+                sourceAsset: sourceAsset,
+                rescalingDetails: rescalingDetails,
+                outputURL: outputURL
+            )
+            removeWorker(id: id, operationID: operationID)
+            return result
+        } catch {
+            removeWorker(id: id, operationID: operationID)
+            throw error
+        }
     }
 
-    func cancel(id: String) {
-        lock.lock()
-        let worker = workers.removeValue(forKey: id)
-        lock.unlock()
-        worker?.cancel()
+    func cancel(id: String) async {
+        let worker = entries.removeValue(forKey: id)?.worker
+        await worker?.cancel()
     }
 
-    func acknowledgeCompletion(
-        id: String
-    ) {
-        lock.lock()
-        workers[id] = nil
-        lock.unlock()
+    func hasWorker(id: String) -> Bool {
+        entries[id] != nil
+    }
+
+    private func removeWorker(id: String, operationID: UUID) {
+        guard entries[id]?.operationID == operationID else { return }
+        entries[id] = nil
     }
 }
