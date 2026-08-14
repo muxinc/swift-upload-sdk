@@ -13,10 +13,26 @@ protocol UploadInputStandardizationWorking: AnyObject, Sendable {
     func standardize(
         sourceAsset: AVURLAsset,
         rescalingDetails: UploadInputFormatInspectionResult.RescalingDetails,
+        conversion: StandardInputConversion?,
         outputURL: URL
     ) async throws -> AVURLAsset
 
     func cancel() async
+}
+
+extension UploadInputStandardizationWorking {
+    func standardize(
+        sourceAsset: AVURLAsset,
+        rescalingDetails: UploadInputFormatInspectionResult.RescalingDetails,
+        outputURL: URL
+    ) async throws -> AVURLAsset {
+        try await standardize(
+            sourceAsset: sourceAsset,
+            rescalingDetails: rescalingDetails,
+            conversion: nil,
+            outputURL: outputURL
+        )
+    }
 }
 
 struct StandardizationError: LocalizedError {
@@ -221,6 +237,7 @@ actor UploadInputStandardizationWorker {
     func standardize(
         sourceAsset: AVURLAsset,
         rescalingDetails: UploadInputFormatInspectionResult.RescalingDetails,
+        conversion: StandardInputConversion?,
         outputURL: URL
     ) async throws -> AVURLAsset {
         try ensureActive()
@@ -249,6 +266,7 @@ actor UploadInputStandardizationWorker {
                 audioProperties: audioProperties,
                 properties: properties,
                 rescalingDetails: rescalingDetails,
+                conversion: conversion,
                 outputURL: outputURL
             )
             try ensureActive()
@@ -331,6 +349,7 @@ actor UploadInputStandardizationWorker {
         audioProperties: AudioProperties?,
         properties: LoadedAssetProperties,
         rescalingDetails: UploadInputFormatInspectionResult.RescalingDetails,
+        conversion: StandardInputConversion?,
         outputURL: URL
     ) async throws -> AVURLAsset {
         let renderSize = try Self.renderSize(
@@ -352,11 +371,11 @@ actor UploadInputStandardizationWorker {
 
         let sourceFormatDescription = properties.formatDescriptions[0]
         let decoderPixelFormat = Self.decoderPixelFormat(
-            for: sourceFormatDescription
+            for: sourceFormatDescription,
+            toneMapsToSDR: conversion?.toneMapsToSDR == true
         )
-        let codec = Self.outputCodec(
-            for: sourceFormatDescription.mediaSubType
-        )
+        let codec = conversion.map(Self.outputCodec(for:))
+            ?? Self.outputCodec(for: sourceFormatDescription.mediaSubType)
         let encoderConfiguration = Self.encoderConfiguration(
             codec: codec,
             renderSize: renderSize,
@@ -366,11 +385,10 @@ actor UploadInputStandardizationWorker {
 
         let videoOutput = AVAssetReaderVideoCompositionOutput(
             videoTracks: [videoTrack],
-            videoSettings: [
-                kCVPixelBufferPixelFormatTypeKey as String:
-                    decoderPixelFormat,
-                kCVPixelBufferIOSurfacePropertiesKey as String: [:]
-            ]
+            videoSettings: Self.readerVideoSettings(
+                decoderPixelFormat: decoderPixelFormat,
+                toneMapsToSDR: conversion?.toneMapsToSDR == true
+            )
         )
         videoOutput.alwaysCopiesSampleData = false
         videoOutput.videoComposition = Self.videoComposition(
@@ -379,7 +397,8 @@ actor UploadInputStandardizationWorker {
             naturalSize: properties.naturalSize,
             preferredTransform: properties.preferredTransform,
             outputFrameRate: encoderConfiguration.outputFrameRate,
-            renderSize: renderSize
+            renderSize: renderSize,
+            toneMapsToSDR: conversion?.toneMapsToSDR == true
         )
         guard reader.canAdd(videoOutput) else {
             throw StandardizationError.cannotAddReaderOutput
@@ -389,7 +408,8 @@ actor UploadInputStandardizationWorker {
         var videoSettings = Self.videoWriterSettings(
             codec: codec,
             renderSize: renderSize,
-            encoderConfiguration: encoderConfiguration
+            encoderConfiguration: encoderConfiguration,
+            toneMapsToSDR: conversion?.toneMapsToSDR == true
         )
         let compressionPropertiesKey = AVVideoCompressionPropertiesKey
         if !writer.canApply(outputSettings: videoSettings, forMediaType: .video),
@@ -546,9 +566,24 @@ actor UploadInputStandardizationWorker {
         }
     }
 
+    static func outputCodec(
+        for conversion: StandardInputConversion
+    ) -> AVVideoCodecType {
+        switch conversion.outputCodec {
+        case .hevc:
+            return .hevc
+        case .h264, .other:
+            return .h264
+        }
+    }
+
     static func decoderPixelFormat(
-        for formatDescription: CMFormatDescription
+        for formatDescription: CMFormatDescription,
+        toneMapsToSDR: Bool = false
     ) -> OSType {
+        guard !toneMapsToSDR else {
+            return kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange
+        }
         guard outputCodec(for: formatDescription.mediaSubType) == .hevc,
               let extensions = CMFormatDescriptionGetExtensions(formatDescription)
                 as NSDictionary?,
@@ -562,6 +597,20 @@ actor UploadInputStandardizationWorker {
             return kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange
         }
         return kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange
+    }
+
+    static func readerVideoSettings(
+        decoderPixelFormat: OSType,
+        toneMapsToSDR: Bool
+    ) -> [String: Any] {
+        var settings: [String: Any] = [
+            kCVPixelBufferPixelFormatTypeKey as String: decoderPixelFormat,
+            kCVPixelBufferIOSurfacePropertiesKey as String: [:]
+        ]
+        if toneMapsToSDR {
+            settings[AVVideoColorPropertiesKey] = rec709ColorProperties
+        }
+        return settings
     }
 
     static func boundingSize(
@@ -610,13 +659,14 @@ actor UploadInputStandardizationWorker {
         CGFloat(max(2, Int((value / 2).rounded()) * 2))
     }
 
-    private static func videoComposition(
+    static func videoComposition(
         track: AVAssetTrack,
         duration: CMTime,
         naturalSize: CGSize,
         preferredTransform: CGAffineTransform,
         outputFrameRate: Double,
-        renderSize: CGSize
+        renderSize: CGSize,
+        toneMapsToSDR: Bool
     ) -> AVVideoComposition {
         let transformedRect = CGRect(origin: .zero, size: naturalSize)
             .applying(preferredTransform)
@@ -648,6 +698,11 @@ actor UploadInputStandardizationWorker {
             value: 1_000,
             timescale: CMTimeScale((outputFrameRate * 1_000).rounded())
         )
+        if toneMapsToSDR {
+            composition.colorPrimaries = AVVideoColorPrimaries_ITU_R_709_2
+            composition.colorTransferFunction = AVVideoTransferFunction_ITU_R_709_2
+            composition.colorYCbCrMatrix = AVVideoYCbCrMatrix_ITU_R_709_2
+        }
         return composition
     }
 
@@ -713,12 +768,13 @@ actor UploadInputStandardizationWorker {
         )
     }
 
-    private static func videoWriterSettings(
+    static func videoWriterSettings(
         codec: AVVideoCodecType,
         renderSize: CGSize,
-        encoderConfiguration: EncoderConfiguration
+        encoderConfiguration: EncoderConfiguration,
+        toneMapsToSDR: Bool
     ) -> [String: Any] {
-        [
+        var settings: [String: Any] = [
             AVVideoCodecKey: codec,
             AVVideoWidthKey: Int(renderSize.width),
             AVVideoHeightKey: Int(renderSize.height),
@@ -736,6 +792,18 @@ actor UploadInputStandardizationWorker {
                 kVTCompressionPropertyKey_AllowOpenGOP as String: false,
                 AVVideoProfileLevelKey: encoderConfiguration.profileLevel
             ]
+        ]
+        if toneMapsToSDR {
+            settings[AVVideoColorPropertiesKey] = rec709ColorProperties
+        }
+        return settings
+    }
+
+    static var rec709ColorProperties: [String: Any] {
+        [
+            AVVideoColorPrimariesKey: AVVideoColorPrimaries_ITU_R_709_2,
+            AVVideoTransferFunctionKey: AVVideoTransferFunction_ITU_R_709_2,
+            AVVideoYCbCrMatrixKey: AVVideoYCbCrMatrix_ITU_R_709_2
         ]
     }
 

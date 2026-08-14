@@ -27,7 +27,7 @@ struct StandardInputPlanningCapabilities: Equatable {
     }
 }
 
-struct StandardInputConversion: Equatable {
+struct StandardInputConversion: Equatable, Sendable {
     let sourceCodec: StandardInputVideoCodec
     let outputCodec: StandardInputVideoCodec
     let sourceDynamicRange: StandardInputDynamicRange

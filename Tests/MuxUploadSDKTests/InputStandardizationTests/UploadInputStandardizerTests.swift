@@ -9,6 +9,22 @@ import XCTest
 @testable import MuxUploadSDK
 
 final class UploadInputStandardizerTests: XCTestCase {
+    private actor ImmediateWorker: UploadInputStandardizationWorking {
+        private(set) var receivedConversion: StandardInputConversion?
+
+        func standardize(
+            sourceAsset: AVURLAsset,
+            rescalingDetails: UploadInputFormatInspectionResult.RescalingDetails,
+            conversion: StandardInputConversion?,
+            outputURL: URL
+        ) async throws -> AVURLAsset {
+            receivedConversion = conversion
+            return AVURLAsset(url: outputURL)
+        }
+
+        func cancel() { }
+    }
+
     private actor ControllableWorker: UploadInputStandardizationWorking {
         private(set) var cancellationCount = 0
         private var isCancelled = false
@@ -19,6 +35,7 @@ final class UploadInputStandardizerTests: XCTestCase {
         func standardize(
             sourceAsset: AVURLAsset,
             rescalingDetails: UploadInputFormatInspectionResult.RescalingDetails,
+            conversion: StandardInputConversion?,
             outputURL: URL
         ) async throws -> AVURLAsset {
             if isCancelled {
@@ -99,6 +116,97 @@ final class UploadInputStandardizerTests: XCTestCase {
             ),
             kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange
         )
+    }
+
+    func testToneMappingUsesPlannedCodecAndRec709EightBitOutput() throws {
+        let conversion = toneMappingConversion(dynamicRange: .hlg)
+        XCTAssertEqual(
+            UploadInputStandardizationWorker.outputCodec(for: conversion),
+            .hevc
+        )
+
+        let decoderPixelFormat = UploadInputStandardizationWorker.decoderPixelFormat(
+            for: try makeHEVCFormatDescription(bitDepth: 10),
+            toneMapsToSDR: true
+        )
+        XCTAssertEqual(
+            decoderPixelFormat,
+            kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange
+        )
+
+        let readerSettings = UploadInputStandardizationWorker.readerVideoSettings(
+            decoderPixelFormat: decoderPixelFormat,
+            toneMapsToSDR: true
+        )
+        assertRec709ColorProperties(
+            readerSettings[AVVideoColorPropertiesKey]
+        )
+
+        let configuration = UploadInputStandardizationWorker.encoderConfiguration(
+            codec: .hevc,
+            renderSize: CGSize(width: 1920, height: 1080),
+            sourceFrameRate: 30,
+            decoderPixelFormat: decoderPixelFormat
+        )
+        XCTAssertEqual(
+            configuration.profileLevel,
+            kVTProfileLevel_HEVC_Main_AutoLevel as String
+        )
+        let writerSettings = UploadInputStandardizationWorker.videoWriterSettings(
+            codec: .hevc,
+            renderSize: CGSize(width: 1920, height: 1080),
+            encoderConfiguration: configuration,
+            toneMapsToSDR: true
+        )
+        assertRec709ColorProperties(
+            writerSettings[AVVideoColorPropertiesKey]
+        )
+    }
+
+    func testNonToneMappedConversionDoesNotOverrideColorProperties() throws {
+        let decoderPixelFormat = UploadInputStandardizationWorker.decoderPixelFormat(
+            for: try makeHEVCFormatDescription(bitDepth: 10)
+        )
+        let readerSettings = UploadInputStandardizationWorker.readerVideoSettings(
+            decoderPixelFormat: decoderPixelFormat,
+            toneMapsToSDR: false
+        )
+        XCTAssertNil(readerSettings[AVVideoColorPropertiesKey])
+
+        let configuration = UploadInputStandardizationWorker.encoderConfiguration(
+            codec: .hevc,
+            renderSize: CGSize(width: 1920, height: 1080),
+            sourceFrameRate: 30,
+            decoderPixelFormat: decoderPixelFormat
+        )
+        let writerSettings = UploadInputStandardizationWorker.videoWriterSettings(
+            codec: .hevc,
+            renderSize: CGSize(width: 1920, height: 1080),
+            encoderConfiguration: configuration,
+            toneMapsToSDR: false
+        )
+        XCTAssertNil(writerSettings[AVVideoColorPropertiesKey])
+    }
+
+    func testStandardizerForwardsPlannedConversionToWorker() async throws {
+        let worker = ImmediateWorker()
+        let standardizer = UploadInputStandardizer { _ in worker }
+        let conversion = toneMappingConversion(dynamicRange: .pq)
+        let outputURL = URL(fileURLWithPath: "/tmp/planned-tone-map.mp4")
+
+        _ = try await standardizer.standardize(
+            id: UUID().uuidString,
+            token: UploadInputStandardizationToken(),
+            sourceAsset: AVURLAsset(
+                url: URL(fileURLWithPath: "/tmp/planned-tone-map-source.mp4")
+            ),
+            rescalingDetails: .init(),
+            conversion: conversion,
+            outputURL: outputURL
+        )
+
+        let receivedConversion = await worker.receivedConversion
+        XCTAssertEqual(receivedConversion, conversion)
     }
 
     func testEncoderConfigurationNormalizesOnlyUnsupportedFrameRates() {
@@ -573,6 +681,67 @@ final class UploadInputStandardizerTests: XCTestCase {
         }
     }
 
+    func testCatalogBackedHLGAndPQToneMappingProducesRec709SDR() async throws {
+        let cases: [(
+            id: String,
+            dynamicRange: StandardInputDynamicRange,
+            sourceDimensions: StandardInputDisplayDimensions,
+            dimensions: CGSize,
+            audioChannels: UInt32?,
+            validatesTimeline: Bool
+        )] = [
+            (
+                "synthetic-standard-hevc-main10-hlg-1080p30-stereo",
+                .hlg,
+                StandardInputDisplayDimensions(width: 1920, height: 1080),
+                CGSize(width: 1920, height: 1080),
+                2,
+                false
+            ),
+            (
+                "synthetic-standard-hevc-main10-pq-1080p30-stereo",
+                .pq,
+                StandardInputDisplayDimensions(width: 1920, height: 1080),
+                CGSize(width: 1920, height: 1080),
+                2,
+                false
+            ),
+            (
+                "nat480-iphone-dolby-vision-84-hlg-4k-vfr",
+                .hlg,
+                StandardInputDisplayDimensions(width: 2160, height: 3840),
+                CGSize(width: 1080, height: 1920),
+                2,
+                true
+            ),
+            (
+                "nat480-clean-hdr10-pq-hevc-1080p5994",
+                .pq,
+                StandardInputDisplayDimensions(width: 1920, height: 1080),
+                CGSize(width: 1920, height: 1080),
+                nil,
+                true
+            )
+        ]
+
+        for testCase in cases {
+            try await assertConversion(
+                inputURL: try catalogFixtureURL(id: testCase.id),
+                expectedCodec: .hevc,
+                expectedBitDepth: 8,
+                maximumResolution: .preset1920x1080,
+                expectedDimensions: testCase.dimensions,
+                expectedConstantFrameRate: nil,
+                expectedAudioChannels: testCase.audioChannels,
+                conversion: toneMappingConversion(
+                    dynamicRange: testCase.dynamicRange,
+                    sourceDimensions: testCase.sourceDimensions
+                ),
+                validatesTimeline: testCase.validatesTimeline
+            )
+        }
+    }
+
     func testCatalogBackedCancellationDrainsActiveTransfers() async throws {
         let inputURL = try catalogFixtureURL(
             id: "synthetic-standard-hevc-main10-sdr-2160p30-5-1"
@@ -609,7 +778,9 @@ final class UploadInputStandardizerTests: XCTestCase {
         maximumResolution: DirectUploadOptions.InputStandardization.MaximumResolution,
         expectedDimensions: CGSize,
         expectedConstantFrameRate: Double?,
-        expectedAudioChannels: UInt32
+        expectedAudioChannels: UInt32?,
+        conversion: StandardInputConversion? = nil,
+        validatesTimeline: Bool = false
     ) async throws {
         let outputURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("standardized-\(UUID().uuidString).mp4")
@@ -622,6 +793,7 @@ final class UploadInputStandardizerTests: XCTestCase {
                 maximumDesiredResolutionPreset: maximumResolution,
                 recordedResolution: .init(width: 0, height: 0)
             ),
+            conversion: conversion,
             outputURL: outputURL
         )
         XCTAssertEqual(standardizedAsset.url, outputURL)
@@ -666,26 +838,31 @@ final class UploadInputStandardizerTests: XCTestCase {
         }
 
         let audioTracks = try await outputAsset.loadTracks(withMediaType: .audio)
-        let audioTrack = try XCTUnwrap(audioTracks.first)
-        let audioFormat = try await audioTrack.load(.formatDescriptions).first
-        XCTAssertEqual(
-            audioFormat?.mediaSubType,
-            CMFormatDescription.MediaSubType(
-                rawValue: kAudioFormatMPEG4AAC
+        if let expectedAudioChannels {
+            let audioTrack = try XCTUnwrap(audioTracks.first)
+            let audioFormat = try await audioTrack.load(.formatDescriptions).first
+            XCTAssertEqual(
+                audioFormat?.mediaSubType,
+                CMFormatDescription.MediaSubType(
+                    rawValue: kAudioFormatMPEG4AAC
+                )
             )
-        )
-        XCTAssertEqual(
-            audioFormat.flatMap {
-                CMAudioFormatDescriptionGetStreamBasicDescription($0)?
-                    .pointee.mChannelsPerFrame
-            },
-            expectedAudioChannels
-        )
+            XCTAssertEqual(
+                audioFormat.flatMap {
+                    CMAudioFormatDescriptionGetStreamBasicDescription($0)?
+                        .pointee.mChannelsPerFrame
+                },
+                expectedAudioChannels
+            )
+        } else {
+            XCTAssertTrue(audioTracks.isEmpty)
+        }
 
         let inspectionResult = try await inspect(
             asset: outputAsset,
             maximumResolution: maximumResolution
         )
+        XCTAssertEqual(inspectionResult.mediaFacts.dynamicRange, .known(.sdr))
         if let expectedConstantFrameRate {
             XCTAssertEqual(
                 inspectionResult.mediaFacts.frameRate.value ?? 0,
@@ -715,6 +892,38 @@ final class UploadInputStandardizerTests: XCTestCase {
             ).isAccepted,
             "The validator must accept a policy-compliant generated output"
         )
+        if let conversion {
+            let sourceTimeline = try await timelineFacts(
+                asset: AVURLAsset(url: inputURL)
+            )
+            let outputTimeline = try await timelineFacts(asset: outputAsset)
+            if case .known(let sourceDuration) = sourceTimeline.duration,
+               case .known(let outputDuration) = outputTimeline.duration {
+                XCTAssertLessThanOrEqual(
+                    abs(sourceDuration - outputDuration),
+                    max(
+                        StandardInputOutputValidator.minimumDurationDelta,
+                        1 / (inspectionResult.mediaFacts.frameRate.value ?? 30)
+                    )
+                )
+            }
+            guard validatesTimeline else { return }
+            let generatedValidation = StandardInputOutputValidator()
+                .validateGeneratedOutput(
+                    facts: inspectionResult.mediaFacts,
+                    sourceTimeline: sourceTimeline,
+                    outputTimeline: outputTimeline,
+                    for: conversion
+                )
+            XCTAssertTrue(
+                generatedValidation.isAccepted,
+                """
+                Generated output must match the HDR plan for \
+                \(inputURL.lastPathComponent): \(generatedValidation); \
+                source timeline: \(sourceTimeline); output timeline: \(outputTimeline)
+                """
+            )
+        }
     }
 
     private func inspect(
@@ -759,6 +968,58 @@ final class UploadInputStandardizerTests: XCTestCase {
         }
         XCTAssertEqual(reader.status, .completed)
         return durations
+    }
+
+    private func timelineFacts(
+        asset: AVAsset
+    ) async throws -> StandardInputTimelineFacts {
+        let duration = try await asset.load(.duration).seconds
+        let videoStart = try await minimumSamplePresentationTime(
+            asset: asset,
+            mediaType: .video
+        )
+        let audioTracks = try await asset.loadTracks(withMediaType: .audio)
+        let audioVideoStartOffset: StandardInputTimelineFacts.AudioVideoStartOffset
+        if audioTracks.isEmpty {
+            audioVideoStartOffset = .notApplicable
+        } else {
+            let audioStart = try await minimumSamplePresentationTime(
+                asset: asset,
+                mediaType: .audio
+            )
+            audioVideoStartOffset = .seconds(audioStart - videoStart)
+        }
+        return StandardInputTimelineFacts(
+            duration: .known(duration),
+            audioVideoStartOffset: .known(audioVideoStartOffset)
+        )
+    }
+
+    private func minimumSamplePresentationTime(
+        asset: AVAsset,
+        mediaType: AVMediaType
+    ) async throws -> TimeInterval {
+        let tracks = try await asset.loadTracks(withMediaType: mediaType)
+        let track = try XCTUnwrap(tracks.first)
+        let reader = try AVAssetReader(asset: asset)
+        let output = AVAssetReaderTrackOutput(track: track, outputSettings: nil)
+        reader.add(output)
+        XCTAssertTrue(reader.startReading())
+        var minimumTime: CMTime?
+        while let sample = output.copyNextSampleBuffer() {
+            let presentationTime = CMSampleBufferGetPresentationTimeStamp(sample)
+            guard presentationTime.isValid, presentationTime.isNumeric else {
+                continue
+            }
+            if let currentMinimum = minimumTime {
+                if CMTimeCompare(presentationTime, currentMinimum) < 0 {
+                    minimumTime = presentationTime
+                }
+            } else {
+                minimumTime = presentationTime
+            }
+        }
+        return try XCTUnwrap(minimumTime).seconds
     }
 
     private func catalogFixtureURL(id: String) throws -> URL {
@@ -864,6 +1125,53 @@ final class UploadInputStandardizerTests: XCTestCase {
         }
         didFinish = true
         return outputURL
+    }
+
+    private func toneMappingConversion(
+        dynamicRange: StandardInputDynamicRange,
+        sourceDimensions: StandardInputDisplayDimensions =
+            StandardInputDisplayDimensions(width: 1920, height: 1080)
+    ) -> StandardInputConversion {
+        StandardInputConversion(
+            sourceCodec: .hevc,
+            outputCodec: .hevc,
+            sourceDynamicRange: dynamicRange,
+            sourceDisplayDimensions: .known(sourceDimensions),
+            toneMapsToSDR: true,
+            selection: StandardInputPolicySelection(
+                maximumResolution: .preset1920x1080
+            ),
+            requirementsToRemediate: []
+        )
+    }
+
+    private func assertRec709ColorProperties(
+        _ value: Any?,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        guard let properties = value as? [String: Any] else {
+            XCTFail("Missing color properties", file: file, line: line)
+            return
+        }
+        XCTAssertEqual(
+            properties[AVVideoColorPrimariesKey] as? String,
+            AVVideoColorPrimaries_ITU_R_709_2,
+            file: file,
+            line: line
+        )
+        XCTAssertEqual(
+            properties[AVVideoTransferFunctionKey] as? String,
+            AVVideoTransferFunction_ITU_R_709_2,
+            file: file,
+            line: line
+        )
+        XCTAssertEqual(
+            properties[AVVideoYCbCrMatrixKey] as? String,
+            AVVideoYCbCrMatrix_ITU_R_709_2,
+            file: file,
+            line: line
+        )
     }
 
     private func makeHEVCFormatDescription(
