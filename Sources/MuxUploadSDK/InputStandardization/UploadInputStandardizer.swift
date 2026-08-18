@@ -5,45 +5,83 @@
 import AVFoundation
 import Foundation
 
-protocol UploadInputStandardizing {
-    func standardize(
-        id: String,
-        sourceAsset: AVURLAsset,
-        rescalingDetails: UploadInputFormatInspectionResult.RescalingDetails,
-        outputURL: URL,
-        completion: @escaping (AVURLAsset, AVAsset?, Error?) -> ()
-    )
-
-    func acknowledgeCompletion(id: String)
+struct UploadInputStandardizationToken: Equatable, Sendable {
+    private let id = UUID()
 }
 
-class UploadInputStandardizer: UploadInputStandardizing {
-    var workers: [String: UploadInputStandardizationWorker] = [:]
+protocol UploadInputStandardizing: Sendable {
+    func standardize(
+        id: String,
+        token: UploadInputStandardizationToken,
+        sourceAsset: AVURLAsset,
+        rescalingDetails: UploadInputFormatInspectionResult.RescalingDetails,
+        outputURL: URL
+    ) async throws -> AVURLAsset
+
+    func cancel(id: String, token: UploadInputStandardizationToken) async
+}
+
+actor UploadInputStandardizer: UploadInputStandardizing {
+    private struct Entry {
+        let token: UploadInputStandardizationToken
+        let worker: UploadInputStandardizationWorking
+    }
+
+    private let workerFactory: @Sendable (
+        UploadInputStandardizationToken
+    ) -> UploadInputStandardizationWorking
+    private var entries: [String: Entry] = [:]
+
+    init(
+        workerFactory: @escaping @Sendable (
+            UploadInputStandardizationToken
+        ) -> UploadInputStandardizationWorking = { _ in
+            UploadInputStandardizationWorker()
+        }
+    ) {
+        self.workerFactory = workerFactory
+    }
 
     func standardize(
         id: String,
+        token: UploadInputStandardizationToken,
         sourceAsset: AVURLAsset,
         rescalingDetails: UploadInputFormatInspectionResult.RescalingDetails,
-        outputURL: URL,
-        completion: @escaping (AVURLAsset, AVAsset?, Error?) -> ()
-    ) {
-        let worker = UploadInputStandardizationWorker()
-        workers[id] = worker
+        outputURL: URL
+    ) async throws -> AVURLAsset {
+        let worker = workerFactory(token)
+        let previousWorker = entries.updateValue(
+            Entry(token: token, worker: worker),
+            forKey: id
+        )?.worker
+        await previousWorker?.cancel()
 
-        worker.standardize(
-            sourceAsset: sourceAsset,
-            rescalingDetails: rescalingDetails,
-            outputURL: outputURL,
-            completion: completion
-        )
+        do {
+            let result = try await worker.standardize(
+                sourceAsset: sourceAsset,
+                rescalingDetails: rescalingDetails,
+                outputURL: outputURL
+            )
+            removeWorker(id: id, token: token)
+            return result
+        } catch {
+            removeWorker(id: id, token: token)
+            throw error
+        }
     }
 
-    // Storing the worker might not be necessary if an
-    // alternative reference is in place outside the
-    // stack frame
-    func acknowledgeCompletion(
-        id: String
-    ) {
-        workers[id] = nil
+    func cancel(id: String, token: UploadInputStandardizationToken) async {
+        guard entries[id]?.token == token else { return }
+        let worker = entries.removeValue(forKey: id)?.worker
+        await worker?.cancel()
+    }
+
+    func hasWorker(id: String) -> Bool {
+        entries[id] != nil
+    }
+
+    private func removeWorker(id: String, token: UploadInputStandardizationToken) {
+        guard entries[id]?.token == token else { return }
+        entries[id] = nil
     }
 }

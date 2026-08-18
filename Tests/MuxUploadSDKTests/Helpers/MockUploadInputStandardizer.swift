@@ -7,28 +7,40 @@ import Foundation
 
 @testable import MuxUploadSDK
 
-final class MockUploadInputStandardizer: UploadInputStandardizing {
+actor MockUploadInputStandardizer: UploadInputStandardizing {
+    struct Snapshot {
+        let standardizeCallCount: Int
+        let cancelCallCount: Int
+    }
+
     private(set) var standardizeCallCount = 0
-    private(set) var acknowledgeCompletionCallCount = 0
+    private(set) var cancelCallCount = 0
 
     let error: Error
 
-    init(error: Error = StandardizationError.standardizedAssetExportFailure) {
+    init(error: Error = StandardizationError.conversionFailure) {
         self.error = error
     }
 
     func standardize(
         id: String,
+        token: UploadInputStandardizationToken,
         sourceAsset: AVURLAsset,
         rescalingDetails: UploadInputFormatInspectionResult.RescalingDetails,
-        outputURL: URL,
-        completion: @escaping (AVURLAsset, AVAsset?, Error?) -> ()
-    ) {
+        outputURL: URL
+    ) async throws -> AVURLAsset {
         standardizeCallCount += 1
-        completion(sourceAsset, nil, error)
+        throw error
     }
 
-    func acknowledgeCompletion(id: String) {
-        acknowledgeCompletionCallCount += 1
+    func cancel(id: String, token: UploadInputStandardizationToken) {
+        cancelCallCount += 1
+    }
+
+    func snapshot() -> Snapshot {
+        Snapshot(
+            standardizeCallCount: standardizeCallCount,
+            cancelCallCount: cancelCallCount
+        )
     }
 }

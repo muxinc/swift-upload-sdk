@@ -81,14 +81,16 @@ class DirectUploadTests: XCTestCase {
         )
     }
 
-    func testCancelDuringInspectionCancelsOperationAndSuppressesCompletion() throws {
+    func testCancelDuringInspectionCancelsOperationAndSuppressesCompletion() async throws {
         let input = try UploadInput.mockReadyInput()
         let inspector = MockUploadInputInspector()
+        let standardizer = MockUploadInputStandardizer()
         inspector.shouldDeferCompletion = true
         let upload = DirectUpload(
             input: input,
             uploadManager: DirectUploadManager(),
-            inputInspector: inspector
+            inputInspector: inspector,
+            inputStandardizer: standardizer
         )
         let cancellationExpectation = expectation(
             description: "Expected cancellation result during inspection"
@@ -120,12 +122,17 @@ class DirectUploadTests: XCTestCase {
         inspector.completeDeferredInspection()
 
         XCTAssertTrue(operation.isCancelled)
+        let standardizerSnapshot = await waitForStandardizer(
+            standardizer,
+            cancelCallCount: 1
+        )
+        XCTAssertEqual(standardizerSnapshot.cancelCallCount, 1)
         XCTAssertNil(upload.fileWorker)
         guard case .ready = upload.inputStatus else {
             return XCTFail("Expected cancellation to reset the upload to ready")
         }
-        wait(
-            for: [cancellationExpectation, transportExpectation],
+        await fulfillment(
+            of: [cancellationExpectation, transportExpectation],
             timeout: 0.1
         )
     }
@@ -341,8 +348,8 @@ class DirectUploadTests: XCTestCase {
         upload.cancel()
     }
 
-    func testHandlerReturningTrueCancelsAfterRescalingFailure() throws {
-        try assertStandardizationFailureBehavior(
+    func testHandlerReturningTrueCancelsAfterRescalingFailure() async throws {
+        try await assertStandardizationFailureBehavior(
             inspectionResult: UploadInputFormatInspectionResult(
                 nonStandardInputReasons: [],
                 rescalingDetails: .init(
@@ -354,8 +361,8 @@ class DirectUploadTests: XCTestCase {
         )
     }
 
-    func testHandlerReturningFalseUploadsOriginalAfterRescalingFailure() throws {
-        try assertStandardizationFailureBehavior(
+    func testHandlerReturningFalseUploadsOriginalAfterRescalingFailure() async throws {
+        try await assertStandardizationFailureBehavior(
             inspectionResult: UploadInputFormatInspectionResult(
                 nonStandardInputReasons: [],
                 rescalingDetails: .init(
@@ -367,8 +374,8 @@ class DirectUploadTests: XCTestCase {
         )
     }
 
-    func testHandlerReturningTrueCancelsAfterNonstandardInputFailure() throws {
-        try assertStandardizationFailureBehavior(
+    func testHandlerReturningTrueCancelsAfterNonstandardInputFailure() async throws {
+        try await assertStandardizationFailureBehavior(
             inspectionResult: UploadInputFormatInspectionResult(
                 nonStandardInputReasons: [.videoCodec],
                 rescalingDetails: .init()
@@ -377,8 +384,8 @@ class DirectUploadTests: XCTestCase {
         )
     }
 
-    func testHandlerReturningFalseUploadsOriginalAfterNonstandardInputFailure() throws {
-        try assertStandardizationFailureBehavior(
+    func testHandlerReturningFalseUploadsOriginalAfterNonstandardInputFailure() async throws {
+        try await assertStandardizationFailureBehavior(
             inspectionResult: UploadInputFormatInspectionResult(
                 nonStandardInputReasons: [.videoCodec],
                 rescalingDetails: .init()
@@ -390,7 +397,7 @@ class DirectUploadTests: XCTestCase {
     private func assertStandardizationFailureBehavior(
         inspectionResult: UploadInputFormatInspectionResult,
         shouldCancel: Bool
-    ) throws {
+    ) async throws {
         let input = try UploadInput.mockReadyInput()
         let standardizer = MockUploadInputStandardizer()
         let upload = DirectUpload(
@@ -402,17 +409,36 @@ class DirectUploadTests: XCTestCase {
             inputStandardizer: standardizer
         )
         var handlerCallCount = 0
+        let handlerExpectation = expectation(
+            description: "Standardization failure handler runs"
+        )
+        let finalStatusExpectation = expectation(
+            description: "Standardization failure reaches its final status"
+        )
 
         upload.nonStandardInputHandler = {
             handlerCallCount += 1
+            handlerExpectation.fulfill()
             return shouldCancel
+        }
+        upload.inputStatusHandler = { status in
+            if shouldCancel, case .ready = status {
+                finalStatusExpectation.fulfill()
+            } else if !shouldCancel, case .transportInProgress = status {
+                finalStatusExpectation.fulfill()
+            }
         }
 
         upload.start()
+        await fulfillment(
+            of: [handlerExpectation, finalStatusExpectation],
+            timeout: 2,
+            enforceOrder: true
+        )
 
         XCTAssertEqual(handlerCallCount, 1)
-        XCTAssertEqual(standardizer.standardizeCallCount, 1)
-        XCTAssertEqual(standardizer.acknowledgeCompletionCallCount, 1)
+        let standardizerSnapshot = await standardizer.snapshot()
+        XCTAssertEqual(standardizerSnapshot.standardizeCallCount, 1)
 
         if shouldCancel {
             guard case .ready = upload.inputStatus else {
@@ -425,6 +451,20 @@ class DirectUploadTests: XCTestCase {
             XCTAssertEqual(upload.fileWorker?.inputFileURL, input.sourceAsset.url)
             upload.cancel()
         }
+    }
+
+    private func waitForStandardizer(
+        _ standardizer: MockUploadInputStandardizer,
+        cancelCallCount: Int
+    ) async -> MockUploadInputStandardizer.Snapshot {
+        for _ in 0..<100 {
+            let snapshot = await standardizer.snapshot()
+            if snapshot.cancelCallCount == cancelCallCount {
+                return snapshot
+            }
+            try? await Task.sleep(nanoseconds: 1_000_000)
+        }
+        return await standardizer.snapshot()
     }
 
 }

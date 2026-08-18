@@ -191,11 +191,13 @@ public final class DirectUpload {
     private let inputStandardizer: UploadInputStandardizing
     private let lifecycleLock = NSLock()
     private var activeAttempt: UploadAttempt?
+    private var inputStandardizationTask: Task<Void, Never>?
     private let fileWorkerFactory: FileWorkerFactory
 
     private struct UploadAttempt: Equatable {
         let id = UUID()
         let inspectionToken = UploadInputInspectionOperationRegistry.Token()
+        let standardizationToken = UploadInputStandardizationToken()
     }
 
     typealias FileWorkerFactory = (
@@ -304,6 +306,30 @@ public final class DirectUpload {
         lifecycleLock.lock()
         defer { lifecycleLock.unlock() }
         return activeAttempt == attempt
+    }
+
+    private func registerStandardizationTask(
+        _ task: Task<Void, Never>,
+        for attempt: UploadAttempt
+    ) {
+        lifecycleLock.lock()
+        let shouldKeep = activeAttempt == attempt
+        if shouldKeep {
+            inputStandardizationTask = task
+        }
+        lifecycleLock.unlock()
+
+        if !shouldKeep {
+            task.cancel()
+        }
+    }
+
+    private func clearStandardizationTask(for attempt: UploadAttempt) {
+        lifecycleLock.lock()
+        if activeAttempt == attempt {
+            inputStandardizationTask = nil
+        }
+        lifecycleLock.unlock()
     }
 
     /// Mutates input state while lifecycle ownership is locked, then returns
@@ -543,19 +569,30 @@ public final class DirectUpload {
                                 relativeTo: outputDirectory
                             )
 
-                            self.inputStandardizer.standardize(
-                                id: self.id,
-                                sourceAsset: sourceAsset,
-                                rescalingDetails: result.rescalingDetails,
-                                outputURL: outputURL
-                            ) { sourceAsset, standardizedAsset, error in
-
-                                guard self.isActive(attempt) else {
-                                    self.inputStandardizer.acknowledgeCompletion(id: self.id)
+                            let task = Task { [weak self] in
+                                guard let self else { return }
+                                do {
+                                    _ = try await self.inputStandardizer.standardize(
+                                        id: self.id,
+                                        token: attempt.standardizationToken,
+                                        sourceAsset: sourceAsset,
+                                        rescalingDetails: result.rescalingDetails,
+                                        outputURL: outputURL
+                                    )
+                                    guard !Task.isCancelled,
+                                          self.isActive(attempt) else { return }
+                                    self.clearStandardizationTask(for: attempt)
+                                    self.startNetworkTransport(
+                                        videoFile: outputURL,
+                                        duration: inputDuration,
+                                        attempt: attempt
+                                    )
+                                } catch is CancellationError {
                                     return
-                                }
-
-                                if let _ = error {
+                                } catch {
+                                    guard !Task.isCancelled,
+                                          self.isActive(attempt) else { return }
+                                    self.clearStandardizationTask(for: attempt)
                                     // Request upload confirmation
                                     // before proceeding. If handler unset,
                                     // by default do not cancel upload if
@@ -570,16 +607,9 @@ public final class DirectUpload {
                                     } else {
                                         self.cancelPreparation(for: attempt)
                                     }
-                                } else {
-                                    self.startNetworkTransport(
-                                        videoFile: outputURL,
-                                        duration: inputDuration,
-                                        attempt: attempt
-                                    )
                                 }
-
-                                self.inputStandardizer.acknowledgeCompletion(id: self.id)
                             }
+                            self.registerStandardizationTask(task, for: attempt)
 
                         } else {
                             self.startNetworkTransport(
@@ -606,19 +636,40 @@ public final class DirectUpload {
                             relativeTo: outputDirectory
                         )
 
-                        self.inputStandardizer.standardize(
-                            id: self.id,
-                            sourceAsset: sourceAsset,
-                            rescalingDetails: result.rescalingDetails,
-                            outputURL: outputURL
-                        ) { sourceAsset, standardizedAsset, error in
+                        let task = Task { [weak self] in
+                            guard let self else { return }
+                            do {
+                                _ = try await self.inputStandardizer.standardize(
+                                    id: self.id,
+                                    token: attempt.standardizationToken,
+                                    sourceAsset: sourceAsset,
+                                    rescalingDetails: result.rescalingDetails,
+                                    outputURL: outputURL
+                                )
+                                guard !Task.isCancelled,
+                                      self.isActive(attempt) else { return }
+                                self.clearStandardizationTask(for: attempt)
+                                reporter.reportUploadInputStandardizationSuccess(
+                                    inputDuration: inputDuration.seconds,
+                                    inputSize: inputSize,
+                                    options: self.uploadInfo.options,
+                                    nonStandardInputReasons: result.nonStandardInputReasons,
+                                    standardizationEndTime: Date(),
+                                    standardizationStartTime: inputStandardizationStartTime,
+                                    uploadURL: self.uploadURL
+                                )
 
-                            guard self.isActive(attempt) else {
-                                self.inputStandardizer.acknowledgeCompletion(id: self.id)
+                                self.startNetworkTransport(
+                                    videoFile: outputURL,
+                                    duration: inputDuration,
+                                    attempt: attempt
+                                )
+                            } catch is CancellationError {
                                 return
-                            }
-
-                            if let error {
+                            } catch {
+                                guard !Task.isCancelled,
+                                      self.isActive(attempt) else { return }
+                                self.clearStandardizationTask(for: attempt)
                                 // Request upload confirmation
                                 // before proceeding. If handler unset,
                                 // by default do not cancel upload if
@@ -645,26 +696,9 @@ public final class DirectUpload {
                                 } else {
                                     self.cancelPreparation(for: attempt)
                                 }
-                            } else {
-                                reporter.reportUploadInputStandardizationSuccess(
-                                    inputDuration: inputDuration.seconds,
-                                    inputSize: inputSize,
-                                    options: self.uploadInfo.options,
-                                    nonStandardInputReasons: result.nonStandardInputReasons,
-                                    standardizationEndTime: Date(),
-                                    standardizationStartTime: inputStandardizationStartTime,
-                                    uploadURL: self.uploadURL
-                                )
-
-                                self.startNetworkTransport(
-                                    videoFile: outputURL,
-                                    duration: inputDuration,
-                                    attempt: attempt
-                                )
                             }
-
-                            self.inputStandardizer.acknowledgeCompletion(id: self.id)
                         }
+                        self.registerStandardizationTask(task, for: attempt)
                     }
                 case (.some(_), .some(let error)):
                     self.handleInspectionFailure(
@@ -748,6 +782,8 @@ public final class DirectUpload {
         }
 
         activeAttempt = nil
+        let inputStandardizationTask = self.inputStandardizationTask
+        self.inputStandardizationTask = nil
         let fileWorker = self.fileWorker
         self.fileWorker = nil
         uploadManager.acknowledgeUpload(id: id)
@@ -756,6 +792,13 @@ public final class DirectUpload {
         }
         lifecycleLock.unlock()
 
+        inputStandardizationTask?.cancel()
+        Task {
+            await inputStandardizer.cancel(
+                id: id,
+                token: attempt.standardizationToken
+            )
+        }
         fileWorker?.cancel()
         cancellationNotification?()
     }
@@ -911,6 +954,8 @@ public final class DirectUpload {
 
         let cancelledAttempt = activeAttempt
         activeAttempt = nil
+        let inputStandardizationTask = self.inputStandardizationTask
+        self.inputStandardizationTask = nil
         let fileWorker = self.fileWorker
         self.fileWorker = nil
         uploadManager.acknowledgeUpload(id: id)
@@ -921,6 +966,15 @@ public final class DirectUpload {
 
         if let cancelledAttempt {
             inputInspectionOperations.cancel(for: cancelledAttempt.inspectionToken)
+        }
+        inputStandardizationTask?.cancel()
+        if let cancelledAttempt {
+            Task {
+                await inputStandardizer.cancel(
+                    id: id,
+                    token: cancelledAttempt.standardizationToken
+                )
+            }
         }
         fileWorker?.cancel()
         cancellationNotification?()
