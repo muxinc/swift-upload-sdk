@@ -165,17 +165,21 @@ actor UploadInputStandardizationWorker {
         }
 
         private func pump() {
-            guard terminalResult == nil else { return }
+            guard terminalResult == nil,
+                  input.isReadyForMoreMediaData else { return }
+            guard let sampleBuffer = output.copyNextSampleBuffer() else {
+                finish(with: .success(()))
+                return
+            }
+            guard input.append(sampleBuffer) else {
+                finish(with: .failure(TransferError.appendFailed))
+                return
+            }
 
-            while input.isReadyForMoreMediaData, terminalResult == nil {
-                guard let sampleBuffer = output.copyNextSampleBuffer() else {
-                    finish(with: .success(()))
-                    return
-                }
-                guard input.append(sampleBuffer) else {
-                    finish(with: .failure(TransferError.appendFailed))
-                    return
-                }
+            // Yield between samples so cancellation queued on this serial
+            // adapter can run without racing AVAssetReader access.
+            queue.async { [self] in
+                pump()
             }
         }
 

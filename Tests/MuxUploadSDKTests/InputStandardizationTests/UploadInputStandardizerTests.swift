@@ -265,23 +265,61 @@ final class UploadInputStandardizerTests: XCTestCase {
     }
 
     func testCancelDoesNotDeleteAnOutputFileTheWorkerDoesNotOwn() async throws {
+        let inputURL = try await makeGeneratedH264Asset()
         let outputURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("standardization-existing-\(UUID().uuidString).mp4")
         let existingData = Data("existing".utf8)
         try existingData.write(to: outputURL)
-        defer { try? FileManager.default.removeItem(at: outputURL) }
+        defer {
+            try? FileManager.default.removeItem(at: inputURL)
+            try? FileManager.default.removeItem(at: outputURL)
+        }
 
         let worker = UploadInputStandardizationWorker()
-        await worker.cancel()
-        _ = try? await worker.standardize(
-            sourceAsset: AVURLAsset(
-                url: URL(fileURLWithPath: "/tmp/missing-standardization-input.mp4")
-            ),
+        do {
+            _ = try await worker.standardize(
+                sourceAsset: AVURLAsset(url: inputURL),
+                rescalingDetails: .init(),
+                outputURL: outputURL
+            )
+            XCTFail("Standardization should reject an existing output file")
+        } catch {
+            XCTAssertEqual(
+                error.localizedDescription,
+                StandardizationError.outputFileAlreadyExists.localizedDescription
+            )
+        }
+
+        XCTAssertEqual(try Data(contentsOf: outputURL), existingData)
+    }
+
+    func testGeneratedH264ConversionRunsWithoutExternalFixtures() async throws {
+        let inputURL = try await makeGeneratedH264Asset()
+        let outputURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("standardized-generated-\(UUID().uuidString).mp4")
+        defer {
+            try? FileManager.default.removeItem(at: inputURL)
+            try? FileManager.default.removeItem(at: outputURL)
+        }
+
+        let worker = UploadInputStandardizationWorker()
+        let standardizedAsset = try await worker.standardize(
+            sourceAsset: AVURLAsset(url: inputURL),
             rescalingDetails: .init(),
             outputURL: outputURL
         )
 
-        XCTAssertEqual(try Data(contentsOf: outputURL), existingData)
+        XCTAssertEqual(standardizedAsset.url, outputURL)
+        let videoTracks = try await standardizedAsset.loadTracks(withMediaType: .video)
+        let videoTrack = try XCTUnwrap(videoTracks.first)
+        let (formatDescriptions, naturalSize) = try await videoTrack.load(
+            .formatDescriptions,
+            .naturalSize
+        )
+        XCTAssertEqual(formatDescriptions.first?.mediaSubType, .h264)
+        XCTAssertEqual(naturalSize, CGSize(width: 64, height: 64))
+        let audioTracks = try await standardizedAsset.loadTracks(withMediaType: .audio)
+        XCTAssertTrue(audioTracks.isEmpty)
     }
 
     func testCatalogBackedCodecPreservingMP4AACConversion() async throws {
@@ -456,6 +494,96 @@ final class UploadInputStandardizerTests: XCTestCase {
         let fixture = try XCTUnwrap(catalog.fixtures.first { $0.id == id })
         return URL(fileURLWithPath: fixtureDirectory)
             .appendingPathComponent(fixture.canonicalFilename)
+    }
+
+    private func makeGeneratedH264Asset() async throws -> URL {
+        let outputURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("generated-h264-\(UUID().uuidString).mp4")
+        var didFinish = false
+        defer {
+            if !didFinish {
+                try? FileManager.default.removeItem(at: outputURL)
+            }
+        }
+
+        let writer = try AVAssetWriter(outputURL: outputURL, fileType: .mp4)
+        let input = AVAssetWriterInput(
+            mediaType: .video,
+            outputSettings: [
+                AVVideoCodecKey: AVVideoCodecType.h264,
+                AVVideoWidthKey: 64,
+                AVVideoHeightKey: 64
+            ]
+        )
+        input.expectsMediaDataInRealTime = false
+        guard writer.canAdd(input) else {
+            throw StandardizationError.cannotAddWriterInput
+        }
+        writer.add(input)
+
+        let pixelBufferAttributes: [String: Any] = [
+            kCVPixelBufferPixelFormatTypeKey as String:
+                kCVPixelFormatType_32BGRA,
+            kCVPixelBufferWidthKey as String: 64,
+            kCVPixelBufferHeightKey as String: 64,
+            kCVPixelBufferIOSurfacePropertiesKey as String: [:]
+        ]
+        let adaptor = AVAssetWriterInputPixelBufferAdaptor(
+            assetWriterInput: input,
+            sourcePixelBufferAttributes: pixelBufferAttributes
+        )
+
+        guard writer.startWriting() else {
+            throw writer.error ?? StandardizationError.writerStartFailure
+        }
+        writer.startSession(atSourceTime: .zero)
+
+        for frameIndex in 0..<3 {
+            for _ in 0..<1_000 {
+                if input.isReadyForMoreMediaData { break }
+                try await Task.sleep(nanoseconds: 1_000_000)
+            }
+            guard input.isReadyForMoreMediaData else {
+                throw StandardizationError.conversionFailure
+            }
+
+            var pixelBuffer: CVPixelBuffer?
+            let status = CVPixelBufferCreate(
+                kCFAllocatorDefault,
+                64,
+                64,
+                kCVPixelFormatType_32BGRA,
+                pixelBufferAttributes as CFDictionary,
+                &pixelBuffer
+            )
+            guard status == kCVReturnSuccess, let pixelBuffer else {
+                throw StandardizationError.conversionFailure
+            }
+            CVPixelBufferLockBaseAddress(pixelBuffer, [])
+            if let baseAddress = CVPixelBufferGetBaseAddress(pixelBuffer) {
+                baseAddress.assumingMemoryBound(to: UInt8.self).initialize(
+                    repeating: UInt8(48 + frameIndex * 24),
+                    count: CVPixelBufferGetBytesPerRow(pixelBuffer)
+                        * CVPixelBufferGetHeight(pixelBuffer)
+                )
+            }
+            CVPixelBufferUnlockBaseAddress(pixelBuffer, [])
+
+            guard adaptor.append(
+                pixelBuffer,
+                withPresentationTime: CMTime(value: CMTimeValue(frameIndex), timescale: 30)
+            ) else {
+                throw writer.error ?? StandardizationError.conversionFailure
+            }
+        }
+
+        input.markAsFinished()
+        await writer.finishWriting()
+        guard writer.status == .completed else {
+            throw writer.error ?? StandardizationError.conversionFailure
+        }
+        didFinish = true
+        return outputURL
     }
 
     private func makeHEVCFormatDescription(
