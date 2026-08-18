@@ -262,39 +262,51 @@ class AVFoundationUploadInputInspector: UploadInputInspector {
         maximumResolution: DirectUploadOptions.InputStandardization.MaximumResolution,
         operation: UploadInputInspectionOperation
     ) {
-        sourceInput.loadValuesAsynchronously(forKeys: ["duration"]) {
-            guard !operation.isCancelled else { return }
-            let sourceInputDuration = sourceInput.duration
-            videoTrack.loadValuesAsynchronously(
-                forKeys: [
-                    "formatDescriptions",
-                    "preferredTransform",
-                    "nominalFrameRate",
-                    "estimatedDataRate"
-                ]
-            ) {
+        Task {
+            let sourceInputDuration: CMTime
+            do {
+                sourceInputDuration = try await sourceInput.load(.duration)
+            } catch {
                 guard !operation.isCancelled else { return }
-                guard let formatDescriptions = videoTrack.formatDescriptions
-                    as? [CMFormatDescription],
-                      let formatDescription = formatDescriptions.first else {
-                    operation.complete(
-                        self.makeVideoInspectionFailureResult(
-                            videoTrackCount: 1,
-                            audioMetadata: audioMetadata
-                        ),
-                        duration: sourceInputDuration,
-                        error: UploadInputInspectionError.inspectionFailure
-                    )
-                    return
+                operation.complete(
+                    nil,
+                    duration: .zero,
+                    error: UploadInputInspectionError.inspectionFailure
+                )
+                return
+            }
+
+            do {
+                async let formatDescriptions = videoTrack.load(.formatDescriptions)
+                async let preferredTransform = videoTrack.load(.preferredTransform)
+                async let nominalFrameRate = videoTrack.load(.nominalFrameRate)
+                async let estimatedDataRate = videoTrack.load(.estimatedDataRate)
+                async let segments = videoTrack.load(.segments)
+                let loadedMetadata = try await (
+                    formatDescriptions,
+                    preferredTransform,
+                    nominalFrameRate,
+                    estimatedDataRate,
+                    segments
+                )
+                guard !operation.isCancelled else { return }
+                guard let formatDescription = loadedMetadata.0.first else {
+                    throw UploadInputInspectionError.inspectionFailure
                 }
 
                 let metadataResult = AVFoundationUploadInputMetadataReader.inspect(
                     videoTracks: [
                         AVFoundationVideoTrackMetadata(
-                            formatDescriptions: formatDescriptions,
-                            preferredTransform: videoTrack.preferredTransform,
-                            nominalFrameRate: videoTrack.nominalFrameRate,
-                            estimatedDataRate: videoTrack.estimatedDataRate
+                            formatDescriptions: loadedMetadata.0,
+                            preferredTransform: loadedMetadata.1,
+                            nominalFrameRate: loadedMetadata.2,
+                            estimatedDataRate: loadedMetadata.3,
+                            segments: loadedMetadata.4.map {
+                                AVFoundationVideoTrackSegmentMetadata(
+                                    timeMapping: $0.timeMapping,
+                                    isEmpty: $0.isEmpty
+                                )
+                            }
                         )
                     ],
                     audioTracks: audioMetadata
@@ -315,8 +327,8 @@ class AVFoundationUploadInputInspector: UploadInputInspector {
                 let nonStandardReasons = self.legacyNonStandardReasons(
                     formatDescription: formatDescription,
                     videoDimensions: videoDimensions,
-                    frameRate: videoTrack.nominalFrameRate,
-                    estimatedBitrate: videoTrack.estimatedDataRate
+                    frameRate: loadedMetadata.2,
+                    estimatedBitrate: loadedMetadata.3
                 )
 
                 operation.complete(
@@ -331,6 +343,16 @@ class AVFoundationUploadInputInspector: UploadInputInspector {
                     ),
                     duration: sourceInputDuration,
                     error: nil
+                )
+            } catch {
+                guard !operation.isCancelled else { return }
+                operation.complete(
+                    self.makeVideoInspectionFailureResult(
+                        videoTrackCount: 1,
+                        audioMetadata: audioMetadata
+                    ),
+                    duration: sourceInputDuration,
+                    error: UploadInputInspectionError.inspectionFailure
                 )
             }
         }

@@ -101,6 +101,14 @@ actor UploadInputStandardizationWorker {
         }
     }
 
+    struct EncoderConfiguration: Equatable {
+        let outputFrameRate: Double
+        let averageBitRate: Int
+        let maximumBitRate: Int
+        let maximumKeyFrameInterval: TimeInterval
+        let profileLevel: String
+    }
+
     private enum TransferError: Error {
         case appendFailed
         case startedMoreThanOnce
@@ -346,6 +354,15 @@ actor UploadInputStandardizationWorker {
         let decoderPixelFormat = Self.decoderPixelFormat(
             for: sourceFormatDescription
         )
+        let codec = Self.outputCodec(
+            for: sourceFormatDescription.mediaSubType
+        )
+        let encoderConfiguration = Self.encoderConfiguration(
+            codec: codec,
+            renderSize: renderSize,
+            sourceFrameRate: Double(properties.nominalFrameRate),
+            decoderPixelFormat: decoderPixelFormat
+        )
 
         let videoOutput = AVAssetReaderVideoCompositionOutput(
             videoTracks: [videoTrack],
@@ -361,7 +378,7 @@ actor UploadInputStandardizationWorker {
             duration: properties.duration,
             naturalSize: properties.naturalSize,
             preferredTransform: properties.preferredTransform,
-            nominalFrameRate: properties.nominalFrameRate,
+            outputFrameRate: encoderConfiguration.outputFrameRate,
             renderSize: renderSize
         )
         guard reader.canAdd(videoOutput) else {
@@ -369,13 +386,23 @@ actor UploadInputStandardizationWorker {
         }
         reader.add(videoOutput)
 
-        let videoSettings = Self.videoWriterSettings(
-            codec: Self.outputCodec(
-                for: sourceFormatDescription.mediaSubType
-            ),
+        var videoSettings = Self.videoWriterSettings(
+            codec: codec,
             renderSize: renderSize,
-            decoderPixelFormat: decoderPixelFormat
+            encoderConfiguration: encoderConfiguration
         )
+        let compressionPropertiesKey = AVVideoCompressionPropertiesKey
+        if !writer.canApply(outputSettings: videoSettings, forMediaType: .video),
+           var compressionProperties = videoSettings[compressionPropertiesKey]
+                as? [String: Any] {
+            // Apple documents AllowOpenGOP as applicable only to certain
+            // encoders. If unavailable, omit only that hint; output validation
+            // remains the final gate for GOP structure compliance.
+            compressionProperties.removeValue(
+                forKey: kVTCompressionPropertyKey_AllowOpenGOP as String
+            )
+            videoSettings[compressionPropertiesKey] = compressionProperties
+        }
         guard writer.canApply(
             outputSettings: videoSettings,
             forMediaType: .video
@@ -485,7 +512,9 @@ actor UploadInputStandardizationWorker {
         transfers.forEach { $0.cancel() }
         transfers = []
         reader?.cancelReading()
-        writer?.cancelWriting()
+        if let writer, writer.status != .unknown {
+            writer.cancelWriting()
+        }
         reader = nil
         writer = nil
         let outputURL = self.outputURL
@@ -586,7 +615,7 @@ actor UploadInputStandardizationWorker {
         duration: CMTime,
         naturalSize: CGSize,
         preferredTransform: CGAffineTransform,
-        nominalFrameRate: Float,
+        outputFrameRate: Double,
         renderSize: CGSize
     ) -> AVVideoComposition {
         let transformedRect = CGRect(origin: .zero, size: naturalSize)
@@ -615,33 +644,99 @@ actor UploadInputStandardizationWorker {
         let composition = AVMutableVideoComposition()
         composition.instructions = [instruction]
         composition.renderSize = renderSize
-        let frameRate = nominalFrameRate.isFinite && nominalFrameRate > 0
-            ? nominalFrameRate
-            : 30
         composition.frameDuration = CMTime(
             value: 1_000,
-            timescale: CMTimeScale((frameRate * 1_000).rounded())
+            timescale: CMTimeScale((outputFrameRate * 1_000).rounded())
         )
         return composition
+    }
+
+    static func encoderConfiguration(
+        codec: AVVideoCodecType,
+        renderSize: CGSize,
+        sourceFrameRate: Double,
+        decoderPixelFormat: OSType
+    ) -> EncoderConfiguration {
+        let maximumDimension = max(renderSize.width, renderSize.height)
+        let standardDimension = StandardInputPolicyProfile.publishedMux.limits(
+            for: .upTo1080p
+        ).maximumSourceDimension
+        // The policy's effective tier follows the completed output dimensions.
+        // A small output under a high-resolution customer selection must still
+        // meet the stricter up-to-1080p limits.
+        let acceptanceTier: StandardInputAcceptanceTier = maximumDimension
+                <= CGFloat(standardDimension)
+            ? .upTo1080p
+            : .highResolution
+        let limits = StandardInputPolicyProfile.publishedMux.limits(
+            for: acceptanceTier
+        )
+        let outputFrameRate = sourceFrameRate.isFinite
+                && limits.frameRateRange.contains(sourceFrameRate)
+            ? sourceFrameRate
+            : 30
+
+        let averageBitRate: Int
+        // Leave deliberate headroom below the published ceiling for each
+        // generated size. The data-rate limit below is the hard guardrail;
+        // VideoToolbox documents average bitrate as a soft target.
+        switch maximumDimension {
+        case ...1280:
+            averageBitRate = 5_000_000
+        case ...2048:
+            averageBitRate = 7_000_000
+        case ...2560:
+            averageBitRate = 16_000_000
+        default:
+            averageBitRate = 18_000_000
+        }
+
+        let profileLevel: String
+        switch codec {
+        case .hevc:
+            profileLevel = decoderPixelFormat
+                    == kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange
+                ? kVTProfileLevel_HEVC_Main10_AutoLevel as String
+                : kVTProfileLevel_HEVC_Main_AutoLevel as String
+        default:
+            profileLevel = AVVideoProfileLevelH264HighAutoLevel
+        }
+
+        return EncoderConfiguration(
+            outputFrameRate: outputFrameRate,
+            averageBitRate: averageBitRate,
+            maximumBitRate: Int(limits.maximumAverageBitrate),
+            maximumKeyFrameInterval: 0.9 * (limits.maximumKeyframeIntervals[
+                codec == .hevc ? .hevc : .h264
+            ] ?? 10),
+            profileLevel: profileLevel
+        )
     }
 
     private static func videoWriterSettings(
         codec: AVVideoCodecType,
         renderSize: CGSize,
-        decoderPixelFormat: OSType
+        encoderConfiguration: EncoderConfiguration
     ) -> [String: Any] {
-        var settings: [String: Any] = [
+        [
             AVVideoCodecKey: codec,
             AVVideoWidthKey: Int(renderSize.width),
-            AVVideoHeightKey: Int(renderSize.height)
-        ]
-        if codec == .hevc,
-           decoderPixelFormat == kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange {
-            settings[AVVideoCompressionPropertiesKey] = [
-                AVVideoProfileLevelKey: kVTProfileLevel_HEVC_Main10_AutoLevel
+            AVVideoHeightKey: Int(renderSize.height),
+            AVVideoCompressionPropertiesKey: [
+                kVTCompressionPropertyKey_AverageBitRate as String:
+                    encoderConfiguration.averageBitRate,
+                kVTCompressionPropertyKey_DataRateLimits as String: [
+                    encoderConfiguration.maximumBitRate / 8,
+                    1
+                ],
+                kVTCompressionPropertyKey_ExpectedFrameRate as String:
+                    encoderConfiguration.outputFrameRate,
+                kVTCompressionPropertyKey_MaxKeyFrameIntervalDuration as String:
+                    encoderConfiguration.maximumKeyFrameInterval,
+                kVTCompressionPropertyKey_AllowOpenGOP as String: false,
+                AVVideoProfileLevelKey: encoderConfiguration.profileLevel
             ]
-        }
-        return settings
+        ]
     }
 
     private static func addAudioPipeline(
