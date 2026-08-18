@@ -27,6 +27,7 @@ actor MockUploadInputStandardizer: UploadInputStandardizing {
         token: UploadInputStandardizationToken,
         sourceAsset: AVURLAsset,
         rescalingDetails: UploadInputFormatInspectionResult.RescalingDetails,
+        conversion: StandardInputConversion?,
         outputURL: URL
     ) async throws -> AVURLAsset {
         standardizeCallCount += 1

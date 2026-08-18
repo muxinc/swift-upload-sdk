@@ -15,10 +15,30 @@ protocol UploadInputStandardizing: Sendable {
         token: UploadInputStandardizationToken,
         sourceAsset: AVURLAsset,
         rescalingDetails: UploadInputFormatInspectionResult.RescalingDetails,
+        conversion: StandardInputConversion?,
         outputURL: URL
     ) async throws -> AVURLAsset
 
     func cancel(id: String, token: UploadInputStandardizationToken) async
+}
+
+extension UploadInputStandardizing {
+    func standardize(
+        id: String,
+        token: UploadInputStandardizationToken,
+        sourceAsset: AVURLAsset,
+        rescalingDetails: UploadInputFormatInspectionResult.RescalingDetails,
+        outputURL: URL
+    ) async throws -> AVURLAsset {
+        try await standardize(
+            id: id,
+            token: token,
+            sourceAsset: sourceAsset,
+            rescalingDetails: rescalingDetails,
+            conversion: nil,
+            outputURL: outputURL
+        )
+    }
 }
 
 actor UploadInputStandardizer: UploadInputStandardizing {
@@ -47,6 +67,7 @@ actor UploadInputStandardizer: UploadInputStandardizing {
         token: UploadInputStandardizationToken,
         sourceAsset: AVURLAsset,
         rescalingDetails: UploadInputFormatInspectionResult.RescalingDetails,
+        conversion: StandardInputConversion?,
         outputURL: URL
     ) async throws -> AVURLAsset {
         let worker = workerFactory(token)
@@ -60,6 +81,7 @@ actor UploadInputStandardizer: UploadInputStandardizing {
             let result = try await worker.standardize(
                 sourceAsset: sourceAsset,
                 rescalingDetails: rescalingDetails,
+                conversion: conversion,
                 outputURL: outputURL
             )
             removeWorker(id: id, token: token)

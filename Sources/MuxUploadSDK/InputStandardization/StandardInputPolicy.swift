@@ -18,14 +18,15 @@ enum StandardInputFact<Value> {
 }
 
 extension StandardInputFact: Equatable where Value: Equatable { }
+extension StandardInputFact: Sendable where Value: Sendable { }
 
-enum StandardInputVideoCodec: Hashable {
+enum StandardInputVideoCodec: Hashable, Sendable {
     case h264
     case hevc
     case other
 }
 
-struct StandardInputDisplayDimensions: Equatable {
+struct StandardInputDisplayDimensions: Equatable, Sendable {
     let width: Int
     let height: Int
 
@@ -53,7 +54,7 @@ struct StandardInputPixelFormat: Hashable {
     let chromaSubsampling: ChromaSubsampling
 }
 
-enum StandardInputDynamicRange: Hashable {
+enum StandardInputDynamicRange: Hashable, Sendable {
     case sdr
     case hlg
     case pq
@@ -100,12 +101,12 @@ struct StandardInputMediaFacts: Equatable {
     var editList: StandardInputFact<StandardInputEditList> = .unknown
 }
 
-enum StandardInputAcceptanceTier: Hashable {
+enum StandardInputAcceptanceTier: Hashable, Sendable {
     case upTo1080p
     case highResolution
 }
 
-struct StandardInputPolicySelection: Equatable {
+struct StandardInputPolicySelection: Equatable, Sendable {
     let acceptanceTier: StandardInputAcceptanceTier
     let generatedOutputDimensions: StandardInputDisplayDimensions
 
@@ -239,7 +240,7 @@ extension StandardInputPolicyProfile {
 }
 
 struct StandardInputPolicyEvaluation: Equatable {
-    enum Requirement: CaseIterable, Hashable {
+    enum Requirement: CaseIterable, Hashable, Sendable {
         case videoCodec
         case videoResolution
         case frameRate
