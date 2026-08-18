@@ -64,6 +64,21 @@ final class UploadInputMetadataInspectionTests: XCTestCase {
             AVFoundationUploadInputMetadataReader.inspectEditList([scaled]),
             .known(.complex)
         )
+
+        let empty = AVFoundationVideoTrackSegmentMetadata(
+            timeMapping: CMTimeMapping(
+                source: .invalid,
+                target: CMTimeRange(
+                    start: .zero,
+                    duration: CMTime(seconds: 1, preferredTimescale: 600)
+                )
+            ),
+            isEmpty: true
+        )
+        XCTAssertEqual(
+            AVFoundationUploadInputMetadataReader.inspectEditList([empty]),
+            .known(.complex)
+        )
         XCTAssertEqual(
             AVFoundationUploadInputMetadataReader.inspectEditList([identity, trim]),
             .known(.complex)

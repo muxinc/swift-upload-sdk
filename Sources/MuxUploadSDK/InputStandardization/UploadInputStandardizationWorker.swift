@@ -386,11 +386,23 @@ actor UploadInputStandardizationWorker {
         }
         reader.add(videoOutput)
 
-        let videoSettings = Self.videoWriterSettings(
+        var videoSettings = Self.videoWriterSettings(
             codec: codec,
             renderSize: renderSize,
             encoderConfiguration: encoderConfiguration
         )
+        let compressionPropertiesKey = AVVideoCompressionPropertiesKey
+        if !writer.canApply(outputSettings: videoSettings, forMediaType: .video),
+           var compressionProperties = videoSettings[compressionPropertiesKey]
+                as? [String: Any] {
+            // Apple documents AllowOpenGOP as applicable only to certain
+            // encoders. If unavailable, omit only that hint; output validation
+            // remains the final gate for GOP structure compliance.
+            compressionProperties.removeValue(
+                forKey: kVTCompressionPropertyKey_AllowOpenGOP as String
+            )
+            videoSettings[compressionPropertiesKey] = compressionProperties
+        }
         guard writer.canApply(
             outputSettings: videoSettings,
             forMediaType: .video
@@ -500,7 +512,9 @@ actor UploadInputStandardizationWorker {
         transfers.forEach { $0.cancel() }
         transfers = []
         reader?.cancelReading()
-        writer?.cancelWriting()
+        if let writer, writer.status != .unknown {
+            writer.cancelWriting()
+        }
         reader = nil
         writer = nil
         let outputURL = self.outputURL

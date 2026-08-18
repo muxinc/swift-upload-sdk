@@ -122,13 +122,17 @@ enum AVFoundationUploadInputMetadataReader {
 
         for segment in segments {
             let mapping = segment.timeMapping
+            guard mapping.target.start.isNumeric,
+                  mapping.target.duration.isNumeric,
+                  CMTimeCompare(mapping.target.duration, .zero) > 0 else {
+                return .unknown
+            }
+            if segment.isEmpty {
+                continue
+            }
             guard mapping.source.start.isNumeric,
                   mapping.source.duration.isNumeric,
-                  mapping.target.start.isNumeric,
-                  mapping.target.duration.isNumeric,
-                  CMTimeCompare(mapping.target.duration, .zero) > 0,
-                  segment.isEmpty
-                    || CMTimeCompare(mapping.source.duration, .zero) > 0 else {
+                  CMTimeCompare(mapping.source.duration, .zero) > 0 else {
                 return .unknown
             }
         }
