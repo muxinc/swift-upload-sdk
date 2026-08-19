@@ -622,12 +622,16 @@ class DirectUploadTests: XCTestCase {
         )
         let handlerExpectation = expectation(description: "Preflight failure handler runs")
         let transportExpectation = expectation(description: "Original transport starts")
+        var transportedFileURL: URL?
         upload.nonStandardInputHandler = {
             handlerExpectation.fulfill()
             return false
         }
         upload.inputStatusHandler = { status in
-            if case .transportInProgress = status { transportExpectation.fulfill() }
+            if case .transportInProgress = status {
+                transportedFileURL = upload.videoFile
+                transportExpectation.fulfill()
+            }
         }
 
         upload.start()
@@ -635,7 +639,7 @@ class DirectUploadTests: XCTestCase {
 
         let standardizerSnapshot = await standardizer.snapshot()
         XCTAssertEqual(standardizerSnapshot.standardizeCallCount, 0)
-        XCTAssertEqual(upload.fileWorker?.inputFileURL, input.sourceAsset.url)
+        XCTAssertEqual(transportedFileURL, input.sourceAsset.url)
         upload.cancel()
     }
 
