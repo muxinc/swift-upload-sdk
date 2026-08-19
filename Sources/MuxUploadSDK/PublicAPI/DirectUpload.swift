@@ -1093,6 +1093,7 @@ public final class DirectUpload {
             removeOwnedTemporaryFile(completedFileURL)
         }
         case .failure(let error): do {
+            let failedFileURL = fileWorker?.inputFileURL
             let parsedError = parseAsUploadError(
                 lastSeenUploadStatus: input.transportStatus ?? TransportStatus(
                     progress: nil,
@@ -1125,6 +1126,7 @@ public final class DirectUpload {
             }
             fileWorker?.removeDelegate(withToken: id)
             fileWorker = nil
+            removeOwnedTemporaryFile(failedFileURL)
         }
         case .uploading(let update): do {
             let status = TransportStatus(

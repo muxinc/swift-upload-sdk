@@ -651,6 +651,105 @@ class DirectUploadTests: XCTestCase {
         await cancelAndWait(upload)
     }
 
+    func testTransportFailureDeletesOwnedStandardizedOutput() async throws {
+        let outputURL = temporaryOutputURL()
+        FileManager.default.createFile(atPath: outputURL.path, contents: Data([0]))
+        defer { try? FileManager.default.removeItem(at: outputURL) }
+        let input = try makeInput(
+            options: DirectUploadOptions(
+                inputStandardization: .init(
+                    maximumResolution: .default,
+                    hdrHandling: .toneMapToSDR
+                )
+            )
+        )
+        let source = inspectionResult(
+            facts: compliantFacts(codec: .hevc, dynamicRange: .hlg, bitDepth: 10)
+        )
+        let generated = inspectionResult(
+            facts: compliantFacts(codec: .hevc, dynamicRange: .sdr, bitDepth: 8)
+        )
+        let upload = DirectUpload(
+            input: input,
+            uploadManager: DirectUploadManager(),
+            inputInspector: MockUploadInputInspector(
+                mockInspectionResult: source,
+                duration: CMTime(seconds: 10, preferredTimescale: 600),
+                subsequentResults: [generated]
+            ),
+            inputStandardizer: MockUploadInputStandardizer(
+                error: nil,
+                resultURL: outputURL
+            ),
+            capabilityProvider: FullyCapablePlanningProvider(),
+            storagePreflighter: FixedTemporaryStoragePreflighter(outputURL: outputURL),
+            fileWorkerFactory: makeFailingFileWorker
+        )
+        let failureExpectation = expectation(description: "Transport fails")
+        upload.resultHandler = { result in
+            guard case .failure = result else {
+                return XCTFail("Expected transport failure")
+            }
+            failureExpectation.fulfill()
+        }
+
+        upload.start()
+        await fulfillment(of: [failureExpectation], timeout: 1.0)
+
+        for _ in 0..<100 where FileManager.default.fileExists(atPath: outputURL.path) {
+            try? await Task.sleep(nanoseconds: 1_000_000)
+        }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: outputURL.path))
+    }
+
+    func testTransportFailurePreservesOriginalInput() async throws {
+        let sourceURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("direct-upload-source-\(UUID().uuidString).mp4")
+        FileManager.default.createFile(atPath: sourceURL.path, contents: Data([0]))
+        defer { try? FileManager.default.removeItem(at: sourceURL) }
+        let input = UploadInput(
+            asset: AVURLAsset(url: sourceURL),
+            info: UploadInfo(
+                uploadURL: try XCTUnwrap(URL(string: "https://example.com/upload")),
+                options: .default
+            )
+        )
+        let upload = DirectUpload(
+            input: input,
+            uploadManager: DirectUploadManager(),
+            inputInspector: MockUploadInputInspector.alwaysFailing,
+            storagePreflighter: FixedTemporaryStoragePreflighter(outputURL: nil),
+            fileWorkerFactory: makeFailingFileWorker
+        )
+        let failureExpectation = expectation(description: "Transport fails")
+        upload.nonStandardInputHandler = { false }
+        upload.resultHandler = { result in
+            guard case .failure = result else {
+                return XCTFail("Expected transport failure")
+            }
+            failureExpectation.fulfill()
+        }
+
+        upload.start()
+        await fulfillment(of: [failureExpectation], timeout: 1.0)
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: sourceURL.path))
+    }
+
+    private func makeFailingFileWorker(
+        uploadInfo: UploadInfo,
+        inputFileURL: URL,
+        file: ChunkedFile,
+        startingByte: UInt64
+    ) -> ChunkedFileUploader {
+        FailingChunkedFileUploader(
+            uploadInfo: uploadInfo,
+            inputFileURL: inputFileURL,
+            file: file,
+            startingByte: startingByte
+        )
+    }
+
     private func assertStandardizationFailureBehavior(
         inspectionResult: UploadInputFormatInspectionResult,
         shouldCancel: Bool
@@ -808,6 +907,36 @@ class DirectUploadTests: XCTestCase {
         )
     }
 
+}
+
+private final class FailingChunkedFileUploader: ChunkedFileUploader {
+    private var delegates: [String: ChunkedFileUploaderDelegate] = [:]
+
+    override func addDelegate(
+        withToken token: String,
+        _ delegate: ChunkedFileUploaderDelegate
+    ) {
+        delegates[token] = delegate
+    }
+
+    override func removeDelegate(withToken token: String) {
+        delegates.removeValue(forKey: token)
+    }
+
+    override func start() {
+        fail()
+    }
+
+    override func start(duration: CMTime) {
+        fail()
+    }
+
+    private func fail() {
+        let delegates = Array(delegates.values)
+        for delegate in delegates {
+            delegate.chunkedFileUploader(self, stateUpdated: .failure(DummyError()))
+        }
+    }
 }
 
 private struct FullyCapablePlanningProvider: StandardInputPlanningCapabilityProviding {
