@@ -21,7 +21,7 @@ class DirectUploadTests: XCTestCase {
         }
     }
 
-    func testStartStatusUpdate() throws {
+    func testStartStatusUpdate() async throws {
         let upload = DirectUpload(
             uploadURL: URL(string: "https://www.example.com/upload")!,
             inputFileURL: URL(string: "file://var/mobile/Containers/Data/Application/Documents/myvideo.mp4")!
@@ -39,10 +39,8 @@ class DirectUploadTests: XCTestCase {
 
         upload.start()
 
-        wait(
-            for: [ex],
-            timeout: 2.0
-        )
+        await fulfillment(of: [ex], timeout: 2.0)
+        await cancelAndWait(upload)
     }
 
     func testImmediateStartThenCancelAlwaysProcessesCancellationLast() async throws {
@@ -103,7 +101,7 @@ class DirectUploadTests: XCTestCase {
         )
     }
 
-    func testInputInspectionSuccess() throws {
+    func testInputInspectionSuccess() async throws {
         let input = try UploadInput.mockReadyInput()
 
         let upload = DirectUpload(
@@ -132,11 +130,12 @@ class DirectUploadTests: XCTestCase {
 
         upload.start()
 
-        wait(
-            for: [preparingStatusExpectation, uploadInProgressExpecation],
+        await fulfillment(
+            of: [preparingStatusExpectation, uploadInProgressExpecation],
             timeout: 2.0,
             enforceOrder: true
         )
+        await cancelAndWait(upload)
     }
 
     func testCancelDuringInspectionCancelsOperationAndSuppressesCompletion() async throws {
@@ -311,10 +310,10 @@ class DirectUploadTests: XCTestCase {
         guard case .preparing = upload.inputStatus else {
             return XCTFail("Expected the old attempt not to advance the new attempt")
         }
-        upload.cancel()
+        await cancelAndWait(upload)
     }
 
-    func testInputInspectionFailure() throws {
+    func testInputInspectionFailure() async throws {
         let input = try UploadInput.mockReadyInput()
 
         let upload = DirectUpload(
@@ -343,11 +342,12 @@ class DirectUploadTests: XCTestCase {
 
         upload.start()
 
-        wait(
-            for: [preparingStatusExpectation, uploadInProgressExpecation],
+        await fulfillment(
+            of: [preparingStatusExpectation, uploadInProgressExpecation],
             timeout: 2.0,
             enforceOrder: true
         )
+        await cancelAndWait(upload)
     }
 
     func testNonStandardInputHandlerReturningTrueCancelsUpload() async throws {
@@ -389,6 +389,7 @@ class DirectUploadTests: XCTestCase {
         var handlerCallCount = 0
         let handlerExpectation = expectation(description: "Failure handler runs")
         let transportExpectation = expectation(description: "Original transport starts")
+        var transportedFileURL: URL?
 
         upload.nonStandardInputHandler = {
             handlerCallCount += 1
@@ -396,18 +397,18 @@ class DirectUploadTests: XCTestCase {
             return false
         }
         upload.inputStatusHandler = { status in
-            if case .transportInProgress = status { transportExpectation.fulfill() }
+            if case .transportInProgress = status {
+                transportedFileURL = upload.videoFile
+                transportExpectation.fulfill()
+            }
         }
 
         upload.start()
 
         await fulfillment(of: [handlerExpectation, transportExpectation], timeout: 1.0)
         XCTAssertEqual(handlerCallCount, 1)
-        guard case .transportInProgress = upload.inputStatus else {
-            return XCTFail("Expected false to upload the original input")
-        }
-        XCTAssertEqual(upload.fileWorker?.inputFileURL, input.sourceAsset.url)
-        upload.cancel()
+        XCTAssertEqual(transportedFileURL, input.sourceAsset.url)
+        await cancelAndWait(upload)
     }
 
     func testHandlerReturningTrueCancelsAfterRescalingFailure() async throws {
@@ -511,7 +512,7 @@ class DirectUploadTests: XCTestCase {
         let standardizerSnapshot = await standardizer.snapshot()
         XCTAssertEqual(standardizerSnapshot.standardizeCallCount, 0)
         XCTAssertEqual(transportedFileURL, input.sourceAsset.url)
-        upload.cancel()
+        await cancelAndWait(upload)
     }
 
     func testToneMapPlanUsesOnlyValidatedGeneratedOutput() async throws {
@@ -546,8 +547,12 @@ class DirectUploadTests: XCTestCase {
             storagePreflighter: FixedTemporaryStoragePreflighter(outputURL: outputURL)
         )
         let transportExpectation = expectation(description: "Generated transport starts")
+        var transportedFileURL: URL?
         upload.inputStatusHandler = { status in
-            if case .transportInProgress = status { transportExpectation.fulfill() }
+            if case .transportInProgress = status {
+                transportedFileURL = upload.videoFile
+                transportExpectation.fulfill()
+            }
         }
 
         upload.start()
@@ -556,8 +561,8 @@ class DirectUploadTests: XCTestCase {
         let snapshot = await standardizer.snapshot()
         XCTAssertEqual(snapshot.standardizeCallCount, 1)
         XCTAssertEqual(snapshot.conversion?.toneMapsToSDR, true)
-        XCTAssertEqual(upload.fileWorker?.inputFileURL, outputURL)
-        upload.cancel()
+        XCTAssertEqual(transportedFileURL, outputURL)
+        await cancelAndWait(upload)
     }
 
     func testRejectedGeneratedOutputFallsBackAndDeletesOwnedOutput() async throws {
@@ -605,7 +610,7 @@ class DirectUploadTests: XCTestCase {
 
         XCTAssertFalse(FileManager.default.fileExists(atPath: outputURL.path))
         XCTAssertEqual(transportedFileURL, input.sourceAsset.url)
-        upload.cancel()
+        await cancelAndWait(upload)
     }
 
     func testStoragePreflightFailureFallsBackBeforeStandardization() async throws {
@@ -643,7 +648,7 @@ class DirectUploadTests: XCTestCase {
         let standardizerSnapshot = await standardizer.snapshot()
         XCTAssertEqual(standardizerSnapshot.standardizeCallCount, 0)
         XCTAssertEqual(transportedFileURL, input.sourceAsset.url)
-        upload.cancel()
+        await cancelAndWait(upload)
     }
 
     private func assertStandardizationFailureBehavior(
@@ -668,6 +673,7 @@ class DirectUploadTests: XCTestCase {
         let finalStatusExpectation = expectation(
             description: "Standardization failure reaches its final status"
         )
+        var transportedFileURL: URL?
 
         upload.nonStandardInputHandler = {
             handlerCallCount += 1
@@ -678,6 +684,7 @@ class DirectUploadTests: XCTestCase {
             if shouldCancel, case .ready = status {
                 finalStatusExpectation.fulfill()
             } else if !shouldCancel, case .transportInProgress = status {
+                transportedFileURL = upload.videoFile
                 finalStatusExpectation.fulfill()
             }
         }
@@ -698,12 +705,25 @@ class DirectUploadTests: XCTestCase {
                 return XCTFail("Expected true to cancel and reset the upload to ready")
             }
         } else {
-            guard case .transportInProgress = upload.inputStatus else {
-                return XCTFail("Expected false to upload the original input")
-            }
-            XCTAssertEqual(upload.fileWorker?.inputFileURL, input.sourceAsset.url)
-            upload.cancel()
+            XCTAssertEqual(transportedFileURL, input.sourceAsset.url)
+            await cancelAndWait(upload)
         }
+    }
+
+    private func cancelAndWait(_ upload: DirectUpload) async {
+        if case .ready = upload.inputStatus, upload.fileWorker == nil {
+            return
+        }
+        let cancellationExpectation = expectation(
+            description: "Upload cancellation finishes"
+        )
+        upload.inputStatusHandler = { status in
+            if case .ready = status {
+                cancellationExpectation.fulfill()
+            }
+        }
+        upload.cancel()
+        await fulfillment(of: [cancellationExpectation], timeout: 2.0)
     }
 
     private func waitForStandardizer(
