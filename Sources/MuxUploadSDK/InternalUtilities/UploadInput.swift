@@ -124,9 +124,12 @@ extension UploadInput {
     mutating func processStartNetworkTransport(
         startingTransportStatus: DirectUpload.TransportStatus
     ) {
-        if case UploadInput.Status.underInspection = status {
+        switch status {
+        case .started, .underInspection, .standardizing,
+             .standardizationSucceeded, .standardizationFailed,
+             .awaitingUploadConfirmation:
             status = .uploadInProgress(sourceAsset, uploadInfo, startingTransportStatus)
-        } else {
+        default:
             return
         }
     }

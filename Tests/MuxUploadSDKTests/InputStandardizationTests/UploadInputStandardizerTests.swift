@@ -15,7 +15,7 @@ final class UploadInputStandardizerTests: XCTestCase {
         func standardize(
             sourceAsset: AVURLAsset,
             rescalingDetails: UploadInputFormatInspectionResult.RescalingDetails,
-            conversion: StandardInputConversion?,
+            conversion: StandardInputConversion,
             outputURL: URL
         ) async throws -> AVURLAsset {
             receivedConversion = conversion
@@ -35,7 +35,7 @@ final class UploadInputStandardizerTests: XCTestCase {
         func standardize(
             sourceAsset: AVURLAsset,
             rescalingDetails: UploadInputFormatInspectionResult.RescalingDetails,
-            conversion: StandardInputConversion?,
+            conversion: StandardInputConversion,
             outputURL: URL
         ) async throws -> AVURLAsset {
             if isCancelled {
@@ -435,6 +435,7 @@ final class UploadInputStandardizerTests: XCTestCase {
                     url: URL(fileURLWithPath: "/tmp/missing-standardization-input.mp4")
                 ),
                 rescalingDetails: .init(),
+                conversion: basicConversion(),
                 outputURL: URL(fileURLWithPath: "/tmp/missing-standardization-output.mp4")
             )
         }
@@ -474,6 +475,7 @@ final class UploadInputStandardizerTests: XCTestCase {
                 token: firstToken,
                 sourceAsset: sourceAsset,
                 rescalingDetails: .init(),
+                conversion: basicConversion(),
                 outputURL: URL(fileURLWithPath: "/tmp/missing-first-output.mp4")
             )
         }
@@ -485,6 +487,7 @@ final class UploadInputStandardizerTests: XCTestCase {
                 token: replacementToken,
                 sourceAsset: sourceAsset,
                 rescalingDetails: .init(),
+                conversion: basicConversion(),
                 outputURL: URL(fileURLWithPath: "/tmp/missing-replacement-output.mp4")
             )
         }
@@ -511,6 +514,7 @@ final class UploadInputStandardizerTests: XCTestCase {
                     url: URL(fileURLWithPath: "/tmp/missing-standardization-input.mp4")
                 ),
                 rescalingDetails: .init(),
+                conversion: basicConversion(),
                 outputURL: URL(fileURLWithPath: "/tmp/missing-standardization-output.mp4")
             )
             XCTFail("Cancelled worker should throw")
@@ -537,6 +541,7 @@ final class UploadInputStandardizerTests: XCTestCase {
             _ = try await worker.standardize(
                 sourceAsset: AVURLAsset(url: inputURL),
                 rescalingDetails: .init(),
+                conversion: basicConversion(),
                 outputURL: outputURL
             )
             XCTFail("Standardization should reject an existing output file")
@@ -563,6 +568,7 @@ final class UploadInputStandardizerTests: XCTestCase {
         let standardizedAsset = try await worker.standardize(
             sourceAsset: AVURLAsset(url: inputURL),
             rescalingDetails: .init(),
+            conversion: basicConversion(),
             outputURL: outputURL
         )
 
@@ -577,6 +583,28 @@ final class UploadInputStandardizerTests: XCTestCase {
         XCTAssertEqual(naturalSize, CGSize(width: 64, height: 64))
         let audioTracks = try await standardizedAsset.loadTracks(withMediaType: .audio)
         XCTAssertTrue(audioTracks.isEmpty)
+    }
+
+    func testPlanningCapabilitiesRequireARealDecodableVideoSample() async throws {
+        let inputURL = try await makeGeneratedH264Asset()
+        defer { try? FileManager.default.removeItem(at: inputURL) }
+        let provider = AVFoundationStandardInputPlanningCapabilityProvider()
+        var inspection = UploadInputFormatInspectionResult()
+        inspection.metadata.videoTrackCount = 1
+
+        let decodable = await provider.capabilities(
+            for: inspection,
+            sourceAsset: AVURLAsset(url: inputURL)
+        )
+        let missing = await provider.capabilities(
+            for: inspection,
+            sourceAsset: AVURLAsset(
+                url: URL(fileURLWithPath: "/tmp/missing-decode-probe-source.mp4")
+            )
+        )
+
+        XCTAssertTrue(decodable.sourceIsDecodable)
+        XCTAssertFalse(missing.sourceIsDecodable)
     }
 
     func testCatalogBackedCodecPreservingMP4AACConversion() async throws {
@@ -758,6 +786,10 @@ final class UploadInputStandardizerTests: XCTestCase {
             _ = try await worker.standardize(
                 sourceAsset: AVURLAsset(url: inputURL),
                 rescalingDetails: .init(),
+                conversion: basicConversion(
+                    sourceCodec: .hevc,
+                    outputCodec: .hevc
+                ),
                 outputURL: outputURL
             )
             XCTFail("Cancelled transfer should throw")
@@ -793,7 +825,11 @@ final class UploadInputStandardizerTests: XCTestCase {
                 maximumDesiredResolutionPreset: maximumResolution,
                 recordedResolution: .init(width: 0, height: 0)
             ),
-            conversion: conversion,
+            conversion: conversion ?? basicConversion(
+                sourceCodec: expectedCodec == .hevc ? .hevc : .h264,
+                outputCodec: expectedCodec == .hevc ? .hevc : .h264,
+                maximumResolution: maximumResolution
+            ),
             outputURL: outputURL
         )
         XCTAssertEqual(standardizedAsset.url, outputURL)
@@ -1140,6 +1176,26 @@ final class UploadInputStandardizerTests: XCTestCase {
             toneMapsToSDR: true,
             selection: StandardInputPolicySelection(
                 maximumResolution: .preset1920x1080
+            ),
+            requirementsToRemediate: []
+        )
+    }
+
+    private func basicConversion(
+        sourceCodec: StandardInputVideoCodec = .h264,
+        outputCodec: StandardInputVideoCodec = .h264,
+        maximumResolution: DirectUploadOptions.InputStandardization.MaximumResolution = .preset1920x1080
+    ) -> StandardInputConversion {
+        StandardInputConversion(
+            sourceCodec: sourceCodec,
+            outputCodec: outputCodec,
+            sourceDynamicRange: .sdr,
+            sourceDisplayDimensions: .known(
+                StandardInputDisplayDimensions(width: 64, height: 64)
+            ),
+            toneMapsToSDR: false,
+            selection: StandardInputPolicySelection(
+                maximumResolution: maximumResolution
             ),
             requirementsToRemediate: []
         )

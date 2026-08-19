@@ -4,7 +4,7 @@
 
 import Foundation
 
-struct StandardInputPlanningCapabilities: Equatable {
+struct StandardInputPlanningCapabilities: Equatable, Sendable {
     /// Capabilities are supplied for the current source and device. This keeps
     /// hardware probing and asset-specific decode checks outside the pure planner.
     var sourceIsDecodable: Bool
@@ -37,15 +37,15 @@ struct StandardInputConversion: Equatable, Sendable {
     let requirementsToRemediate: Set<StandardInputPolicyEvaluation.Requirement>
 }
 
-struct StandardInputPlan: Equatable {
-    enum UploadOriginalReason: Equatable {
+struct StandardInputPlan: Equatable, Sendable {
+    enum UploadOriginalReason: Equatable, Sendable {
         case standardizationNotRequested
         case standardInput
         case noKnownStandardInputViolation
         case preserveHDR(StandardInputDynamicRange)
     }
 
-    enum FallbackReason: Equatable {
+    enum FallbackReason: Equatable, Sendable {
         case insufficientEvidenceForConversion
         case unsupportedConversion(StandardInputConversion)
         case unsupportedHDR(StandardInputDynamicRange)
@@ -56,7 +56,7 @@ struct StandardInputPlan: Equatable {
         )
     }
 
-    enum Action: Equatable {
+    enum Action: Equatable, Sendable {
         case uploadOriginal(UploadOriginalReason)
         case convert(StandardInputConversion)
         case fallback(FallbackReason)

@@ -11,15 +11,24 @@ actor MockUploadInputStandardizer: UploadInputStandardizing {
     struct Snapshot {
         let standardizeCallCount: Int
         let cancelCallCount: Int
+        let conversion: StandardInputConversion?
+        let outputURL: URL?
     }
 
     private(set) var standardizeCallCount = 0
     private(set) var cancelCallCount = 0
+    private var receivedConversion: StandardInputConversion?
+    private var receivedOutputURL: URL?
 
-    let error: Error
+    let error: Error?
+    let resultURL: URL?
 
-    init(error: Error = StandardizationError.conversionFailure) {
+    init(
+        error: Error? = StandardizationError.conversionFailure,
+        resultURL: URL? = nil
+    ) {
         self.error = error
+        self.resultURL = resultURL
     }
 
     func standardize(
@@ -27,11 +36,14 @@ actor MockUploadInputStandardizer: UploadInputStandardizing {
         token: UploadInputStandardizationToken,
         sourceAsset: AVURLAsset,
         rescalingDetails: UploadInputFormatInspectionResult.RescalingDetails,
-        conversion: StandardInputConversion?,
+        conversion: StandardInputConversion,
         outputURL: URL
     ) async throws -> AVURLAsset {
         standardizeCallCount += 1
-        throw error
+        receivedConversion = conversion
+        receivedOutputURL = outputURL
+        if let error { throw error }
+        return AVURLAsset(url: resultURL ?? outputURL)
     }
 
     func cancel(id: String, token: UploadInputStandardizationToken) {
@@ -41,7 +53,9 @@ actor MockUploadInputStandardizer: UploadInputStandardizing {
     func snapshot() -> Snapshot {
         Snapshot(
             standardizeCallCount: standardizeCallCount,
-            cancelCallCount: cancelCallCount
+            cancelCallCount: cancelCallCount,
+            conversion: receivedConversion,
+            outputURL: receivedOutputURL
         )
     }
 }

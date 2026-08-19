@@ -2,7 +2,7 @@
 //  UploadInputSampleInspection.swift
 //
 
-import AVFoundation
+@preconcurrency import AVFoundation
 import CoreMedia
 import Foundation
 
@@ -170,8 +170,8 @@ enum AVFoundationUploadInputSampleReader {
         videoTrack: AVAssetTrack,
         codec: StandardInputFact<StandardInputVideoCodec>,
         operation: UploadInputInspectionOperation? = nil
-    ) -> StandardInputMediaFacts {
-        guard operation?.isCancelled != true else { return StandardInputMediaFacts() }
+    ) async -> StandardInputMediaFacts {
+        guard (await operation?.isCancelled) != true else { return StandardInputMediaFacts() }
         guard let codec = codec.value,
               codec == .h264 || codec == .hevc else {
             return StandardInputMediaFacts()
@@ -191,12 +191,12 @@ enum AVFoundationUploadInputSampleReader {
         guard reader.startReading() else {
             return StandardInputMediaFacts()
         }
-        guard operation?.register(assetReader: reader) ?? true else {
+        guard await operation?.register(assetReader: reader) ?? true else {
             return StandardInputMediaFacts()
         }
 
         var accumulator = UploadInputCompressedSampleAggregator.Accumulator()
-        while operation?.isCancelled != true,
+        while (await operation?.isCancelled) != true,
               let sampleBuffer = output.copyNextSampleBuffer() {
             // Readers may vend zero-sample marker buffers before media samples.
             if CMSampleBufferGetNumSamples(sampleBuffer) == 0 {
@@ -217,7 +217,7 @@ enum AVFoundationUploadInputSampleReader {
             }
         }
 
-        guard operation?.isCancelled != true else {
+        guard (await operation?.isCancelled) != true else {
             reader.cancelReading()
             return StandardInputMediaFacts()
         }
