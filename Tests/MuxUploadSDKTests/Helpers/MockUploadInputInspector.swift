@@ -23,6 +23,9 @@ actor MockUploadInputInspector: UploadInputInspector {
     private let shouldDeferCompletion: Bool
     private var operation: UploadInputInspectionOperation?
     private var continuation: CheckedContinuation<UploadInputInspectionOutcome, Never>?
+    private var inspectionStartWaiters: [
+        CheckedContinuation<UploadInputInspectionOperation, Never>
+    ] = []
 
     init(
         mockInspectionResult: UploadInputFormatInspectionResult = UploadInputFormatInspectionResult(
@@ -53,6 +56,11 @@ actor MockUploadInputInspector: UploadInputInspector {
     ) async -> UploadInputInspectionOutcome {
         if shouldDeferCompletion {
             self.operation = operation
+            let inspectionStartWaiters = self.inspectionStartWaiters
+            self.inspectionStartWaiters.removeAll()
+            inspectionStartWaiters.forEach {
+                $0.resume(returning: operation)
+            }
             return await withCheckedContinuation { continuation in
                 self.continuation = continuation
             }
@@ -68,8 +76,13 @@ actor MockUploadInputInspector: UploadInputInspector {
         continuation?.resume(returning: nextOutcome())
     }
 
-    func currentOperation() -> UploadInputInspectionOperation? {
-        operation
+    func waitForDeferredInspectionStart() async -> UploadInputInspectionOperation {
+        if let operation {
+            return operation
+        }
+        return await withCheckedContinuation { continuation in
+            inspectionStartWaiters.append(continuation)
+        }
     }
 
     private func nextOutcome() -> UploadInputInspectionOutcome {

@@ -170,8 +170,7 @@ class DirectUploadTests: XCTestCase {
 
         upload.start()
 
-        let pendingOperation = await waitForInspectionOperation(inspector)
-        let operation = try XCTUnwrap(pendingOperation)
+        let operation = await inspector.waitForDeferredInspectionStart()
 
         upload.cancel()
         for _ in 0..<100 where !(await operation.isCancelled) {
@@ -290,7 +289,7 @@ class DirectUploadTests: XCTestCase {
         }
 
         upload.start()
-        _ = await waitForInspectionOperation(inspector)
+        _ = await inspector.waitForDeferredInspectionStart()
 
         Task {
             await inspector.completeDeferredInspection()
@@ -302,7 +301,7 @@ class DirectUploadTests: XCTestCase {
         await fulfillment(of: [cancellationReported], timeout: 1.0)
 
         upload.start()
-        _ = await waitForInspectionOperation(inspector)
+        _ = await inspector.waitForDeferredInspectionStart()
 
         allowWorkerCreation.signal()
         await fulfillment(of: [completionFinished], timeout: 1.0)
@@ -493,12 +492,16 @@ class DirectUploadTests: XCTestCase {
         )
         let transportExpectation = expectation(description: "Original transport starts")
         var failureHandlerCallCount = 0
+        var transportedFileURL: URL?
         upload.nonStandardInputHandler = {
             failureHandlerCallCount += 1
             return false
         }
         upload.inputStatusHandler = { status in
-            if case .transportInProgress = status { transportExpectation.fulfill() }
+            if case .transportInProgress = status {
+                transportedFileURL = upload.videoFile
+                transportExpectation.fulfill()
+            }
         }
 
         upload.start()
@@ -507,7 +510,7 @@ class DirectUploadTests: XCTestCase {
         XCTAssertEqual(failureHandlerCallCount, 0)
         let standardizerSnapshot = await standardizer.snapshot()
         XCTAssertEqual(standardizerSnapshot.standardizeCallCount, 0)
-        XCTAssertEqual(upload.fileWorker?.inputFileURL, input.sourceAsset.url)
+        XCTAssertEqual(transportedFileURL, input.sourceAsset.url)
         upload.cancel()
     }
 
@@ -715,18 +718,6 @@ class DirectUploadTests: XCTestCase {
             try? await Task.sleep(nanoseconds: 1_000_000)
         }
         return await standardizer.snapshot()
-    }
-
-    private func waitForInspectionOperation(
-        _ inspector: MockUploadInputInspector
-    ) async -> UploadInputInspectionOperation? {
-        for _ in 0..<100 {
-            if let operation = await inspector.currentOperation() {
-                return operation
-            }
-            try? await Task.sleep(nanoseconds: 1_000_000)
-        }
-        return await inspector.currentOperation()
     }
 
     private func conversionFacts(
