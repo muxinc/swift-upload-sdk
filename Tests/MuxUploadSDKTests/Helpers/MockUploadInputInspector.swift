@@ -7,7 +7,7 @@ import Foundation
 
 @testable import MuxUploadSDK
 
-class MockUploadInputInspector: UploadInputInspector {
+actor MockUploadInputInspector: UploadInputInspector {
 
     static let alwaysStandard: MockUploadInputInspector = MockUploadInputInspector()
 
@@ -19,52 +19,62 @@ class MockUploadInputInspector: UploadInputInspector {
         mockInspectionError: UploadInputInspectionError.inspectionFailure
     )
 
-    var mockInspectionError: Error?
-    var mockInspectionResult: UploadInputFormatInspectionResult
-    var duration: CMTime
-    var shouldDeferCompletion = false
-    private(set) var operation: UploadInputInspectionOperation?
-
-    init() {
-        self.mockInspectionResult = UploadInputFormatInspectionResult(
-            nonStandardInputReasons: [],
-            rescalingDetails: .init()
-        )
-        self.duration = .zero
-    }
+    private var outcomes: [UploadInputInspectionOutcome]
+    private let shouldDeferCompletion: Bool
+    private var operation: UploadInputInspectionOperation?
+    private var continuation: CheckedContinuation<UploadInputInspectionOutcome, Never>?
 
     init(
-        mockInspectionResult: UploadInputFormatInspectionResult,
-        mockInspectionError: Error? = nil
+        mockInspectionResult: UploadInputFormatInspectionResult = UploadInputFormatInspectionResult(
+            nonStandardInputReasons: [],
+            rescalingDetails: .init()
+        ),
+        mockInspectionError: Error? = nil,
+        duration: CMTime = .zero,
+        shouldDeferCompletion: Bool = false,
+        subsequentResults: [UploadInputFormatInspectionResult] = []
     ) {
-        self.mockInspectionResult = mockInspectionResult
-        self.mockInspectionError = mockInspectionError
-        self.duration = .zero
-    }
-
-    func performInspection(
-        sourceInput: AVAsset,
-        maximumResolution: DirectUploadOptions.InputStandardization.MaximumResolution,
-        operation: UploadInputInspectionOperation
-    ) {
-        if shouldDeferCompletion {
-            self.operation = operation
-        } else {
-            operation.complete(
-                mockInspectionResult,
+        self.outcomes = [
+            UploadInputInspectionOutcome(
+                result: mockInspectionResult,
                 duration: duration,
                 error: mockInspectionError
             )
+        ] + subsequentResults.map {
+            UploadInputInspectionOutcome(result: $0, duration: duration, error: nil)
+        }
+        self.shouldDeferCompletion = shouldDeferCompletion
+    }
+
+    func inspect(
+        sourceInput: AVAsset,
+        maximumResolution: DirectUploadOptions.InputStandardization.MaximumResolution,
+        operation: UploadInputInspectionOperation
+    ) async -> UploadInputInspectionOutcome {
+        if shouldDeferCompletion {
+            self.operation = operation
+            return await withCheckedContinuation { continuation in
+                self.continuation = continuation
+            }
+        } else {
+            return nextOutcome()
         }
     }
 
     func completeDeferredInspection() {
-        operation?.complete(
-            mockInspectionResult,
-            duration: duration,
-            error: mockInspectionError
-        )
         operation = nil
+        let continuation = self.continuation
+        self.continuation = nil
+        continuation?.resume(returning: nextOutcome())
+    }
+
+    func currentOperation() -> UploadInputInspectionOperation? {
+        operation
+    }
+
+    private func nextOutcome() -> UploadInputInspectionOutcome {
+        guard outcomes.count > 1 else { return outcomes[0] }
+        return outcomes.removeFirst()
     }
 
 }

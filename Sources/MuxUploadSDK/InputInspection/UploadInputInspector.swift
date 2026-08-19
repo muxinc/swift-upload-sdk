@@ -2,81 +2,66 @@
 //  UploadInputInspector.swift
 //  
 
-import AVFoundation
+@preconcurrency import AVFoundation
 import CoreMedia
 import Foundation
 
-typealias UploadInputInspectionCompletionHandler = (UploadInputFormatInspectionResult?, CMTime, Error?) -> ()
+struct UploadInputInspectionOutcome: Sendable {
+    let result: UploadInputFormatInspectionResult?
+    let duration: CMTime
+    let error: Error?
+}
 
-final class UploadInputInspectionOperation {
+typealias UploadInputInspectionCompletionHandler = (
+    UploadInputFormatInspectionResult?,
+    CMTime,
+    Error?
+) -> Void
+
+actor UploadInputInspectionOperation {
     private enum State {
         case active
         case cancelled
         case completed
     }
 
-    private let lock = NSLock()
-    private let completionHandler: UploadInputInspectionCompletionHandler
     private var state: State = .active
-    private var assetReader: AVAssetReader?
-
-    init(completionHandler: @escaping UploadInputInspectionCompletionHandler) {
-        self.completionHandler = completionHandler
-    }
+    private var hasRegisteredReader = false
 
     var isCancelled: Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        return state == .cancelled
+        state == .cancelled
+    }
+
+    var hasRegisteredAssetReader: Bool {
+        hasRegisteredReader
     }
 
     func register(assetReader: AVAssetReader) -> Bool {
-        lock.lock()
-        let isActive = state == .active
-        if isActive {
-            self.assetReader = assetReader
-        }
-        lock.unlock()
-
-        if !isActive {
+        guard state == .active else {
             assetReader.cancelReading()
+            return false
         }
-        return isActive
+        hasRegisteredReader = true
+        return true
     }
 
     func cancel() {
-        lock.lock()
-        guard state == .active else {
-            lock.unlock()
-            return
-        }
+        guard state == .active else { return }
+        // AVAssetReader forbids calling cancelReading() concurrently with
+        // copyNextSampleBuffer(). Record cancellation here; the task consuming
+        // samples observes this state and cancels its reader on that same task.
         state = .cancelled
-        let assetReader = self.assetReader
-        self.assetReader = nil
-        lock.unlock()
-
-        assetReader?.cancelReading()
     }
 
-    func complete(
-        _ result: UploadInputFormatInspectionResult?,
-        duration: CMTime,
-        error: Error?
-    ) {
-        lock.lock()
-        guard state == .active else {
-            lock.unlock()
-            return
-        }
+    func complete() -> Bool {
+        guard state == .active else { return false }
         state = .completed
-        assetReader = nil
-        lock.unlock()
-
-        completionHandler(result, duration, error)
+        hasRegisteredReader = false
+        return true
     }
 }
 
-final class UploadInputInspectionOperationRegistry: @unchecked Sendable {
+actor UploadInputInspectionOperationRegistry {
     struct Token: Equatable, Sendable {
         private let id: UUID
 
@@ -90,58 +75,44 @@ final class UploadInputInspectionOperationRegistry: @unchecked Sendable {
         let operation: UploadInputInspectionOperation
     }
 
-    private let lock = NSLock()
     private var registration: Registration?
 
     func register(
         _ operation: UploadInputInspectionOperation,
         for token: Token
-    ) {
-        lock.lock()
+    ) async {
         let previousOperation = registration?.operation
         registration = Registration(
             token: token,
             operation: operation
         )
-        lock.unlock()
-
-        previousOperation?.cancel()
+        await previousOperation?.cancel()
     }
 
     @discardableResult
-    func claimCompletion(for token: Token) -> Bool {
-        lock.lock()
-        guard registration?.token == token else {
-            lock.unlock()
-            return false
-        }
-        registration = nil
-        lock.unlock()
-        return true
-    }
-
-    @discardableResult
-    func cancel(for token: Token) -> Bool {
-        lock.lock()
-        guard registration?.token == token else {
-            lock.unlock()
-            return false
-        }
+    func claimCompletion(for token: Token) async -> Bool {
+        guard registration?.token == token else { return false }
         let operation = registration?.operation
         registration = nil
-        lock.unlock()
+        return await operation?.complete() ?? false
+    }
 
-        operation?.cancel()
+    @discardableResult
+    func cancel(for token: Token) async -> Bool {
+        guard registration?.token == token else { return false }
+        let operation = registration?.operation
+        registration = nil
+        await operation?.cancel()
         return operation != nil
     }
 }
 
-protocol UploadInputInspector {
-    func performInspection(
+protocol UploadInputInspector: Sendable {
+    func inspect(
         sourceInput: AVAsset,
         maximumResolution: DirectUploadOptions.InputStandardization.MaximumResolution,
         operation: UploadInputInspectionOperation
-    )
+    ) async -> UploadInputInspectionOutcome
 }
 
 extension UploadInputInspector {
@@ -151,14 +122,16 @@ extension UploadInputInspector {
         maximumResolution: DirectUploadOptions.InputStandardization.MaximumResolution,
         completionHandler: @escaping UploadInputInspectionCompletionHandler
     ) -> UploadInputInspectionOperation {
-        let operation = UploadInputInspectionOperation(
-            completionHandler: completionHandler
-        )
-        performInspection(
-            sourceInput: sourceInput,
-            maximumResolution: maximumResolution,
-            operation: operation
-        )
+        let operation = UploadInputInspectionOperation()
+        Task {
+            let outcome = await inspect(
+                sourceInput: sourceInput,
+                maximumResolution: maximumResolution,
+                operation: operation
+            )
+            guard await operation.complete() else { return }
+            completionHandler(outcome.result, outcome.duration, outcome.error)
+        }
         return operation
     }
 }
@@ -169,114 +142,109 @@ struct UploadInputInspectionError: Error {
 
 }
 
-class AVFoundationUploadInputInspector: UploadInputInspector {
+final class AVFoundationUploadInputInspector: UploadInputInspector {
 
     static let shared = AVFoundationUploadInputInspector()
 
-    // FIXME: Trying to avoid the callback pyramid of doom
-    // here, newer AVAsset APIs use Concurrency
-    // but Concurrency itself has very primitive
-    // task sequencing. Replace with async AVAsset
-    // methods.
-    func performInspection(
+    func inspect(
         sourceInput: AVAsset,
         maximumResolution: DirectUploadOptions.InputStandardization.MaximumResolution,
         operation: UploadInputInspectionOperation
-    ) {
-        sourceInput.loadTracks(
-            withMediaType: .video
-        ) { videoTracks, videoError in
-            guard !operation.isCancelled else { return }
-            guard videoError == nil, let videoTracks else {
-                operation.complete(
-                    nil,
-                    duration: CMTime.zero,
-                    error: UploadInputInspectionError.inspectionFailure
-                )
-                return
+    ) async -> UploadInputInspectionOutcome {
+        do {
+            let videoTracks = try await sourceInput.loadTracks(withMediaType: .video)
+            guard !(await operation.isCancelled) else {
+                return cancelledOutcome()
             }
-
-            sourceInput.loadTracks(
-                withMediaType: .audio
-            ) { audioTracks, audioError in
-                guard !operation.isCancelled else { return }
-                self.inspect(
-                    sourceInput: sourceInput,
-                    videoTracks: videoTracks,
-                    audioTracks: audioError == nil ? audioTracks : nil,
-                    maximumResolution: maximumResolution,
-                    operation: operation
-                )
+            let audioTracks = try? await sourceInput.loadTracks(withMediaType: .audio)
+            guard !(await operation.isCancelled) else {
+                return cancelledOutcome()
             }
+            return await inspect(
+                sourceInput: sourceInput,
+                videoTracks: videoTracks,
+                audioTracks: audioTracks,
+                maximumResolution: maximumResolution,
+                operation: operation
+            )
+        } catch {
+            return UploadInputInspectionOutcome(
+                result: nil,
+                duration: .zero,
+                error: UploadInputInspectionError.inspectionFailure
+            )
         }
     }
 
-    func inspect(
+    private func inspect(
         sourceInput: AVAsset,
         videoTracks: [AVAssetTrack],
         audioTracks: [AVAssetTrack]?,
         maximumResolution: DirectUploadOptions.InputStandardization.MaximumResolution,
         operation: UploadInputInspectionOperation
-    ) {
-        loadAudioMetadata(audioTracks, operation: operation) { audioMetadata in
-            guard !operation.isCancelled else { return }
-            switch videoTracks.count {
-            case 0:
-                let metadataResult = AVFoundationUploadInputMetadataReader.inspect(
-                    videoTracks: [],
-                    audioTracks: audioMetadata
-                )
-                operation.complete(
-                    UploadInputFormatInspectionResult(
-                        mediaFacts: metadataResult.mediaFacts,
-                        metadata: metadataResult.metadata
-                    ),
-                    duration: CMTime.zero,
-                    error: nil
-                )
-            case 1:
-                self.inspectSingleVideoTrack(
-                    sourceInput: sourceInput,
-                    videoTrack: videoTracks[0],
-                    audioMetadata: audioMetadata,
-                    maximumResolution: maximumResolution,
-                    operation: operation
-                )
-            default:
-                operation.complete(
-                    self.makeVideoInspectionFailureResult(
-                        videoTrackCount: videoTracks.count,
-                        audioMetadata: audioMetadata
-                    ),
-                    duration: CMTime.zero,
-                    error: UploadInputInspectionError.inspectionFailure
-                )
-            }
+    ) async -> UploadInputInspectionOutcome {
+        let audioMetadata = await loadAudioMetadata(
+            audioTracks,
+            operation: operation
+        )
+        guard !(await operation.isCancelled) else {
+            return cancelledOutcome()
+        }
+        switch videoTracks.count {
+        case 0:
+            let metadataResult = AVFoundationUploadInputMetadataReader.inspect(
+                videoTracks: [],
+                audioTracks: audioMetadata
+            )
+            return UploadInputInspectionOutcome(
+                result: UploadInputFormatInspectionResult(
+                    mediaFacts: metadataResult.mediaFacts,
+                    metadata: metadataResult.metadata
+                ),
+                duration: .zero,
+                error: nil
+            )
+        case 1:
+            return await inspectSingleVideoTrack(
+                sourceInput: sourceInput,
+                videoTrack: videoTracks[0],
+                audioTracks: audioTracks,
+                audioMetadata: audioMetadata,
+                maximumResolution: maximumResolution,
+                operation: operation
+            )
+        default:
+            return UploadInputInspectionOutcome(
+                result: makeVideoInspectionFailureResult(
+                    videoTrackCount: videoTracks.count,
+                    audioMetadata: audioMetadata
+                ),
+                duration: .zero,
+                error: UploadInputInspectionError.inspectionFailure
+            )
         }
     }
 
     private func inspectSingleVideoTrack(
         sourceInput: AVAsset,
         videoTrack: AVAssetTrack,
+        audioTracks: [AVAssetTrack]?,
         audioMetadata: [AVFoundationAudioTrackMetadata]?,
         maximumResolution: DirectUploadOptions.InputStandardization.MaximumResolution,
         operation: UploadInputInspectionOperation
-    ) {
-        Task {
-            let sourceInputDuration: CMTime
-            do {
-                sourceInputDuration = try await sourceInput.load(.duration)
-            } catch {
-                guard !operation.isCancelled else { return }
-                operation.complete(
-                    nil,
-                    duration: .zero,
-                    error: UploadInputInspectionError.inspectionFailure
-                )
-                return
-            }
+    ) async -> UploadInputInspectionOutcome {
+        let sourceInputDuration: CMTime
+        do {
+            sourceInputDuration = try await sourceInput.load(.duration)
+        } catch {
+            return UploadInputInspectionOutcome(
+                result: nil,
+                duration: .zero,
+                error: UploadInputInspectionError.inspectionFailure
+            )
+        }
 
-            do {
+        do {
                 async let formatDescriptions = videoTrack.load(.formatDescriptions)
                 async let preferredTransform = videoTrack.load(.preferredTransform)
                 async let nominalFrameRate = videoTrack.load(.nominalFrameRate)
@@ -289,7 +257,9 @@ class AVFoundationUploadInputInspector: UploadInputInspector {
                     estimatedDataRate,
                     segments
                 )
-                guard !operation.isCancelled else { return }
+                guard !(await operation.isCancelled) else {
+                    return cancelledOutcome(duration: sourceInputDuration)
+                }
                 guard let formatDescription = loadedMetadata.0.first else {
                     throw UploadInputInspectionError.inspectionFailure
                 }
@@ -312,14 +282,27 @@ class AVFoundationUploadInputInspector: UploadInputInspector {
                     audioTracks: audioMetadata
                 )
                 var mediaFacts = metadataResult.mediaFacts
-                let sampleFacts = AVFoundationUploadInputSampleReader.inspect(
+                let sampleFacts = await AVFoundationUploadInputSampleReader.inspect(
                     asset: sourceInput,
                     videoTrack: videoTrack,
                     codec: mediaFacts.videoCodec,
                     operation: operation
                 )
-                guard !operation.isCancelled else { return }
+                guard !(await operation.isCancelled) else {
+                    return cancelledOutcome(duration: sourceInputDuration)
+                }
                 mediaFacts.mergeGOPFacts(from: sampleFacts)
+
+                let timelineFacts = await StandardInputTimelineInspector.inspect(
+                    asset: sourceInput,
+                    videoTrack: videoTrack,
+                    audioTrack: audioTracks?.first,
+                    duration: sourceInputDuration,
+                    operation: operation
+                )
+                guard !(await operation.isCancelled) else {
+                    return cancelledOutcome(duration: sourceInputDuration)
+                }
 
                 let videoDimensions = CMVideoFormatDescriptionGetDimensions(
                     formatDescription
@@ -331,11 +314,12 @@ class AVFoundationUploadInputInspector: UploadInputInspector {
                     estimatedBitrate: loadedMetadata.3
                 )
 
-                operation.complete(
-                    UploadInputFormatInspectionResult(
+                return UploadInputInspectionOutcome(
+                    result: UploadInputFormatInspectionResult(
                         nonStandardInputReasons: nonStandardReasons,
                         mediaFacts: mediaFacts,
                         metadata: metadataResult.metadata,
+                        timelineFacts: timelineFacts,
                         rescalingDetails: UploadInputFormatInspectionResult.RescalingDetails(
                             maximumDesiredResolutionPreset: maximumResolution,
                             recordedResolution: videoDimensions
@@ -344,17 +328,18 @@ class AVFoundationUploadInputInspector: UploadInputInspector {
                     duration: sourceInputDuration,
                     error: nil
                 )
-            } catch {
-                guard !operation.isCancelled else { return }
-                operation.complete(
-                    self.makeVideoInspectionFailureResult(
+        } catch {
+            guard !(await operation.isCancelled) else {
+                return cancelledOutcome(duration: sourceInputDuration)
+            }
+            return UploadInputInspectionOutcome(
+                result: makeVideoInspectionFailureResult(
                         videoTrackCount: 1,
                         audioMetadata: audioMetadata
                     ),
-                    duration: sourceInputDuration,
-                    error: UploadInputInspectionError.inspectionFailure
-                )
-            }
+                duration: sourceInputDuration,
+                error: UploadInputInspectionError.inspectionFailure
+            )
         }
     }
 
@@ -376,38 +361,30 @@ class AVFoundationUploadInputInspector: UploadInputInspector {
 
     private func loadAudioMetadata(
         _ tracks: [AVAssetTrack]?,
-        operation: UploadInputInspectionOperation,
-        index: Int = 0,
-        accumulated: [AVFoundationAudioTrackMetadata] = [],
-        completionHandler: @escaping ([AVFoundationAudioTrackMetadata]?) -> Void
-    ) {
+        operation: UploadInputInspectionOperation
+    ) async -> [AVFoundationAudioTrackMetadata]? {
         guard let tracks else {
-            completionHandler(nil)
-            return
+            return nil
         }
-
-        guard index < tracks.count else {
-            completionHandler(accumulated)
-            return
-        }
-
-        let track = tracks[index]
-        track.loadValuesAsynchronously(forKeys: ["formatDescriptions"]) {
-            guard !operation.isCancelled else { return }
-            let formatDescriptions = track.formatDescriptions as? [CMFormatDescription]
-                ?? []
-            self.loadAudioMetadata(
-                tracks,
-                operation: operation,
-                index: index + 1,
-                accumulated: accumulated + [
-                    AVFoundationAudioTrackMetadata(
-                        formatDescriptions: formatDescriptions
-                    )
-                ],
-                completionHandler: completionHandler
+        var metadata: [AVFoundationAudioTrackMetadata] = []
+        for track in tracks {
+            guard !(await operation.isCancelled) else { return nil }
+            guard let descriptions = try? await track.load(.formatDescriptions) else {
+                return nil
+            }
+            metadata.append(
+                AVFoundationAudioTrackMetadata(formatDescriptions: descriptions)
             )
         }
+        return metadata
+    }
+
+    private func cancelledOutcome(duration: CMTime = .zero) -> UploadInputInspectionOutcome {
+        UploadInputInspectionOutcome(
+            result: nil,
+            duration: duration,
+            error: CancellationError()
+        )
     }
 
     private func legacyNonStandardReasons(
