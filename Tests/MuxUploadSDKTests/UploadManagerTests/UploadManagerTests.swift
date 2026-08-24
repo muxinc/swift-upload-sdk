@@ -20,7 +20,7 @@ extension DirectUploadOptions {
 
 class UploadManagerTests: XCTestCase {
 
-    func testUploadManagerURLDeduplication() throws {
+    func testUploadManagerURLDeduplication() async throws {
 
         let uploadManager = DirectUploadManager()
 
@@ -56,6 +56,10 @@ class UploadManagerTests: XCTestCase {
 
         upload.start(forceRestart: false)
         duplicateUpload.start(forceRestart: false)
+
+        for _ in 0..<100 where uploadManager.allManagedDirectUploads().isEmpty {
+            try? await Task.sleep(nanoseconds: 1_000_000)
+        }
 
         XCTAssertEqual(
             uploadManager.allManagedDirectUploads().count,

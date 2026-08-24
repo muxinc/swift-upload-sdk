@@ -13,26 +13,11 @@ protocol UploadInputStandardizationWorking: AnyObject, Sendable {
     func standardize(
         sourceAsset: AVURLAsset,
         rescalingDetails: UploadInputFormatInspectionResult.RescalingDetails,
-        conversion: StandardInputConversion?,
+        conversion: StandardInputConversion,
         outputURL: URL
     ) async throws -> AVURLAsset
 
     func cancel() async
-}
-
-extension UploadInputStandardizationWorking {
-    func standardize(
-        sourceAsset: AVURLAsset,
-        rescalingDetails: UploadInputFormatInspectionResult.RescalingDetails,
-        outputURL: URL
-    ) async throws -> AVURLAsset {
-        try await standardize(
-            sourceAsset: sourceAsset,
-            rescalingDetails: rescalingDetails,
-            conversion: nil,
-            outputURL: outputURL
-        )
-    }
 }
 
 struct StandardizationError: LocalizedError {
@@ -237,7 +222,7 @@ actor UploadInputStandardizationWorker {
     func standardize(
         sourceAsset: AVURLAsset,
         rescalingDetails: UploadInputFormatInspectionResult.RescalingDetails,
-        conversion: StandardInputConversion?,
+        conversion: StandardInputConversion,
         outputURL: URL
     ) async throws -> AVURLAsset {
         try ensureActive()
@@ -349,7 +334,7 @@ actor UploadInputStandardizationWorker {
         audioProperties: AudioProperties?,
         properties: LoadedAssetProperties,
         rescalingDetails: UploadInputFormatInspectionResult.RescalingDetails,
-        conversion: StandardInputConversion?,
+        conversion: StandardInputConversion,
         outputURL: URL
     ) async throws -> AVURLAsset {
         let renderSize = try Self.renderSize(
@@ -372,10 +357,9 @@ actor UploadInputStandardizationWorker {
         let sourceFormatDescription = properties.formatDescriptions[0]
         let decoderPixelFormat = Self.decoderPixelFormat(
             for: sourceFormatDescription,
-            toneMapsToSDR: conversion?.toneMapsToSDR == true
+            toneMapsToSDR: conversion.toneMapsToSDR
         )
-        let codec = conversion.map(Self.outputCodec(for:))
-            ?? Self.outputCodec(for: sourceFormatDescription.mediaSubType)
+        let codec = Self.outputCodec(for: conversion)
         let encoderConfiguration = Self.encoderConfiguration(
             codec: codec,
             renderSize: renderSize,
@@ -387,7 +371,7 @@ actor UploadInputStandardizationWorker {
             videoTracks: [videoTrack],
             videoSettings: Self.readerVideoSettings(
                 decoderPixelFormat: decoderPixelFormat,
-                toneMapsToSDR: conversion?.toneMapsToSDR == true
+                toneMapsToSDR: conversion.toneMapsToSDR
             )
         )
         videoOutput.alwaysCopiesSampleData = false
@@ -398,7 +382,7 @@ actor UploadInputStandardizationWorker {
             preferredTransform: properties.preferredTransform,
             outputFrameRate: encoderConfiguration.outputFrameRate,
             renderSize: renderSize,
-            toneMapsToSDR: conversion?.toneMapsToSDR == true
+            toneMapsToSDR: conversion.toneMapsToSDR
         )
         guard reader.canAdd(videoOutput) else {
             throw StandardizationError.cannotAddReaderOutput
@@ -409,7 +393,7 @@ actor UploadInputStandardizationWorker {
             codec: codec,
             renderSize: renderSize,
             encoderConfiguration: encoderConfiguration,
-            toneMapsToSDR: conversion?.toneMapsToSDR == true
+            toneMapsToSDR: conversion.toneMapsToSDR
         )
         let compressionPropertiesKey = AVVideoCompressionPropertiesKey
         if !writer.canApply(outputSettings: videoSettings, forMediaType: .video),

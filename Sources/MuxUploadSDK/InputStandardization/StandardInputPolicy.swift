@@ -44,8 +44,8 @@ struct StandardInputDisplayDimensions: Equatable, Sendable {
     }
 }
 
-struct StandardInputPixelFormat: Hashable {
-    enum ChromaSubsampling: Hashable {
+struct StandardInputPixelFormat: Hashable, Sendable {
+    enum ChromaSubsampling: Hashable, Sendable {
         case yuv420
         case other
     }
@@ -61,14 +61,14 @@ enum StandardInputDynamicRange: Hashable, Sendable {
     case otherHDR
 }
 
-enum StandardInputGOPStructure: Hashable {
+enum StandardInputGOPStructure: Hashable, Sendable {
     case closedWithIDR
     case closedWithoutIDR
     case open
 }
 
-enum StandardInputAudio: Hashable {
-    enum ChannelLayout: Hashable {
+enum StandardInputAudio: Hashable, Sendable {
+    enum ChannelLayout: Hashable, Sendable {
         case mono
         case stereo
         case fivePointOne
@@ -80,13 +80,13 @@ enum StandardInputAudio: Hashable {
     case otherCodec
 }
 
-enum StandardInputEditList: Hashable {
+enum StandardInputEditList: Hashable, Sendable {
     case none
     case simple
     case complex
 }
 
-struct StandardInputMediaFacts: Equatable {
+struct StandardInputMediaFacts: Equatable, Sendable {
     var videoCodec: StandardInputFact<StandardInputVideoCodec> = .unknown
     var displayDimensions: StandardInputFact<StandardInputDisplayDimensions> = .unknown
     var frameRate: StandardInputFact<Double> = .unknown
@@ -239,7 +239,7 @@ extension StandardInputPolicyProfile {
     )
 }
 
-struct StandardInputPolicyEvaluation: Equatable {
+struct StandardInputPolicyEvaluation: Equatable, Sendable {
     enum Requirement: CaseIterable, Hashable, Sendable {
         case videoCodec
         case videoResolution
@@ -254,19 +254,19 @@ struct StandardInputPolicyEvaluation: Equatable {
         case editList
     }
 
-    enum Status: Equatable {
+    enum Status: Equatable, Sendable {
         case compliant
         case nonCompliant
         case unknown
     }
 
-    enum Outcome: Equatable {
+    enum Outcome: Equatable, Sendable {
         case compliant
         case nonCompliant
         case unknown
     }
 
-    struct Check: Equatable {
+    struct Check: Equatable, Sendable {
         let requirement: Requirement
         let status: Status
     }

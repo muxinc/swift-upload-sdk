@@ -4,8 +4,8 @@
 
 import Foundation
 
-struct StandardInputTimelineFacts: Equatable {
-    enum AudioVideoStartOffset: Equatable {
+struct StandardInputTimelineFacts: Equatable, Sendable {
+    enum AudioVideoStartOffset: Equatable, Sendable {
         case notApplicable
         case seconds(TimeInterval)
     }
@@ -14,8 +14,8 @@ struct StandardInputTimelineFacts: Equatable {
     var audioVideoStartOffset: StandardInputFact<AudioVideoStartOffset> = .unknown
 }
 
-struct StandardInputOutputValidation: Equatable {
-    enum PlanExpectation: Hashable {
+struct StandardInputOutputValidation: Equatable, Sendable {
+    enum PlanExpectation: Hashable, Sendable {
         case videoCodec
         case dynamicRange
         case displayAspectRatio
@@ -23,7 +23,7 @@ struct StandardInputOutputValidation: Equatable {
         case audioVideoStartOffset
     }
 
-    enum RejectionReason: Equatable {
+    enum RejectionReason: Equatable, Sendable {
         case nonCompliant(Set<StandardInputPolicyEvaluation.Requirement>)
         case insufficientPolicyEvidence(
             Set<StandardInputPolicyEvaluation.Requirement>
@@ -32,7 +32,7 @@ struct StandardInputOutputValidation: Equatable {
         case doesNotMatchPlan(Set<PlanExpectation>)
     }
 
-    enum Disposition: Equatable {
+    enum Disposition: Equatable, Sendable {
         case accepted
         case rejected(RejectionReason)
     }

@@ -298,31 +298,78 @@ final class UploadInputSampleInspectionTests: XCTestCase {
                         completion.fulfill()
                         return
                     }
-                    let startedAt = CFAbsoluteTimeGetCurrent()
-                    let sampleFacts = AVFoundationUploadInputSampleReader.inspect(
-                        asset: asset,
-                        videoTrack: track,
-                        codec: result?.mediaFacts.videoCodec ?? .unknown
-                    )
-                    let elapsed = CFAbsoluteTimeGetCurrent() - startedAt
-                    XCTAssertEqual(
-                        sampleFacts.maximumGOPBitrate,
-                        result?.mediaFacts.maximumGOPBitrate,
-                        url.lastPathComponent
-                    )
-                    print(
-                        "Catalog real media:",
-                        url.lastPathComponent,
-                        "compressedSampleSeconds=\(String(format: "%.3f", elapsed))",
-                        "maxGOPBytes=\(String(describing: sampleFacts.maximumGOPByteSize.value))",
-                        "maxGOPBitrate=\(String(describing: sampleFacts.maximumGOPBitrate.value))",
-                        "maxKeyframeInterval=\(String(describing: sampleFacts.maximumKeyframeInterval.value))",
-                        "gopStructure=\(String(describing: sampleFacts.gopStructure.value))"
-                    )
-                    completion.fulfill()
+                    Task {
+                        let startedAt = CFAbsoluteTimeGetCurrent()
+                        let sampleFacts = await AVFoundationUploadInputSampleReader.inspect(
+                            asset: asset,
+                            videoTrack: track,
+                            codec: result?.mediaFacts.videoCodec ?? .unknown
+                        )
+                        let elapsed = CFAbsoluteTimeGetCurrent() - startedAt
+                        XCTAssertEqual(
+                            sampleFacts.maximumGOPBitrate,
+                            result?.mediaFacts.maximumGOPBitrate,
+                            url.lastPathComponent
+                        )
+                        print(
+                            "Catalog real media:",
+                            url.lastPathComponent,
+                            "compressedSampleSeconds=\(String(format: "%.3f", elapsed))",
+                            "maxGOPBytes=\(String(describing: sampleFacts.maximumGOPByteSize.value))",
+                            "maxGOPBitrate=\(String(describing: sampleFacts.maximumGOPBitrate.value))",
+                            "maxKeyframeInterval=\(String(describing: sampleFacts.maximumKeyframeInterval.value))",
+                            "gopStructure=\(String(describing: sampleFacts.gopStructure.value))"
+                        )
+                        completion.fulfill()
+                    }
                 }
             }
             wait(for: [completion], timeout: 120)
+        }
+    }
+
+    func testCatalogInspectionCancellationWhileReaderIsRegistered() async throws {
+        let environment = ProcessInfo.processInfo.environment
+        guard let directory = environment["MUX_UPLOAD_MEDIA_FIXTURE_DIRECTORY"] else {
+            throw XCTSkip(
+                "Set MUX_UPLOAD_MEDIA_FIXTURE_DIRECTORY for real-media cancellation validation"
+            )
+        }
+        let mediaURLs = try FileManager.default.contentsOfDirectory(
+            at: URL(fileURLWithPath: directory),
+            includingPropertiesForKeys: [.fileSizeKey]
+        ).filter { ["mov", "mp4"].contains($0.pathExtension.lowercased()) }
+        let inputURL = try XCTUnwrap(
+            mediaURLs.max {
+                let left = (try? $0.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+                let right = (try? $1.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+                return left < right
+            }
+        )
+
+        for _ in 0..<10 {
+            let operation = UploadInputInspectionOperation()
+            let task = Task {
+                await AVFoundationUploadInputInspector().inspect(
+                    sourceInput: AVURLAsset(url: inputURL),
+                    maximumResolution: .preset3840x2160,
+                    operation: operation
+                )
+            }
+            var registeredReader = false
+            for _ in 0..<1_000 {
+                if await operation.hasRegisteredAssetReader {
+                    registeredReader = true
+                    break
+                }
+                try await Task.sleep(nanoseconds: 100_000)
+            }
+            XCTAssertTrue(registeredReader)
+            await operation.cancel()
+
+            let outcome = await task.value
+            XCTAssertNil(outcome.result)
+            XCTAssertTrue(outcome.error is CancellationError)
         }
     }
 

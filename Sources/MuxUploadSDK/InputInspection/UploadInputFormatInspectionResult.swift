@@ -5,8 +5,8 @@
 import AVFoundation
 import Foundation
 
-struct UploadInputFormatInspectionResult {
-    enum NonstandardInputReason {
+struct UploadInputFormatInspectionResult: Sendable {
+    enum NonstandardInputReason: Sendable {
         case videoCodec
         case audioCodec
         case videoGOPSize
@@ -26,11 +26,13 @@ struct UploadInputFormatInspectionResult {
 
     var metadata: UploadInputMetadataInspection = UploadInputMetadataInspection()
 
+    var timelineFacts: StandardInputTimelineFacts = StandardInputTimelineFacts()
+
     var isStandardInput: Bool {
         nonStandardInputReasons.isEmpty
     }
 
-    struct RescalingDetails {
+    struct RescalingDetails: Sendable {
         var maximumDesiredResolutionPreset: DirectUploadOptions.InputStandardization.MaximumResolution = .default
 
         var recordedResolution: CMVideoDimensions = CMVideoDimensions(width: 0, height: 0)

@@ -89,7 +89,7 @@ public struct DirectUploadOptions {
     /// Options for adjusments made by ``DirectUpload``
     /// to some inputs to minimize processing time during
     /// ingestion
-    public struct InputStandardization {
+    public struct InputStandardization: Sendable {
 
         /// If requested the SDK will attempt to detect
         /// non-standard input formats and if so detected
@@ -105,7 +105,7 @@ public struct DirectUploadOptions {
         /// on-device output. Configure the matching
         /// `new_asset_settings.max_resolution_tier` separately
         /// when creating the Mux Direct Upload.
-        public enum MaximumResolution {
+        public enum MaximumResolution: Sendable {
             /// By default the standardized input will be
             /// scaled down to 1920x1080 (1080p) from a larger
             /// size. Inputs with smaller dimensions won't be
@@ -132,7 +132,7 @@ public struct DirectUploadOptions {
 
         /// Controls how the SDK handles HDR input during
         /// input standardization.
-        public enum HDRHandling: Codable, Equatable {
+        public enum HDRHandling: Codable, Equatable, Sendable {
             /// Preserve eligible HDR input for server-side
             /// processing. This is the default behavior and
             /// does not guarantee end-to-end HDR playback.

@@ -7,11 +7,11 @@ import CoreGraphics
 import CoreMedia
 import Foundation
 
-struct UploadInputMetadataInspection: Equatable {
-    struct VideoTransform: Equatable {
+struct UploadInputMetadataInspection: Equatable, Sendable {
+    struct VideoTransform: Equatable, Sendable {
         /// The source metadata orientation normalized to the range 0...270.
         /// For example, a signed -90-degree rotation is represented as 270 degrees.
-        enum Rotation: Int, Equatable {
+        enum Rotation: Int, Equatable, Sendable {
             case degrees0 = 0
             case degrees90 = 90
             case degrees180 = 180
@@ -22,7 +22,7 @@ struct UploadInputMetadataInspection: Equatable {
         let isMirrored: Bool
     }
 
-    struct ColorProperties: Equatable {
+    struct ColorProperties: Equatable, Sendable {
         var primaries: StandardInputFact<String> = .unknown
         var transferFunction: StandardInputFact<String> = .unknown
         var yCbCrMatrix: StandardInputFact<String> = .unknown
