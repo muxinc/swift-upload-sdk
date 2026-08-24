@@ -371,6 +371,7 @@ public final class DirectUpload {
     private let outputValidator: StandardInputOutputValidator
     private let capabilityProvider: StandardInputPlanningCapabilityProviding
     private let storagePreflighter: TemporaryStoragePreflighting
+    private let standardizationDiagnosticLogger: StandardizationDiagnosticLogging
     private let fileWorkerFactory: FileWorkerFactory
     private var lifecycleCommands: DirectUploadLifecycleCommandQueue!
 
@@ -440,6 +441,7 @@ public final class DirectUpload {
         outputValidator: StandardInputOutputValidator = StandardInputOutputValidator(),
         capabilityProvider: StandardInputPlanningCapabilityProviding = AVFoundationStandardInputPlanningCapabilityProvider(),
         storagePreflighter: TemporaryStoragePreflighting = FileSystemTemporaryStoragePreflighter(),
+        standardizationDiagnosticLogger: StandardizationDiagnosticLogging = SDKStandardizationDiagnosticLogger(),
         fileWorkerFactory: @escaping FileWorkerFactory = DirectUpload.makeFileWorker
     ) {
         self.input = input
@@ -451,6 +453,7 @@ public final class DirectUpload {
         self.outputValidator = outputValidator
         self.capabilityProvider = capabilityProvider
         self.storagePreflighter = storagePreflighter
+        self.standardizationDiagnosticLogger = standardizationDiagnosticLogger
         self.fileWorkerFactory = fileWorkerFactory
         self.lifecycleCommands = DirectUploadLifecycleCommandQueue(owner: self)
     }
@@ -465,6 +468,7 @@ public final class DirectUpload {
         outputValidator: StandardInputOutputValidator = StandardInputOutputValidator(),
         capabilityProvider: StandardInputPlanningCapabilityProviding = AVFoundationStandardInputPlanningCapabilityProvider(),
         storagePreflighter: TemporaryStoragePreflighting = FileSystemTemporaryStoragePreflighter(),
+        standardizationDiagnosticLogger: StandardizationDiagnosticLogging = SDKStandardizationDiagnosticLogger(),
         fileWorkerFactory: @escaping FileWorkerFactory = DirectUpload.makeFileWorker
     ) {
         self.input = input
@@ -476,6 +480,7 @@ public final class DirectUpload {
         self.outputValidator = outputValidator
         self.capabilityProvider = capabilityProvider
         self.storagePreflighter = storagePreflighter
+        self.standardizationDiagnosticLogger = standardizationDiagnosticLogger
         self.fileWorkerFactory = fileWorkerFactory
         self.lifecycleCommands = DirectUploadLifecycleCommandQueue(owner: self)
     }
@@ -672,7 +677,24 @@ public final class DirectUpload {
         guard await inputInspectionOperations.claimCompletion(
             for: attempt.inspectionToken
         ), await preparationLifecycle.isActive(attempt) else { return }
+        if let result = outcome.result {
+            await standardizationDiagnosticLogger.log(
+                .inspection(
+                    role: .source,
+                    facts: result.mediaFacts,
+                    legacyReasons: result.nonStandardInputReasons
+                )
+            )
+        }
         guard let inspection = outcome.result, outcome.error == nil else {
+            await standardizationDiagnosticLogger.log(
+                .failure(
+                    category: .inspection,
+                    reason: .inspectionFailed,
+                    conversion: nil,
+                    durationMilliseconds: nil
+                )
+            )
             await handlePreparationFailure(
                 error: outcome.error ?? UploadInputInspectionError.inspectionFailure,
                 result: outcome.result,
@@ -696,7 +718,13 @@ public final class DirectUpload {
             options: uploadInfo.options.inputStandardization,
             capabilities: capabilities
         )
-        SDKLogger.logger?.debug("Selected Standard Input plan: \(String(describing: plan.action))")
+        await standardizationDiagnosticLogger.log(
+            .plan(
+                plan,
+                facts: inspection.mediaFacts,
+                options: uploadInfo.options.inputStandardization
+            )
+        )
         switch plan.action {
         case .uploadOriginal:
             await startNetworkTransport(
@@ -704,6 +732,15 @@ public final class DirectUpload {
                 attempt: attempt
             )
         case .fallback(let reason):
+            let failure = StandardizationDiagnostic.plannerFailure(reason)
+            await standardizationDiagnosticLogger.log(
+                .failure(
+                    category: failure.0,
+                    reason: failure.1,
+                    conversion: nil,
+                    durationMilliseconds: nil
+                )
+            )
             await handlePreparationFailure(
                 error: DirectUploadPreparationError.plannerFallback(reason),
                 result: inspection,
@@ -743,6 +780,14 @@ public final class DirectUpload {
                 conversion: conversion
             )
         } catch {
+            await standardizationDiagnosticLogger.log(
+                .failure(
+                    category: .storage,
+                    reason: .storagePreflightFailed,
+                    conversion: conversion,
+                    durationMilliseconds: nil
+                )
+            )
             await handlePreparationFailure(
                 error: error,
                 result: inspection,
@@ -764,6 +809,9 @@ public final class DirectUpload {
         guard await preparationLifecycle.performIfActive(for: attempt, {
             input.status = .standardizing(sourceAsset, input.uploadInfo)
         }) else { return }
+        let conversionStartedAt = ProcessInfo.processInfo.systemUptime
+        var conversionDurationMilliseconds: Int?
+        var diagnosticFailureWasLogged = false
         do {
             let generatedAsset = try await inputStandardizer.standardize(
                 id: id,
@@ -772,6 +820,16 @@ public final class DirectUpload {
                 rescalingDetails: inspection.rescalingDetails,
                 conversion: conversion,
                 outputURL: outputURL
+            )
+            guard await preparationLifecycle.isActive(attempt) else { return }
+            conversionDurationMilliseconds = Self.milliseconds(
+                since: conversionStartedAt
+            )
+            await standardizationDiagnosticLogger.log(
+                .conversionCompleted(
+                    conversion,
+                    durationMilliseconds: conversionDurationMilliseconds ?? 0
+                )
             )
             guard await preparationLifecycle.isActive(attempt) else { return }
 
@@ -790,16 +848,55 @@ public final class DirectUpload {
             ), await preparationLifecycle.isActive(attempt) else { return }
             guard let generatedInspection = generatedOutcome.result,
                   generatedOutcome.error == nil else {
+                if let result = generatedOutcome.result {
+                    await standardizationDiagnosticLogger.log(
+                        .inspection(
+                            role: .generatedOutput,
+                            facts: result.mediaFacts,
+                            legacyReasons: result.nonStandardInputReasons
+                        )
+                    )
+                }
+                diagnosticFailureWasLogged = true
+                await standardizationDiagnosticLogger.log(
+                    .failure(
+                        category: .outputInspection,
+                        reason: .outputInspectionFailed,
+                        conversion: conversion,
+                        durationMilliseconds: conversionDurationMilliseconds
+                    )
+                )
                 throw generatedOutcome.error
                     ?? UploadInputInspectionError.inspectionFailure
             }
+            await standardizationDiagnosticLogger.log(
+                .inspection(
+                    role: .generatedOutput,
+                    facts: generatedInspection.mediaFacts,
+                    legacyReasons: generatedInspection.nonStandardInputReasons
+                )
+            )
             let validation = outputValidator.validateGeneratedOutput(
                 facts: generatedInspection.mediaFacts,
                 sourceTimeline: inspection.timelineFacts,
                 outputTimeline: generatedInspection.timelineFacts,
                 for: conversion
             )
+            await standardizationDiagnosticLogger.log(
+                .outputValidation(validation)
+            )
             guard validation.isAccepted else {
+                diagnosticFailureWasLogged = true
+                await standardizationDiagnosticLogger.log(
+                    .failure(
+                        category: .outputValidation,
+                        reason: StandardizationDiagnostic.validationFailure(
+                            validation
+                        ),
+                        conversion: conversion,
+                        durationMilliseconds: conversionDurationMilliseconds
+                    )
+                )
                 throw DirectUploadPreparationError.outputRejected(validation)
             }
 
@@ -829,6 +926,17 @@ public final class DirectUpload {
             return
         } catch {
             guard await preparationLifecycle.isActive(attempt) else { return }
+            if !diagnosticFailureWasLogged {
+                await standardizationDiagnosticLogger.log(
+                    .failure(
+                        category: .conversion,
+                        reason: .conversionFailed,
+                        conversion: conversion,
+                        durationMilliseconds: conversionDurationMilliseconds
+                            ?? Self.milliseconds(since: conversionStartedAt)
+                    )
+                )
+            }
             await handlePreparationFailure(
                 error: error,
                 result: inspection,
@@ -839,6 +947,16 @@ public final class DirectUpload {
                 attempt: attempt
             )
         }
+    }
+
+    private static func milliseconds(since start: TimeInterval) -> Int {
+        let milliseconds = (
+            ProcessInfo.processInfo.systemUptime - start
+        ) * 1_000
+        guard milliseconds.isFinite, milliseconds > 0 else { return 0 }
+        return milliseconds >= Double(Int.max)
+            ? Int.max
+            : Int(milliseconds.rounded())
     }
 
     private func handlePreparationFailure(

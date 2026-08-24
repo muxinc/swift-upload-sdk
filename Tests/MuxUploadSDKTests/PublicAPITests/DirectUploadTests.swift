@@ -315,11 +315,13 @@ class DirectUploadTests: XCTestCase {
 
     func testInputInspectionFailure() async throws {
         let input = try UploadInput.mockReadyInput()
+        let diagnostics = RecordingStandardizationDiagnosticLogger()
 
         let upload = DirectUpload(
             input: input,
             uploadManager: DirectUploadManager(),
-            inputInspector: MockUploadInputInspector.alwaysFailing
+            inputInspector: MockUploadInputInspector.alwaysFailing,
+            standardizationDiagnosticLogger: diagnostics
         )
 
         let preparingStatusExpectation = XCTestExpectation(
@@ -347,6 +349,11 @@ class DirectUploadTests: XCTestCase {
             timeout: 2.0,
             enforceOrder: true
         )
+        let messages = await diagnostics.messages()
+        XCTAssertTrue(messages.contains(where: {
+            $0.contains("failure_category=inspection")
+                && $0.contains("failure_reason=inspection_failed")
+        }))
         await cancelAndWait(upload)
     }
 
@@ -481,6 +488,7 @@ class DirectUploadTests: XCTestCase {
             )
         )
         let standardizer = MockUploadInputStandardizer()
+        let diagnostics = RecordingStandardizationDiagnosticLogger()
         let inspection = inspectionResult(
             facts: compliantFacts(codec: .hevc, dynamicRange: .hlg, bitDepth: 10)
         )
@@ -489,7 +497,8 @@ class DirectUploadTests: XCTestCase {
             uploadManager: DirectUploadManager(),
             inputInspector: MockUploadInputInspector(mockInspectionResult: inspection),
             inputStandardizer: standardizer,
-            capabilityProvider: FullyCapablePlanningProvider()
+            capabilityProvider: FullyCapablePlanningProvider(),
+            standardizationDiagnosticLogger: diagnostics
         )
         let transportExpectation = expectation(description: "Original transport starts")
         var failureHandlerCallCount = 0
@@ -507,12 +516,72 @@ class DirectUploadTests: XCTestCase {
 
         upload.start()
         await fulfillment(of: [transportExpectation], timeout: 1.0)
+        await cancelAndWait(upload)
 
         XCTAssertEqual(failureHandlerCallCount, 0)
         let standardizerSnapshot = await standardizer.snapshot()
         XCTAssertEqual(standardizerSnapshot.standardizeCallCount, 0)
         XCTAssertEqual(transportedFileURL, input.sourceAsset.url)
+        let messages = await diagnostics.messages()
+        XCTAssertTrue(messages.contains(where: {
+            $0.contains("event=plan_selected")
+                && $0.contains("source_codec=hevc")
+                && $0.contains("output_codec=hevc")
+                && $0.contains("resolution_tier=2160p")
+                && $0.contains("hdr_handling=preserve")
+                && $0.contains("hdr_decision=preserve_hlg_for_mux_processing")
+        }))
+        XCTAssertFalse(messages.contains(where: {
+            $0.contains("event=standardization_failure")
+        }))
+    }
+
+    func testPlannerPreservesEligiblePQWithDistinctServerProcessingDiagnostic() async throws {
+        let input = try makeInput(
+            options: DirectUploadOptions(
+                inputStandardization: .init(
+                    maximumResolution: .preset3840x2160,
+                    hdrHandling: .preserve
+                )
+            )
+        )
+        let diagnostics = RecordingStandardizationDiagnosticLogger()
+        let upload = DirectUpload(
+            input: input,
+            uploadManager: DirectUploadManager(),
+            inputInspector: MockUploadInputInspector(
+                mockInspectionResult: inspectionResult(
+                    facts: compliantFacts(
+                        codec: .hevc,
+                        dynamicRange: .pq,
+                        bitDepth: 10
+                    )
+                )
+            ),
+            capabilityProvider: FullyCapablePlanningProvider(),
+            standardizationDiagnosticLogger: diagnostics
+        )
+        let transportExpectation = expectation(description: "Original transport starts")
+        upload.inputStatusHandler = { status in
+            if case .transportInProgress = status {
+                transportExpectation.fulfill()
+            }
+        }
+
+        upload.start()
+        await fulfillment(of: [transportExpectation], timeout: 1.0)
         await cancelAndWait(upload)
+
+        let messages = await diagnostics.messages()
+        XCTAssertTrue(messages.contains(where: {
+            $0.contains("dynamic_range=pq")
+        }))
+        XCTAssertTrue(messages.contains(where: {
+            $0.contains("hdr_decision=preserve_pq_for_compatible_server_processing")
+        }))
+        XCTAssertFalse(messages.contains(where: {
+            $0.contains("event=standardization_failure")
+        }))
     }
 
     func testToneMapPlanUsesOnlyValidatedGeneratedOutput() async throws {
@@ -534,6 +603,7 @@ class DirectUploadTests: XCTestCase {
             facts: compliantFacts(codec: .hevc, dynamicRange: .sdr, bitDepth: 8)
         )
         let standardizer = MockUploadInputStandardizer(error: nil, resultURL: outputURL)
+        let diagnostics = RecordingStandardizationDiagnosticLogger()
         let upload = DirectUpload(
             input: input,
             uploadManager: DirectUploadManager(),
@@ -544,7 +614,8 @@ class DirectUploadTests: XCTestCase {
             ),
             inputStandardizer: standardizer,
             capabilityProvider: FullyCapablePlanningProvider(),
-            storagePreflighter: FixedTemporaryStoragePreflighter(outputURL: outputURL)
+            storagePreflighter: FixedTemporaryStoragePreflighter(outputURL: outputURL),
+            standardizationDiagnosticLogger: diagnostics
         )
         let transportExpectation = expectation(description: "Generated transport starts")
         var transportedFileURL: URL?
@@ -562,6 +633,31 @@ class DirectUploadTests: XCTestCase {
         XCTAssertEqual(snapshot.standardizeCallCount, 1)
         XCTAssertEqual(snapshot.conversion?.toneMapsToSDR, true)
         XCTAssertEqual(transportedFileURL, outputURL)
+        let messages = await diagnostics.messages()
+        XCTAssertTrue(messages.contains(where: {
+            $0.contains("event=inspection_completed role=source")
+                && $0.contains("source_codec=hevc")
+                && $0.contains("dynamic_range=hlg")
+        }))
+        XCTAssertTrue(messages.contains(where: {
+            $0.contains("event=plan_selected plan=convert")
+                && $0.contains("source_codec=hevc")
+                && $0.contains("output_codec=hevc")
+                && $0.contains("resolution_tier=1080p")
+                && $0.contains("hdr_handling=tone_map_to_sdr")
+        }))
+        XCTAssertTrue(messages.contains(where: {
+            $0.contains("event=conversion_completed")
+                && $0.contains("conversion_duration_ms=")
+        }))
+        XCTAssertTrue(messages.contains(where: {
+            $0.contains("event=inspection_completed role=generated_output")
+                && $0.contains("output_codec=hevc")
+                && $0.contains("dynamic_range=sdr")
+        }))
+        XCTAssertTrue(messages.contains(where: {
+            $0.contains("event=output_validation_completed result=accepted")
+        }))
         await cancelAndWait(upload)
     }
 
@@ -575,6 +671,7 @@ class DirectUploadTests: XCTestCase {
         var rejectedFacts = compliantFacts(codec: .h264, dynamicRange: .sdr, bitDepth: 8)
         rejectedFacts.averageBitrate = .known(50_000_000)
         let standardizer = MockUploadInputStandardizer(error: nil, resultURL: outputURL)
+        let diagnostics = RecordingStandardizationDiagnosticLogger()
         let upload = DirectUpload(
             input: input,
             uploadManager: DirectUploadManager(),
@@ -585,7 +682,8 @@ class DirectUploadTests: XCTestCase {
             ),
             inputStandardizer: standardizer,
             capabilityProvider: FullyCapablePlanningProvider(),
-            storagePreflighter: FixedTemporaryStoragePreflighter(outputURL: outputURL)
+            storagePreflighter: FixedTemporaryStoragePreflighter(outputURL: outputURL),
+            standardizationDiagnosticLogger: diagnostics
         )
         let handlerExpectation = expectation(description: "Validation failure handler runs")
         let transportExpectation = expectation(description: "Original transport starts")
@@ -610,12 +708,18 @@ class DirectUploadTests: XCTestCase {
 
         XCTAssertFalse(FileManager.default.fileExists(atPath: outputURL.path))
         XCTAssertEqual(transportedFileURL, input.sourceAsset.url)
+        let messages = await diagnostics.messages()
+        XCTAssertTrue(messages.contains(where: {
+            $0.contains("failure_category=output_validation")
+                && $0.contains("failure_reason=output_non_compliant")
+        }))
         await cancelAndWait(upload)
     }
 
     func testStoragePreflightFailureFallsBackBeforeStandardization() async throws {
         let input = try makeInput(options: .default)
         let standardizer = MockUploadInputStandardizer()
+        let diagnostics = RecordingStandardizationDiagnosticLogger()
         let upload = DirectUpload(
             input: input,
             uploadManager: DirectUploadManager(),
@@ -626,7 +730,8 @@ class DirectUploadTests: XCTestCase {
             ),
             inputStandardizer: standardizer,
             capabilityProvider: FullyCapablePlanningProvider(),
-            storagePreflighter: FixedTemporaryStoragePreflighter(outputURL: nil)
+            storagePreflighter: FixedTemporaryStoragePreflighter(outputURL: nil),
+            standardizationDiagnosticLogger: diagnostics
         )
         let handlerExpectation = expectation(description: "Preflight failure handler runs")
         let transportExpectation = expectation(description: "Original transport starts")
@@ -648,6 +753,109 @@ class DirectUploadTests: XCTestCase {
         let standardizerSnapshot = await standardizer.snapshot()
         XCTAssertEqual(standardizerSnapshot.standardizeCallCount, 0)
         XCTAssertEqual(transportedFileURL, input.sourceAsset.url)
+        let messages = await diagnostics.messages()
+        XCTAssertTrue(messages.contains(where: {
+            $0.contains("failure_category=storage")
+                && $0.contains("failure_reason=storage_preflight_failed")
+        }))
+        await cancelAndWait(upload)
+    }
+
+    func testUnsupportedConversionLogsCapabilityFailureAndFallsBack() async throws {
+        let input = try makeInput(options: .default)
+        let standardizer = MockUploadInputStandardizer()
+        let diagnostics = RecordingStandardizationDiagnosticLogger()
+        let upload = DirectUpload(
+            input: input,
+            uploadManager: DirectUploadManager(),
+            inputInspector: MockUploadInputInspector(
+                mockInspectionResult: inspectionResult(
+                    facts: conversionFacts(codec: .other)
+                )
+            ),
+            inputStandardizer: standardizer,
+            capabilityProvider: NoConversionPlanningProvider(),
+            standardizationDiagnosticLogger: diagnostics
+        )
+        let handlerExpectation = expectation(description: "Failure handler runs")
+        let transportExpectation = expectation(description: "Original transport starts")
+        upload.nonStandardInputHandler = {
+            handlerExpectation.fulfill()
+            return false
+        }
+        upload.inputStatusHandler = { status in
+            if case .transportInProgress = status {
+                transportExpectation.fulfill()
+            }
+        }
+
+        upload.start()
+        await fulfillment(of: [handlerExpectation, transportExpectation], timeout: 1.0)
+
+        let standardizerSnapshot = await standardizer.snapshot()
+        XCTAssertEqual(standardizerSnapshot.standardizeCallCount, 0)
+        let messages = await diagnostics.messages()
+        XCTAssertTrue(messages.contains(where: {
+            $0.contains("event=plan_selected plan=fallback")
+                && $0.contains("plan_reason=unsupported_conversion")
+        }))
+        XCTAssertTrue(messages.contains(where: {
+            $0.contains("failure_category=capability")
+                && $0.contains("failure_reason=unsupported_conversion")
+        }))
+        await cancelAndWait(upload)
+    }
+
+    func testConversionFailureDiagnosticDoesNotExposeUncontrolledErrorOrCredentials() async throws {
+        let uploadURL = try XCTUnwrap(URL(
+            string: "https://upload.example.com/private?token=UPLOAD_SECRET"
+        ))
+        let input = UploadInput(
+            asset: AVURLAsset(
+                url: URL(fileURLWithPath: "/private/customer/SECRET_SOURCE.mov")
+            ),
+            info: UploadInfo(uploadURL: uploadURL, options: .default)
+        )
+        let diagnostics = RecordingStandardizationDiagnosticLogger()
+        let rawError = SensitiveDiagnosticError(
+            description: "Authorization: Bearer HEADER_SECRET at \(uploadURL.absoluteString) from /private/customer/SECRET_SOURCE.mov"
+        )
+        let upload = DirectUpload(
+            input: input,
+            uploadManager: DirectUploadManager(),
+            inputInspector: MockUploadInputInspector(
+                mockInspectionResult: inspectionResult(
+                    facts: conversionFacts(codec: .other)
+                )
+            ),
+            inputStandardizer: MockUploadInputStandardizer(error: rawError),
+            capabilityProvider: FullyCapablePlanningProvider(),
+            standardizationDiagnosticLogger: diagnostics
+        )
+        let handlerExpectation = expectation(description: "Failure handler runs")
+        let transportExpectation = expectation(description: "Original transport starts")
+        upload.nonStandardInputHandler = {
+            handlerExpectation.fulfill()
+            return false
+        }
+        upload.inputStatusHandler = { status in
+            if case .transportInProgress = status {
+                transportExpectation.fulfill()
+            }
+        }
+
+        upload.start()
+        await fulfillment(of: [handlerExpectation, transportExpectation], timeout: 1.0)
+
+        let message = (await diagnostics.messages()).joined(separator: "\n")
+        XCTAssertTrue(message.contains("failure_category=conversion"))
+        XCTAssertTrue(message.contains("failure_reason=conversion_failed"))
+        XCTAssertTrue(message.contains("conversion_duration_ms="))
+        XCTAssertFalse(message.contains("UPLOAD_SECRET"))
+        XCTAssertFalse(message.contains("HEADER_SECRET"))
+        XCTAssertFalse(message.contains("upload.example.com"))
+        XCTAssertFalse(message.contains("/private/customer"))
+        XCTAssertFalse(message.contains("Authorization"))
         await cancelAndWait(upload)
     }
 
@@ -939,6 +1147,14 @@ private final class FailingChunkedFileUploader: ChunkedFileUploader {
     }
 }
 
+private struct SensitiveDiagnosticError: LocalizedError {
+    let description: String
+
+    var errorDescription: String? {
+        description
+    }
+}
+
 private struct FullyCapablePlanningProvider: StandardInputPlanningCapabilityProviding {
     func capabilities(
         for inspection: UploadInputFormatInspectionResult,
@@ -949,6 +1165,21 @@ private struct FullyCapablePlanningProvider: StandardInputPlanningCapabilityProv
             encodableVideoCodecs: [.h264, .hevc],
             remediableRequirements: Set(StandardInputPolicyEvaluation.Requirement.allCases),
             toneMappableDynamicRanges: [.hlg, .pq],
+            preservableHDRDynamicRanges: [.hlg, .pq]
+        )
+    }
+}
+
+private struct NoConversionPlanningProvider: StandardInputPlanningCapabilityProviding {
+    func capabilities(
+        for inspection: UploadInputFormatInspectionResult,
+        sourceAsset: AVAsset
+    ) async -> StandardInputPlanningCapabilities {
+        StandardInputPlanningCapabilities(
+            sourceIsDecodable: false,
+            encodableVideoCodecs: [],
+            remediableRequirements: [],
+            toneMappableDynamicRanges: [],
             preservableHDRDynamicRanges: [.hlg, .pq]
         )
     }
