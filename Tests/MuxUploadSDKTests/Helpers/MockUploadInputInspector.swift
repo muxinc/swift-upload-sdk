@@ -56,13 +56,13 @@ actor MockUploadInputInspector: UploadInputInspector {
     ) async -> UploadInputInspectionOutcome {
         if shouldDeferCompletion {
             self.operation = operation
-            let inspectionStartWaiters = self.inspectionStartWaiters
-            self.inspectionStartWaiters.removeAll()
-            inspectionStartWaiters.forEach {
-                $0.resume(returning: operation)
-            }
             return await withCheckedContinuation { continuation in
                 self.continuation = continuation
+                let inspectionStartWaiters = self.inspectionStartWaiters
+                self.inspectionStartWaiters.removeAll()
+                inspectionStartWaiters.forEach {
+                    $0.resume(returning: operation)
+                }
             }
         } else {
             return nextOutcome()
