@@ -8,6 +8,23 @@ import XCTest
 @testable import MuxUploadSDK
 
 final class UploadInputSampleInspectionTests: XCTestCase {
+    func testTimelinePresentationStartUsesTrackRangeInsteadOfDecodeOrder() {
+        let timeRange = CMTimeRange(
+            start: CMTime(seconds: -0.4, preferredTimescale: 600),
+            duration: CMTime(seconds: 10, preferredTimescale: 600)
+        )
+
+        let presentationStart = StandardInputTimelineInspector.presentationStart(
+            in: timeRange
+        )
+
+        XCTAssertEqual(
+            try XCTUnwrap(presentationStart),
+            -0.4,
+            accuracy: 0.000_001
+        )
+    }
+
     func testMeasuresCompleteAndTerminalGOPs() {
         let facts = UploadInputCompressedSampleAggregator.inspect([
             sample(time: 0, duration: 1, bytes: 100, sync: true, kind: .idr),

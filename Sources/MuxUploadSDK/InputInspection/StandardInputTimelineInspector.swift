@@ -21,7 +21,6 @@ enum StandardInputTimelineInspector {
             : .unknown
 
         guard let videoStart = await firstPresentationTime(
-            asset: asset,
             track: videoTrack,
             operation: operation
         ) else {
@@ -35,7 +34,6 @@ enum StandardInputTimelineInspector {
             )
         }
         guard let audioStart = await firstPresentationTime(
-            asset: asset,
             track: audioTrack,
             operation: operation
         ) else {
@@ -49,30 +47,17 @@ enum StandardInputTimelineInspector {
     }
 
     private static func firstPresentationTime(
-        asset: AVAsset,
         track: AVAssetTrack,
         operation: UploadInputInspectionOperation
     ) async -> TimeInterval? {
         guard !(await operation.isCancelled) else { return nil }
-        guard let reader = try? AVAssetReader(asset: asset) else { return nil }
-        let output = AVAssetReaderTrackOutput(track: track, outputSettings: nil)
-        output.alwaysCopiesSampleData = false
-        guard reader.canAdd(output) else { return nil }
-        reader.add(output)
-        guard reader.startReading(),
-              await operation.register(assetReader: reader) else {
-            return nil
-        }
-        while let sample = output.copyNextSampleBuffer() {
-            guard !(await operation.isCancelled) else {
-                reader.cancelReading()
-                return nil
-            }
-            guard CMSampleBufferGetNumSamples(sample) > 0 else { continue }
-            let seconds = CMSampleBufferGetPresentationTimeStamp(sample).seconds
-            reader.cancelReading()
-            return seconds.isFinite ? seconds : nil
-        }
-        return nil
+        guard let timeRange = try? await track.load(.timeRange),
+              !(await operation.isCancelled) else { return nil }
+        return presentationStart(in: timeRange)
+    }
+
+    static func presentationStart(in timeRange: CMTimeRange) -> TimeInterval? {
+        let seconds = timeRange.start.seconds
+        return seconds.isFinite ? seconds : nil
     }
 }

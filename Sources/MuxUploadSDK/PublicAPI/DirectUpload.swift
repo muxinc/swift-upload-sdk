@@ -9,6 +9,12 @@ import AVFoundation
 import Foundation
 
 private actor DirectUploadPreparationLifecycle {
+    enum TransportCommitResult {
+        case committed
+        case paused
+        case inactive
+    }
+
     struct Attempt: Equatable {
         let id = UUID()
         let inspectionToken = UploadInputInspectionOperationRegistry.Token()
@@ -16,11 +22,14 @@ private actor DirectUploadPreparationLifecycle {
     }
 
     private var activeAttempt: Attempt?
+    private var isPaused = false
+    private var transportWaiters: [CheckedContinuation<Bool, Never>] = []
 
     func begin() -> Attempt? {
         guard activeAttempt == nil else { return nil }
         let attempt = Attempt()
         activeAttempt = attempt
+        isPaused = false
         return attempt
     }
 
@@ -37,19 +46,50 @@ private actor DirectUploadPreparationLifecycle {
         return true
     }
 
+    func pause() -> Bool {
+        guard activeAttempt != nil else { return false }
+        isPaused = true
+        return true
+    }
+
+    func resume() -> Bool {
+        guard activeAttempt != nil, isPaused else { return false }
+        isPaused = false
+        resumeTransportWaiters(allowCommit: true)
+        return true
+    }
+
     func cancel() -> Attempt? {
-        defer { activeAttempt = nil }
-        return activeAttempt
+        let attempt = activeAttempt
+        activeAttempt = nil
+        isPaused = false
+        resumeTransportWaiters(allowCommit: false)
+        return attempt
+    }
+
+    func waitUntilTransportAllowed(for attempt: Attempt) async -> Bool {
+        guard activeAttempt == attempt else { return false }
+        guard isPaused else { return true }
+        return await withCheckedContinuation { continuation in
+            transportWaiters.append(continuation)
+        }
     }
 
     func commitTransport(
         for attempt: Attempt,
         _ commit: () -> Void
-    ) -> Bool {
-        guard activeAttempt == attempt else { return false }
+    ) -> TransportCommitResult {
+        guard activeAttempt == attempt else { return .inactive }
+        guard !isPaused else { return .paused }
         activeAttempt = nil
         commit()
-        return true
+        return .committed
+    }
+
+    private func resumeTransportWaiters(allowCommit: Bool) {
+        let waiters = transportWaiters
+        transportWaiters = []
+        waiters.forEach { $0.resume(returning: allowCommit) }
     }
 }
 
@@ -62,7 +102,7 @@ private actor DirectUploadTransportCommitCoordinator {
     private var isOccupied = false
     private var waiters: [CheckedContinuation<Void, Never>] = []
 
-    func coordinate(_ operation: () async -> Bool) async -> Bool {
+    func coordinate<Result>(_ operation: () async -> Result) async -> Result {
         await acquire()
         defer { release() }
         return await operation()
@@ -94,6 +134,7 @@ private actor DirectUploadTransportCommitCoordinator {
 private final class DirectUploadLifecycleCommandQueue: Sendable {
     private enum Command {
         case start(forceRestart: Bool)
+        case pause
         case cancel(notifyCaller: Bool)
         case commit(
             videoFile: URL,
@@ -118,6 +159,8 @@ private final class DirectUploadLifecycleCommandQueue: Sendable {
                 switch command {
                 case .start(let forceRestart):
                     await owner.processStartCommand(forceRestart: forceRestart)
+                case .pause:
+                    await owner.processPauseCommand()
                 case .cancel(let notifyCaller):
                     await owner.cancelAsync(notifyCaller: notifyCaller)
                 case .commit(let videoFile, let duration, let attempt, let continuation):
@@ -144,6 +187,10 @@ private final class DirectUploadLifecycleCommandQueue: Sendable {
 
     func start(forceRestart: Bool) {
         continuation.yield(.start(forceRestart: forceRestart))
+    }
+
+    func pause() {
+        continuation.yield(.pause)
     }
 
     func cancel(notifyCaller: Bool) {
@@ -605,6 +652,9 @@ public final class DirectUpload {
     }
 
     fileprivate func processStartCommand(forceRestart: Bool) async {
+        if !forceRestart, await preparationLifecycle.resume() {
+            return
+        }
         if self.manageBySDK && fileWorker == nil {
             // See if there's anything in progress already
             fileWorker = uploadManager.findChunkedFileUploader(
@@ -1057,66 +1107,80 @@ public final class DirectUpload {
         duration: CMTime?,
         attempt: DirectUploadPreparationLifecycle.Attempt
     ) async -> Bool {
-        await DirectUploadTransportCommitCoordinator.shared.coordinate {
-            if self.manageBySDK,
-               let existingWorker = self.uploadManager.findChunkedFileUploader(
-                   inputFileURL: self.input.sourceAsset.url
-               ) {
-                return await self.preparationLifecycle.commitTransport(for: attempt) {
-                    SDKLogger.logger?.warning(
-                        "Reusing the active upload for this input file"
-                    )
-                    self.fileWorker = existingWorker
-                    existingWorker.addDelegate(
+        while await preparationLifecycle.waitUntilTransportAllowed(for: attempt) {
+            let result = await DirectUploadTransportCommitCoordinator.shared.coordinate {
+                if self.manageBySDK,
+                   let existingWorker = self.uploadManager.findChunkedFileUploader(
+                       inputFileURL: self.input.sourceAsset.url
+                   ) {
+                    return await self.preparationLifecycle.commitTransport(for: attempt) {
+                        SDKLogger.logger?.warning(
+                            "Reusing the active upload for this input file"
+                        )
+                        self.fileWorker = existingWorker
+                        existingWorker.addDelegate(
+                            withToken: self.id,
+                            InternalUploaderDelegate { [self] state in handleStateUpdate(state) }
+                        )
+                        self.handleStateUpdate(existingWorker.currentState)
+                        existingWorker.start()
+                    }
+                }
+
+                let completedUnitCount = UInt64(
+                    self.uploadStatus?.progress?.completedUnitCount ?? 0
+                )
+                let fileWorker = self.fileWorkerFactory(
+                    self.input.uploadInfo,
+                    videoFile,
+                    ChunkedFile(
+                        chunkSize: self.input.uploadInfo.options.transport.chunkSizeInBytes
+                    ),
+                    completedUnitCount
+                )
+                let commitResult = await self.preparationLifecycle.commitTransport(
+                    for: attempt
+                ) {
+                    guard self.readyForTransport() else { return }
+                    SDKLogger.logger?.info("Starting network transport")
+                    fileWorker.addDelegate(
                         withToken: self.id,
                         InternalUploaderDelegate { [self] state in handleStateUpdate(state) }
                     )
-                    self.handleStateUpdate(existingWorker.currentState)
-                    existingWorker.start()
+                    self.fileWorker = fileWorker
+                    self.uploadManager.registerUpload(self)
+                    let now = Date().timeIntervalSince1970
+                    let transportStatus = TransportStatus(
+                        progress: fileWorker.currentState.progress ?? Progress(),
+                        updatedTime: now,
+                        startTime: now,
+                        isPaused: false
+                    )
+                    self.input.processStartNetworkTransport(
+                        startingTransportStatus: transportStatus
+                    )
+                    if let duration {
+                        fileWorker.start(duration: duration)
+                    } else {
+                        fileWorker.start()
+                    }
                 }
-            }
-
-            let completedUnitCount = UInt64(
-                self.uploadStatus?.progress?.completedUnitCount ?? 0
-            )
-            let fileWorker = self.fileWorkerFactory(
-                self.input.uploadInfo,
-                videoFile,
-                ChunkedFile(
-                    chunkSize: self.input.uploadInfo.options.transport.chunkSizeInBytes
-                ),
-                completedUnitCount
-            )
-            let didCommit = await self.preparationLifecycle.commitTransport(for: attempt) {
-                guard self.readyForTransport() else { return }
-                SDKLogger.logger?.info("Starting network transport")
-                fileWorker.addDelegate(
-                    withToken: self.id,
-                    InternalUploaderDelegate { [self] state in handleStateUpdate(state) }
-                )
-                self.fileWorker = fileWorker
-                self.uploadManager.registerUpload(self)
-                let now = Date().timeIntervalSince1970
-                let transportStatus = TransportStatus(
-                    progress: fileWorker.currentState.progress ?? Progress(),
-                    updatedTime: now,
-                    startTime: now,
-                    isPaused: false
-                )
-                self.input.processStartNetworkTransport(
-                    startingTransportStatus: transportStatus
-                )
-                if let duration {
-                    fileWorker.start(duration: duration)
-                } else {
-                    fileWorker.start()
+                if case .committed = commitResult {
+                    return commitResult
                 }
-            }
-            if !didCommit {
                 fileWorker.cancel()
+                return commitResult
             }
-            return didCommit
+            switch result {
+            case .committed:
+                return true
+            case .paused:
+                continue
+            case .inactive:
+                return false
+            }
         }
+        return false
     }
     
     
@@ -1125,9 +1189,18 @@ public final class DirectUpload {
     /// ``start(forceRestart:)`` with forceRestart set to `false`
     /// to resume the upload from where it left off.
     ///
+    /// If input preparation is in progress, work already underway may
+    /// complete, but network transport will not begin until the upload is
+    /// resumed.
+    ///
     /// Call ``cancel()`` to permanently halt the upload.
     /// - SeeAlso cancel()
     public func pause() {
+        lifecycleCommands.pause()
+    }
+
+    fileprivate func processPauseCommand() async {
+        guard !(await preparationLifecycle.pause()) else { return }
         fileWorker?.pause()
     }
     
