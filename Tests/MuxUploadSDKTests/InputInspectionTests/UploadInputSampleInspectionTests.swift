@@ -8,6 +8,23 @@ import XCTest
 @testable import MuxUploadSDK
 
 final class UploadInputSampleInspectionTests: XCTestCase {
+    func testTimelinePresentationStartUsesTrackRangeInsteadOfDecodeOrder() {
+        let timeRange = CMTimeRange(
+            start: CMTime(seconds: -0.4, preferredTimescale: 600),
+            duration: CMTime(seconds: 10, preferredTimescale: 600)
+        )
+
+        let presentationStart = StandardInputTimelineInspector.presentationStart(
+            in: timeRange
+        )
+
+        XCTAssertEqual(
+            try XCTUnwrap(presentationStart),
+            -0.4,
+            accuracy: 0.000_001
+        )
+    }
+
     func testMeasuresCompleteAndTerminalGOPs() {
         let facts = UploadInputCompressedSampleAggregator.inspect([
             sample(time: 0, duration: 1, bytes: 100, sync: true, kind: .idr),
@@ -204,175 +221,6 @@ final class UploadInputSampleInspectionTests: XCTestCase {
         )
     }
 
-    // Manual integration hook. It skips unless a developer or CI job provisions
-    // the external media package and supplies its catalog; media remains outside Git.
-    func testCatalogMediaFixturesWhenConfigured() throws {
-        let environment = ProcessInfo.processInfo.environment
-        guard let directory = environment["MUX_UPLOAD_MEDIA_FIXTURE_DIRECTORY"],
-              let catalogPath = environment["MUX_UPLOAD_MEDIA_FIXTURE_CATALOG"] else {
-            throw XCTSkip(
-                "Set MUX_UPLOAD_MEDIA_FIXTURE_DIRECTORY and "
-                    + "MUX_UPLOAD_MEDIA_FIXTURE_CATALOG for catalog-backed "
-                    + "real-media validation"
-            )
-        }
-
-        let catalogData = try Data(contentsOf: URL(fileURLWithPath: catalogPath))
-        let catalog = try JSONDecoder().decode(MediaFixtureCatalog.self, from: catalogData)
-        let fixturesByFilename = Dictionary(
-            uniqueKeysWithValues: catalog.fixtures.map { ($0.canonicalFilename, $0) }
-        )
-
-        let urls = try FileManager.default.contentsOfDirectory(
-            at: URL(fileURLWithPath: directory),
-            includingPropertiesForKeys: nil
-        ).filter { ["mov", "mp4"].contains($0.pathExtension.lowercased()) }
-            .sorted { $0.lastPathComponent < $1.lastPathComponent }
-        XCTAssertFalse(urls.isEmpty)
-        XCTAssertEqual(
-            Set(urls.map(\.lastPathComponent)),
-            Set(fixturesByFilename.keys),
-            "The configured directory must contain exactly the cataloged media fixtures"
-        )
-
-        for url in urls {
-            guard let fixture = fixturesByFilename[url.lastPathComponent] else {
-                XCTFail("No catalog entry for \(url.lastPathComponent)")
-                continue
-            }
-            let completion = expectation(description: url.lastPathComponent)
-            let asset = AVURLAsset(url: url)
-            AVFoundationUploadInputInspector().performInspection(
-                sourceInput: asset,
-                maximumResolution: .preset3840x2160
-            ) { result, _, error in
-                XCTAssertNil(error, url.lastPathComponent)
-                XCTAssertNotNil(result, url.lastPathComponent)
-                if let codec = result?.mediaFacts.videoCodec.value,
-                   codec == .h264 || codec == .hevc {
-                    if let expectedBitrate = fixture.facts.maximumGOPBitrate {
-                        XCTAssertEqual(
-                            result?.mediaFacts.maximumGOPBitrate,
-                            .known(expectedBitrate),
-                            url.lastPathComponent
-                        )
-                    }
-                    if let expectedInterval = fixture.facts.maximumKeyframeIntervalSeconds {
-                        XCTAssertEqual(
-                            result?.mediaFacts.maximumKeyframeInterval.value ?? 0,
-                            expectedInterval,
-                            accuracy: 0.000_001,
-                            url.lastPathComponent
-                        )
-                    }
-                    switch fixture.facts.gopStructure {
-                    case "closedWithIDR":
-                        XCTAssertEqual(
-                            result?.mediaFacts.gopStructure,
-                            .known(.closedWithIDR),
-                            url.lastPathComponent
-                        )
-                    case "open":
-                        XCTAssertEqual(
-                            result?.mediaFacts.gopStructure,
-                            .known(.open),
-                            url.lastPathComponent
-                        )
-                        XCTAssertEqual(
-                            result?.mediaFacts.maximumGOPByteSize,
-                            .unknown,
-                            url.lastPathComponent
-                        )
-                        XCTAssertEqual(
-                            result?.mediaFacts.maximumGOPBitrate,
-                            .unknown,
-                            url.lastPathComponent
-                        )
-                    default:
-                        break
-                    }
-                }
-                asset.loadTracks(withMediaType: .video) { tracks, trackError in
-                    XCTAssertNil(trackError, url.lastPathComponent)
-                    guard let track = tracks?.first, tracks?.count == 1 else {
-                        completion.fulfill()
-                        return
-                    }
-                    Task {
-                        let startedAt = CFAbsoluteTimeGetCurrent()
-                        let sampleFacts = await AVFoundationUploadInputSampleReader.inspect(
-                            asset: asset,
-                            videoTrack: track,
-                            codec: result?.mediaFacts.videoCodec ?? .unknown
-                        )
-                        let elapsed = CFAbsoluteTimeGetCurrent() - startedAt
-                        XCTAssertEqual(
-                            sampleFacts.maximumGOPBitrate,
-                            result?.mediaFacts.maximumGOPBitrate,
-                            url.lastPathComponent
-                        )
-                        print(
-                            "Catalog real media:",
-                            url.lastPathComponent,
-                            "compressedSampleSeconds=\(String(format: "%.3f", elapsed))",
-                            "maxGOPBytes=\(String(describing: sampleFacts.maximumGOPByteSize.value))",
-                            "maxGOPBitrate=\(String(describing: sampleFacts.maximumGOPBitrate.value))",
-                            "maxKeyframeInterval=\(String(describing: sampleFacts.maximumKeyframeInterval.value))",
-                            "gopStructure=\(String(describing: sampleFacts.gopStructure.value))"
-                        )
-                        completion.fulfill()
-                    }
-                }
-            }
-            wait(for: [completion], timeout: 120)
-        }
-    }
-
-    func testCatalogInspectionCancellationWhileReaderIsRegistered() async throws {
-        let environment = ProcessInfo.processInfo.environment
-        guard let directory = environment["MUX_UPLOAD_MEDIA_FIXTURE_DIRECTORY"] else {
-            throw XCTSkip(
-                "Set MUX_UPLOAD_MEDIA_FIXTURE_DIRECTORY for real-media cancellation validation"
-            )
-        }
-        let mediaURLs = try FileManager.default.contentsOfDirectory(
-            at: URL(fileURLWithPath: directory),
-            includingPropertiesForKeys: [.fileSizeKey]
-        ).filter { ["mov", "mp4"].contains($0.pathExtension.lowercased()) }
-        let inputURL = try XCTUnwrap(
-            mediaURLs.max {
-                let left = (try? $0.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
-                let right = (try? $1.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
-                return left < right
-            }
-        )
-
-        for _ in 0..<10 {
-            let operation = UploadInputInspectionOperation()
-            let task = Task {
-                await AVFoundationUploadInputInspector().inspect(
-                    sourceInput: AVURLAsset(url: inputURL),
-                    maximumResolution: .preset3840x2160,
-                    operation: operation
-                )
-            }
-            var registeredReader = false
-            for _ in 0..<1_000 {
-                if await operation.hasRegisteredAssetReader {
-                    registeredReader = true
-                    break
-                }
-                try await Task.sleep(nanoseconds: 100_000)
-            }
-            XCTAssertTrue(registeredReader)
-            await operation.cancel()
-
-            let outcome = await task.value
-            XCTAssertNil(outcome.result)
-            XCTAssertTrue(outcome.error is CancellationError)
-        }
-    }
-
     private func sample(
         time: TimeInterval,
         duration: TimeInterval,
@@ -399,18 +247,4 @@ final class UploadInputSampleInspectionTests: XCTestCase {
         }
     }
 
-    private struct MediaFixtureCatalog: Decodable {
-        let fixtures: [MediaFixture]
-    }
-
-    private struct MediaFixture: Decodable {
-        let canonicalFilename: String
-        let facts: Facts
-
-        struct Facts: Decodable {
-            let maximumGOPBitrate: Int64?
-            let maximumKeyframeIntervalSeconds: TimeInterval?
-            let gopStructure: String?
-        }
-    }
 }

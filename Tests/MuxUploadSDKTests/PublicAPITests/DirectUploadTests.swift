@@ -194,6 +194,74 @@ class DirectUploadTests: XCTestCase {
         )
     }
 
+    func testPauseDuringPreparationGatesTransportUntilResume() async throws {
+        let outputURL = temporaryOutputURL()
+        FileManager.default.createFile(atPath: outputURL.path, contents: Data([1]))
+        defer { try? FileManager.default.removeItem(at: outputURL) }
+
+        let input = try makeInput(options: .default)
+        let source = inspectionResult(
+            facts: conversionFacts(
+                codec: .h264,
+                dimensions: .init(width: 3840, height: 2160)
+            )
+        )
+        let generated = inspectionResult(
+            facts: compliantFacts(codec: .h264, dynamicRange: .sdr, bitDepth: 8)
+        )
+        let standardizer = DeferredUploadInputStandardizer()
+        let upload = DirectUpload(
+            input: input,
+            manage: false,
+            uploadManager: DirectUploadManager(),
+            inputInspector: MockUploadInputInspector(
+                mockInspectionResult: source,
+                duration: CMTime(seconds: 10, preferredTimescale: 600),
+                subsequentResults: [generated]
+            ),
+            inputStandardizer: standardizer,
+            capabilityProvider: FullyCapablePlanningProvider(),
+            storagePreflighter: FixedTemporaryStoragePreflighter(outputURL: outputURL),
+            fileWorkerFactory: { uploadInfo, inputFileURL, file, startingByte in
+                NoOpChunkedFileUploader(
+                    uploadInfo: uploadInfo,
+                    inputFileURL: inputFileURL,
+                    file: file,
+                    startingByte: startingByte
+                )
+            }
+        )
+        var transportedFileURL: URL?
+        var transportExpectation: XCTestExpectation?
+        upload.inputStatusHandler = { status in
+            if case .transportInProgress = status {
+                transportedFileURL = upload.videoFile
+                transportExpectation?.fulfill()
+            }
+        }
+
+        upload.start()
+        await standardizer.waitUntilStarted()
+        upload.pause()
+        await standardizer.finish(with: outputURL)
+        try await Task.sleep(nanoseconds: 100_000_000)
+
+        XCTAssertNil(
+            transportedFileURL,
+            "Paused preparation must not commit transport without another start()"
+        )
+
+        let transportStarted = expectation(
+            description: "Generated transport starts after resume"
+        )
+        transportExpectation = transportStarted
+        upload.start()
+        await fulfillment(of: [transportStarted], timeout: 1)
+
+        XCTAssertEqual(transportedFileURL, outputURL)
+        await cancelAndWait(upload)
+    }
+
     func testConcurrentInspectionCancellationAndCompletionAreMutuallyExclusive() async {
         for _ in 0..<250 {
             let registry = UploadInputInspectionOperationRegistry()
@@ -1145,6 +1213,50 @@ private final class FailingChunkedFileUploader: ChunkedFileUploader {
             delegate.chunkedFileUploader(self, stateUpdated: .failure(DummyError()))
         }
     }
+}
+
+private actor DeferredUploadInputStandardizer: UploadInputStandardizing {
+    private var continuation: CheckedContinuation<AVURLAsset, Error>?
+    private var didStart = false
+    private var startWaiters: [CheckedContinuation<Void, Never>] = []
+
+    func standardize(
+        id: String,
+        token: UploadInputStandardizationToken,
+        sourceAsset: AVURLAsset,
+        rescalingDetails: UploadInputFormatInspectionResult.RescalingDetails,
+        conversion: StandardInputConversion,
+        outputURL: URL
+    ) async throws -> AVURLAsset {
+        didStart = true
+        startWaiters.forEach { $0.resume() }
+        startWaiters = []
+        return try await withCheckedThrowingContinuation { continuation in
+            self.continuation = continuation
+        }
+    }
+
+    func waitUntilStarted() async {
+        guard !didStart else { return }
+        await withCheckedContinuation { continuation in
+            startWaiters.append(continuation)
+        }
+    }
+
+    func finish(with outputURL: URL) {
+        continuation?.resume(returning: AVURLAsset(url: outputURL))
+        continuation = nil
+    }
+
+    func cancel(id: String, token: UploadInputStandardizationToken) {
+        continuation?.resume(throwing: CancellationError())
+        continuation = nil
+    }
+}
+
+private final class NoOpChunkedFileUploader: ChunkedFileUploader {
+    override func start() { }
+    override func start(duration: CMTime) { }
 }
 
 private struct SensitiveDiagnosticError: LocalizedError {
