@@ -644,9 +644,9 @@ public final class DirectUpload {
     }
 
     /// Starts the upload.
-    /// - Parameter forceRestart: if true, the upload will be
-    /// restarted. If false the upload will resume from where
-    /// it left off if paused, otherwise the upload will change.
+    /// - Parameter forceRestart: If true, cancels the current attempt and starts
+    /// from the beginning, preserving the upload's handlers. If false, resumes
+    /// a paused upload or starts an upload that is ready.
     public func start(forceRestart: Bool = false) {
         lifecycleCommands.start(forceRestart: forceRestart)
     }
@@ -661,6 +661,11 @@ public final class DirectUpload {
                 inputFileURL: input.sourceAsset.url
             )
         }
+        if forceRestart {
+            // Reset the old attempt before claiming its replacement, retaining
+            // the callbacks that belong to this public upload.
+            await cancelAsync(notifyCaller: false, preservingHandlers: true)
+        }
         if fileWorker != nil && !forceRestart {
             SDKLogger.logger?.warning("start() called but upload is already in progress")
             fileWorker?.addDelegate(
@@ -674,9 +679,6 @@ public final class DirectUpload {
         }
         guard case UploadInput.Status.ready = input.status,
               let attempt = await preparationLifecycle.begin() else {
-            if forceRestart {
-                await cancelAsync(notifyCaller: false)
-            }
             return
         }
         guard await preparationLifecycle.isActive(attempt) else { return }
@@ -1211,7 +1213,10 @@ public final class DirectUpload {
         lifecycleCommands.cancel(notifyCaller: true)
     }
 
-    fileprivate func cancelAsync(notifyCaller: Bool) async {
+    fileprivate func cancelAsync(
+        notifyCaller: Bool,
+        preservingHandlers: Bool = false
+    ) async {
         let cancellationHandler = notifyCaller && !isUploadComplete() && isUploadStarted()
             ? resultHandler
             : nil
@@ -1222,8 +1227,10 @@ public final class DirectUpload {
             reason: nil
         )
 
-        progressHandler = nil
-        resultHandler = nil
+        if !preservingHandlers {
+            progressHandler = nil
+            resultHandler = nil
+        }
 
         let cancelledAttempt = await preparationLifecycle.cancel()
         if let cancelledAttempt {
@@ -1238,6 +1245,7 @@ public final class DirectUpload {
         let fileWorker = self.fileWorker
         self.fileWorker = nil
         uploadManager.acknowledgeUpload(id: id)
+        fileWorker?.removeDelegate(withToken: id)
         fileWorker?.cancel()
         removeOwnedTemporaryFile(fileWorker?.inputFileURL)
         input.processUploadCancellation()
