@@ -19,15 +19,16 @@ private actor DirectUploadPreparationLifecycle {
         let id = UUID()
         let inspectionToken = UploadInputInspectionOperationRegistry.Token()
         let standardizationToken = UploadInputStandardizationToken()
+        let allowsWorkerReuse: Bool
     }
 
     private var activeAttempt: Attempt?
     private var isPaused = false
     private var transportWaiters: [CheckedContinuation<Bool, Never>] = []
 
-    func begin() -> Attempt? {
+    func begin(allowWorkerReuse: Bool) -> Attempt? {
         guard activeAttempt == nil else { return nil }
-        let attempt = Attempt()
+        let attempt = Attempt(allowsWorkerReuse: allowWorkerReuse)
         activeAttempt = attempt
         isPaused = false
         return attempt
@@ -430,6 +431,9 @@ public final class DirectUpload {
     ) -> ChunkedFileUploader
     
     internal var fileWorker: ChunkedFileUploader?
+    // A normal start may observe another DirectUpload's managed transport.
+    // Restarting this instance must detach from, rather than cancel, that worker.
+    private var usesBorrowedFileWorker = false
 
     /// Represents the state of an upload when it is being 
     /// sent to Mux over the network
@@ -647,6 +651,7 @@ public final class DirectUpload {
     /// - Parameter forceRestart: If true, cancels the current attempt and starts
     /// from the beginning, preserving the upload's handlers. If false, resumes
     /// a paused upload or starts an upload that is ready.
+    /// A forced restart does not cancel or reuse another upload's transport.
     public func start(forceRestart: Bool = false) {
         lifecycleCommands.start(forceRestart: forceRestart)
     }
@@ -655,16 +660,17 @@ public final class DirectUpload {
         if !forceRestart, await preparationLifecycle.resume() {
             return
         }
-        if self.manageBySDK && fileWorker == nil {
+        if !forceRestart && self.manageBySDK && fileWorker == nil {
             // See if there's anything in progress already
             fileWorker = uploadManager.findChunkedFileUploader(
                 inputFileURL: input.sourceAsset.url
             )
+            usesBorrowedFileWorker = fileWorker != nil
         }
         if forceRestart {
             // Reset the old attempt before claiming its replacement, retaining
             // the callbacks that belong to this public upload.
-            await cancelAsync(notifyCaller: false, preservingHandlers: true)
+            await cancelAsync(notifyCaller: false, restarting: true)
         }
         if fileWorker != nil && !forceRestart {
             SDKLogger.logger?.warning("start() called but upload is already in progress")
@@ -678,7 +684,7 @@ public final class DirectUpload {
             return
         }
         guard case UploadInput.Status.ready = input.status,
-              let attempt = await preparationLifecycle.begin() else {
+              let attempt = await preparationLifecycle.begin(allowWorkerReuse: !forceRestart) else {
             return
         }
         guard await preparationLifecycle.isActive(attempt) else { return }
@@ -1111,7 +1117,7 @@ public final class DirectUpload {
     ) async -> Bool {
         while await preparationLifecycle.waitUntilTransportAllowed(for: attempt) {
             let result = await DirectUploadTransportCommitCoordinator.shared.coordinate {
-                if self.manageBySDK,
+                if self.manageBySDK, attempt.allowsWorkerReuse,
                    let existingWorker = self.uploadManager.findChunkedFileUploader(
                        inputFileURL: self.input.sourceAsset.url
                    ) {
@@ -1120,6 +1126,7 @@ public final class DirectUpload {
                             "Reusing the active upload for this input file"
                         )
                         self.fileWorker = existingWorker
+                        self.usesBorrowedFileWorker = true
                         existingWorker.addDelegate(
                             withToken: self.id,
                             InternalUploaderDelegate { [self] state in handleStateUpdate(state) }
@@ -1150,6 +1157,7 @@ public final class DirectUpload {
                         InternalUploaderDelegate { [self] state in handleStateUpdate(state) }
                     )
                     self.fileWorker = fileWorker
+                    self.usesBorrowedFileWorker = false
                     self.uploadManager.registerUpload(self)
                     let now = Date().timeIntervalSince1970
                     let transportStatus = TransportStatus(
@@ -1215,7 +1223,7 @@ public final class DirectUpload {
 
     fileprivate func cancelAsync(
         notifyCaller: Bool,
-        preservingHandlers: Bool = false
+        restarting: Bool = false
     ) async {
         let cancellationHandler = notifyCaller && !isUploadComplete() && isUploadStarted()
             ? resultHandler
@@ -1227,7 +1235,7 @@ public final class DirectUpload {
             reason: nil
         )
 
-        if !preservingHandlers {
+        if !restarting {
             progressHandler = nil
             resultHandler = nil
         }
@@ -1243,11 +1251,15 @@ public final class DirectUpload {
             )
         }
         let fileWorker = self.fileWorker
+        let shouldCancelWorker = !restarting || !usesBorrowedFileWorker
         self.fileWorker = nil
+        usesBorrowedFileWorker = false
         uploadManager.acknowledgeUpload(id: id)
         fileWorker?.removeDelegate(withToken: id)
-        fileWorker?.cancel()
-        removeOwnedTemporaryFile(fileWorker?.inputFileURL)
+        if shouldCancelWorker {
+            fileWorker?.cancel()
+            removeOwnedTemporaryFile(fileWorker?.inputFileURL)
+        }
         input.processUploadCancellation()
 
         cancellationHandler?(.failure(cancellationError))

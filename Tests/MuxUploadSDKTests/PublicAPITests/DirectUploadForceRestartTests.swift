@@ -3,6 +3,64 @@ import XCTest
 @testable import MuxUploadSDK
 
 final class DirectUploadForceRestartTests: XCTestCase {
+    func testForceRestartDoesNotCancelAnotherUploadsWorker() async throws {
+        for alreadySharing in [false, true] {
+            let manager = DirectUploadManager()
+            let input = try UploadInput.mockReadyInput()
+            let firstStarted = expectation(description: "First upload transport")
+            let shared = alreadySharing ? expectation(description: "Normal start reuses the first worker") : nil
+            var startCount = 0
+            let first = makeUpload(input: input, inspector: RestartInspector(), manager: manager) {
+                startCount += 1
+                if startCount == 1 { firstStarted.fulfill() }
+                else { shared?.fulfill() }
+            }
+            let second = makeUpload(input: try UploadInput.mockReadyInput(), inspector: RestartInspector(), manager: manager)
+            XCTAssertNotEqual(first.id, second.id)
+            first.start()
+            await fulfillment(of: [firstStarted], timeout: 2)
+            let originalWorker = try XCTUnwrap(first.fileWorker as? RestartFileWorker)
+            first.inputStatusHandler = nil
+            first.resultHandler = { _ in XCTFail("Restarting another upload must not terminate the first") }
+
+            if let shared {
+                second.start()
+                await fulfillment(of: [shared], timeout: 2)
+                XCTAssertTrue(second.fileWorker === originalWorker)
+            }
+
+            let replacementStarted = expectation(description: "Forced start creates independent transport")
+            second.inputStatusHandler = { status in
+                if case .transportInProgress = status { replacementStarted.fulfill() }
+            }
+            second.start(forceRestart: true)
+            await fulfillment(of: [replacementStarted], timeout: 2)
+            XCTAssertFalse(originalWorker.wasCancelled)
+            XCTAssertTrue(first.fileWorker === originalWorker)
+            XCTAssertFalse(second.fileWorker === originalWorker)
+            let replacement = try XCTUnwrap(second.fileWorker as? RestartFileWorker)
+            XCTAssertEqual(replacement.startingByte, 0)
+
+            // Both independent uploads must still deliver their own completion.
+            let firstFinished = expectation(description: "First upload completes")
+            let secondFinished = expectation(description: "Second upload completes")
+            first.resultHandler = { result in
+                if case .success = result { firstFinished.fulfill() }
+            }
+            second.resultHandler = { result in
+                if case .success = result { secondFinished.fulfill() }
+            }
+            originalWorker.emit(.success(.init(
+                finalProgress: Progress(totalUnitCount: 100), startTime: 1, finishTime: 2
+            )))
+            XCTAssertTrue(second.fileWorker === replacement)
+            replacement.emit(.success(.init(
+                finalProgress: Progress(totalUnitCount: 100), startTime: 1, finishTime: 2
+            )))
+            await fulfillment(of: [firstFinished, secondFinished], timeout: 2)
+        }
+    }
+
     func testForceRestartDuringInspectionSuppressesOldCompletion() async throws {
         for paused in [false, true] {
             let firstInspection = expectation(description: "First inspection")
@@ -103,12 +161,23 @@ final class DirectUploadForceRestartTests: XCTestCase {
     }
 
     private func makeUpload(inspector: RestartInspector) throws -> DirectUpload {
+        makeUpload(input: try UploadInput.mockReadyInput(), inspector: inspector, manager: DirectUploadManager())
+    }
+
+    private func makeUpload(
+        input: UploadInput,
+        inspector: RestartInspector,
+        manager: DirectUploadManager,
+        onStart: (() -> Void)? = nil
+    ) -> DirectUpload {
         DirectUpload(
-            input: try UploadInput.mockReadyInput(),
-            uploadManager: DirectUploadManager(),
+            input: input,
+            uploadManager: manager,
             inputInspector: inspector,
             fileWorkerFactory: { info, url, file, byte in
-                RestartFileWorker(uploadInfo: info, inputFileURL: url, file: file, startingByte: byte)
+                let worker = RestartFileWorker(uploadInfo: info, inputFileURL: url, file: file, startingByte: byte)
+                worker.onStart = onStart
+                return worker
             }
         )
     }
@@ -161,6 +230,7 @@ private final class RestartFileWorker: ChunkedFileUploader {
     let startingByte: UInt64
     private(set) var wasCancelled = false
     var onPause: (() -> Void)?
+    var onStart: (() -> Void)?
     private var delegates: [String: ChunkedFileUploaderDelegate] = [:]
 
     override init(uploadInfo: UploadInfo, inputFileURL: URL, file: ChunkedFile, startingByte: UInt64 = 0) {
@@ -172,7 +242,7 @@ private final class RestartFileWorker: ChunkedFileUploader {
         delegates[token] = delegate
     }
     override func removeDelegate(withToken token: String) { delegates.removeValue(forKey: token) }
-    override func start() { }
+    override func start() { onStart?() }
     override func start(duration: CMTime) { }
     override func pause() {
         emit(.paused(.init(
