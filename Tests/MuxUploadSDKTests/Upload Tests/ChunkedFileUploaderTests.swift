@@ -10,6 +10,28 @@ import XCTest
 
 final class ChunkedFileUploaderTests: XCTestCase {
 
+    func testCancelBeforeStartPreventsLaterStart() throws {
+        let uploadInfo = UploadInfo(
+            uploadURL: try XCTUnwrap(URL(string: "https://www.example.com/upload")),
+            options: .default
+        )
+        let inputFileURL = try XCTUnwrap(
+            URL(string: "file://path/to/dummy/file/cancelled")
+        )
+        let uploader = ChunkedFileUploader(
+            uploadInfo: uploadInfo,
+            inputFileURL: inputFileURL,
+            file: ChunkedFile(chunkSize: 1000)
+        )
+
+        uploader.cancel()
+        uploader.start()
+
+        guard case .canceled = uploader.currentState else {
+            return XCTFail("Expected cancellation to remain terminal")
+        }
+    }
+
     func testPersistenceStateUsesLastSuccessfulByteForUploadingProgress() throws {
         let uploadInfo = UploadInfo(
             uploadURL: try XCTUnwrap(URL(string: "https://www.example.com/upload")),

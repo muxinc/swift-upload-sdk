@@ -175,9 +175,9 @@ struct UploadWorkspaceView: View {
         case .preparationFailed(let error):
             return error.localizedDescription
         case .ready:
-            return "Selected video is ready."
+            return "Ready with best-effort standardization up to 1080p. Eligible HDR is preserved."
         case .uploading(_, nil, _):
-            return "Inspecting the selected video and starting network upload."
+            return "Inspecting the selected video and standardizing it when needed."
         case .uploading:
             return "Uploading selected video."
         case .restoring:

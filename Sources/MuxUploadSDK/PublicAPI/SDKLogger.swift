@@ -30,3 +30,11 @@ public extension SDKLogger {
     }
 
 }
+
+extension SDKLogger {
+    static func logStandardizationDiagnostic(
+        _ diagnostic: StandardizationDiagnostic
+    ) {
+        logger?.info("\(diagnostic.message, privacy: .public)")
+    }
+}

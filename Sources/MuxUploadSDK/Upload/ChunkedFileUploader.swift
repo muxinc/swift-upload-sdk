@@ -91,6 +91,9 @@ class ChunkedFileUploader {
         case .uploading(_): do {
             notifyStateFromMain(.canceled)
         }
+        case .ready: fallthrough
+        case .paused:
+            currentState = .canceled
         default: do {}
         }
     }
@@ -103,12 +106,7 @@ class ChunkedFileUploader {
             var duration: CMTime
 
             do {
-                if #available(iOS 15, *) {
-                    duration = try await asset.load(.duration)
-                } else {
-                    await asset.loadValues(forKeys: ["duration"])
-                    duration = asset.duration
-                }
+                duration = try await asset.load(.duration)
             } catch {
                 // Cannot get duration, assume it is zero
                 duration = CMTime.zero
