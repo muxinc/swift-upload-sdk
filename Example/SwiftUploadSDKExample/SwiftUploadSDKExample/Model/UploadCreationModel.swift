@@ -25,6 +25,19 @@ struct UploadInput: Transferable {
 @MainActor
 final class UploadCreationModel: ObservableObject {
 
+    /// Keep the SDK's on-device resolution tier aligned with the Direct Upload
+    /// created by the trusted environment. This sample uses the 1080p tier so
+    /// it does not opt into higher-resolution Mux processing by default.
+    /// To demonstrate 4K, change both values to `.preset3840x2160` and `"2160p"`.
+    /// To produce SDR on the device, change `hdrHandling` to `.toneMapToSDR`.
+    private static let uploadConfiguration = ExampleUploadConfiguration(
+        inputStandardization: .init(
+            maximumResolution: .preset1920x1080,
+            hdrHandling: .preserve
+        ),
+        muxMaximumResolutionTier: "1080p"
+    )
+
     struct PickerError: Error, Equatable {
 
         static var missingAssetIdentifier: PickerError {
@@ -48,7 +61,9 @@ final class UploadCreationModel: ObservableObject {
     private var thumbnailGenerator: AVAssetImageGenerator? = nil
 
     private let logger = SwiftUploadSDKExample.logger
-    private let myServerBackend = FakeBackend(urlSession: URLSession(configuration: URLSessionConfiguration.default))
+    private let fakeBackend = FakeBackend(
+        urlSession: URLSession(configuration: URLSessionConfiguration.default)
+    )
 
     @Published var photosAuthStatus: PhotosAuthState
     @Published var workflowState: WorkflowState = .idle
@@ -127,8 +142,21 @@ final class UploadCreationModel: ObservableObject {
         let upload = DirectUpload(
             uploadURL: preparedMedia.remoteURL,
             inputAsset: AVAsset(url: preparedMedia.localVideoFile),
-            options: .default
+            options: DirectUploadOptions(
+                inputStandardization: Self.uploadConfiguration.inputStandardization
+            )
         )
+
+        // Input standardization is best effort. Returning false uploads the
+        // original input when the SDK cannot inspect, convert, or validate it.
+        // Return true here if your application should cancel instead.
+        upload.nonStandardInputHandler = {
+            SwiftUploadSDKExample.logger.warning(
+                "Input standardization did not complete; uploading the original input"
+            )
+            return false
+        }
+
         attachHandlers(to: upload, preparedMedia: preparedMedia)
         workflowState = .uploading(upload, progress: nil, preparedMedia: preparedMedia)
 
@@ -229,8 +257,10 @@ final class UploadCreationModel: ObservableObject {
                 try FileManager.default.copyItem(at: uploadInput.file, to: outFile)
 
                 let asset = AVAsset(url: outFile)
-                // The SDK uploads to a direct upload URL created by the app's backend.
-                let putURL = try await self.myServerBackend.createDirectUpload()
+                // The SDK uploads to a Direct Upload URL created in a trusted environment.
+                let putURL = try await self.fakeBackend.createDirectUpload(
+                    maxResolutionTier: Self.uploadConfiguration.muxMaximumResolutionTier
+                )
                 if Task.isCancelled {
                     return
                 }
@@ -262,8 +292,10 @@ final class UploadCreationModel: ObservableObject {
             }
 
             do {
-                // The SDK uploads to a direct upload URL created by the app's backend.
-                let putURL = try await self.myServerBackend.createDirectUpload()
+                // The SDK uploads to a Direct Upload URL created in a trusted environment.
+                let putURL = try await self.fakeBackend.createDirectUpload(
+                    maxResolutionTier: Self.uploadConfiguration.muxMaximumResolutionTier
+                )
                 if Task.isCancelled {
                     return
                 }
@@ -336,6 +368,11 @@ final class UploadCreationModel: ObservableObject {
         return upload === currentUpload
     }
 
+}
+
+private struct ExampleUploadConfiguration {
+    let inputStandardization: DirectUploadOptions.InputStandardization
+    let muxMaximumResolutionTier: String
 }
 
 struct PreparedUpload {
