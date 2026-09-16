@@ -241,36 +241,45 @@ public typealias DirectUploadResult = Result<DirectUpload.SuccessDetails, Direct
 /// Uploads a media asset to Mux using a previously-created
 /// Direct Upload signed URL.
 ///
-/// This class is part of a full-stack workflow for uploading video files to Mux Video. In order to use this object you must first have
-/// created a [Direct Upload](https://docs.mux.com/guides/video/upload-files-directly) on your server backend.
-/// Then, use the PUT URL created there to upload your video file.
+/// This class is part of a workflow for uploading video files to Mux Video.
+/// First create a [Direct Upload](https://www.mux.com/docs/guides/upload-files-directly)
+/// in a trusted environment. Then pass its authenticated `PUT` URL to the SDK.
+/// Never include Mux API credentials in your application.
 ///
 /// For example:
 /// ```swift
-/// let upload = DirectUpload(
-///   uploadURL: myDirectUploadURL,
-///   inputFileURL: myInputFileURL,
-/// )
+/// import Foundation
+/// import MuxUploadSDK
 ///
-/// upload.progressHandler = { state in
-///   print("Upload Progress: \(state.progress.fractionCompleted ?? 0)")
+/// func startUpload(uploadURL: URL, videoFileURL: URL) -> DirectUpload {
+///     let upload = DirectUpload(
+///         uploadURL: uploadURL,
+///         inputFileURL: videoFileURL
+///     )
+///
+///     upload.progressHandler = { state in
+///         guard let progress = state.progress else { return }
+///         print("Upload progress: \(progress.fractionCompleted)")
+///     }
+///
+///     upload.resultHandler = { result in
+///         switch result {
+///         case .success:
+///             print("Upload succeeded")
+///         case .failure(let error):
+///             print("Upload failed: \(error.localizedDescription)")
+///         }
+///     }
+///
+///     upload.start()
+///     return upload
 /// }
-///
-/// upload.resultHandler = { result in
-///   switch result {
-///     case .success(let success):
-///       print("Upload Success!")
-///     case .failure(let error):
-///       print("Upload Error: \(error.localizedDescription)")
-///   }
-/// }
-///
-/// upload.start()
 /// ```
 ///
-/// Uploads created by this SDK are globally managed by default, 
+/// Retain the returned upload while your application needs to control it.
+/// Uploads created by this SDK are globally managed by default,
 /// and can be resumed after failures or after an application
-/// restart or termination. For more see ``UploadManager``.
+/// restart or termination. For more information, see ``DirectUploadManager``.
 public final class DirectUpload {
 
     var input: UploadInput {
@@ -297,15 +306,15 @@ public final class DirectUpload {
     public enum InputStatus {
         /// Upload initialized and not yet started
         case ready(AVAsset)
-        /// Upload started by a call to ``DirectUpload.start(forceRestart:)``
+        /// Upload started by a call to ``DirectUpload/start(forceRestart:)``.
         case started(AVAsset)
         /// Upload is being prepared for transport to the
         /// server. If input standardization was requested,
         /// this stage includes the inspection and standardization
         /// of input formats
         case preparing(AVAsset)
-        /// SDK is waiting for confirmation to continue the
-        /// upload despite being unable to standardize input
+        /// The SDK is consulting ``nonStandardInputHandler`` after input
+        /// standardization did not succeed.
         case awaitingConfirmation(AVAsset)
         /// Transport of upload inputs is in progress
         case transportInProgress(AVAsset, TransportStatus)
@@ -399,11 +408,11 @@ public final class DirectUpload {
     /// standardization does not succeed
     public typealias NonStandardInputHandler = () -> Bool
 
-    /// Sets a handler that will be executed by the SDK
-    /// when input standardization doesn't succeed. Return
-    /// `true` to cancel the upload, or `false` to
-    /// upload the original input. Intentionally preserving
-    /// eligible HLG or PQ input does not invoke this handler.
+    /// Sets a handler that the SDK calls when input standardization doesn't
+    /// succeed. Return `true` to cancel the upload, or `false` to upload the
+    /// original input. If this handler is `nil`, the SDK uploads the original
+    /// input. Intentionally preserving eligible HLG or PQ input does not invoke
+    /// this handler.
     public var nonStandardInputHandler: NonStandardInputHandler?
 
     private let manageBySDK: Bool
@@ -438,8 +447,8 @@ public final class DirectUpload {
     /// Represents the state of an upload when it is being 
     /// sent to Mux over the network
     public struct TransportStatus : Sendable, Hashable {
-        /// The percentage of file bytes received at the 
-        /// upload destination
+        /// Progress representing file bytes received at the upload destination.
+        /// This value can be `nil` before network transport begins.
         public let progress: Progress?
         /// Timestamp from when this update was generated
         public let updatedTime: TimeInterval
@@ -453,9 +462,8 @@ public final class DirectUpload {
     /// Initializes a DirectUpload from a local file URL
     ///
     /// - Parameters:
-    ///    - uploadURL: the URL of your direct upload, see
-    ///    the [direct upload guide](https://docs.mux.com/api-reference#video/operation/create-direct-upload)
-    ///    [response](https://docs.mux.com/api-reference#video/operation/create-direct-upload)
+    ///     - uploadURL: the authenticated `PUT` URL returned when your trusted
+    ///     environment [creates a Direct Upload](https://www.mux.com/docs/api-reference/video/direct-uploads/create-direct-upload)
     ///     - inputFileURL: the file:// URL of the upload
     ///     input
     ///     - options: options used to control the direct
@@ -590,8 +598,9 @@ public final class DirectUpload {
     public typealias StateHandler = (TransportStatus) -> Void
 
     /// Sets handler that receives progress updates when
-    /// the upload transits over the network. Updates will
-    /// not be received less than 100ms apart
+    /// the upload is transported over the network. This handler does not report
+    /// local inspection or standardization progress. Updates are delivered no
+    /// more frequently than every 100 milliseconds.
     public var progressHandler: StateHandler?
 
     /// Details of a successfully completed ``DirectUpload``
