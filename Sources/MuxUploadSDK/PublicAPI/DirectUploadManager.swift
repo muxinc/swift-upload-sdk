@@ -20,10 +20,9 @@ import Foundation
 /// were paused, in progress, or failed. Success must be handled by you, even if it occurs, for example, during a `BGTask`.
 ///
 /// ```swift
-/// // Call during app init
+/// // Register a DirectUploadManagerDelegate during app init.
+/// // Observe restored uploads in its didUpdate(managedDirectUploads:) callback.
 /// DirectUploadManager.shared.resumeAllDirectUploads()
-/// let restartedUploads = DirectUploadManager.shared.allManagedDirectUploads()
-/// // Do something with the restarted uploads, like subscribing to progress updates.
 /// ```
 ///
 public final class DirectUploadManager {
@@ -70,6 +69,14 @@ public final class DirectUploadManager {
         func insert(_ upload: DirectUpload) {
             withLock {
                 _unsafeUploadsByID[upload.id] = UploadStorage(upload: upload)
+            }
+        }
+
+        func insertIfAbsent(_ upload: DirectUpload) -> Bool {
+            withLock {
+                guard _unsafeUploadsByID[upload.id] == nil else { return false }
+                _unsafeUploadsByID[upload.id] = UploadStorage(upload: upload)
+                return true
             }
         }
 
@@ -170,16 +177,22 @@ public final class DirectUploadManager {
         }
     }
     
-    /// Resumes all uploads that were paused or interrupted.
-    /// It can be useful to call this during app initialization to resume uploads that were interrupted by process death.
+    /// Restores all uploads that were paused or interrupted, retaining uploads already managed by this instance.
+    /// Restoration is asynchronous. Register a ``DirectUploadManagerDelegate`` before calling this method to receive
+    /// the restored list on the main thread, including an empty list when there are no uploads to restore.
+    /// Call ``DirectUpload/start(forceRestart:)`` on a restored upload to continue its transfer.
     public func resumeAllDirectUploads() {
         Task.detached { [self] in
-            for upload in await uploadActor.getAllUploads() {
-                upload.addDelegate(
+            for uploader in await uploadActor.getAllUploads() {
+                let upload = DirectUpload(wrapping: uploader, uploadManager: self)
+                guard storage.insertIfAbsent(upload) else { continue }
+
+                uploader.addDelegate(
                     withToken: UUID().uuidString,
                     makeUploaderDelegate()
                 )
             }
+            notifyDelegates()
         }
     }
     
