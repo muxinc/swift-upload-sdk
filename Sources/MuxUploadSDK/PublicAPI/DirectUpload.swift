@@ -562,19 +562,25 @@ public final class DirectUpload {
         wrapping uploader: ChunkedFileUploader,
         uploadManager: DirectUploadManager
     ) {
+        let sourceAsset = AVURLAsset(url: uploader.uploadInfo.sourceFileURL ?? uploader.inputFileURL)
+        let status: UploadInput.Status
+        if case .paused(let update) = uploader.currentState {
+            status = .uploadPaused(sourceAsset, uploader.uploadInfo, TransportStatus(
+                progress: update.progress,
+                updatedTime: update.updateTime,
+                startTime: nil,
+                isPaused: true
+            ))
+        } else {
+            status = .uploadInProgress(sourceAsset, uploader.uploadInfo, TransportStatus(
+                progress: uploader.currentState.progress ?? Progress(),
+                updatedTime: 0,
+                startTime: 0,
+                isPaused: false
+            ))
+        }
         self.init(
-            input: UploadInput(
-                status: .uploadInProgress(
-                    AVURLAsset(url: uploader.uploadInfo.sourceFileURL ?? uploader.inputFileURL),
-                    uploader.uploadInfo,
-                    TransportStatus(
-                        progress: uploader.currentState.progress ?? Progress(),
-                        updatedTime: 0,
-                        startTime: 0,
-                        isPaused: false
-                    )
-                )
-            ),
+            input: UploadInput(status: status),
             uploadManager: uploadManager,
             inputInspector: .shared
         )

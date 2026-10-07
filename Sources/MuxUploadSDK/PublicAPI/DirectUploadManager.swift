@@ -55,6 +55,9 @@ public final class DirectUploadManager {
         private let lock = NSLock()
         private var _unsafeUploadsByID: [String: UploadStorage] = [:]
         private var _unsafeDelegatesByToken: [ObjectIdentifier: any DirectUploadManagerDelegate] = [:]
+        // Retained for this manager's lifetime so even an old cache snapshot
+        // cannot restore an acknowledged upload. Explicit registration permits a restart.
+        private var _unsafeAcknowledgedIDs: Set<String> = []
 
         func upload(ofFile url: URL) -> DirectUpload? {
             allUploads().first { $0.videoFile == url }
@@ -66,23 +69,32 @@ public final class DirectUploadManager {
             }
         }
 
+        func upload(forID id: String) -> DirectUpload? {
+            withLock { _unsafeUploadsByID[id]?.upload }
+        }
+
         func insert(_ upload: DirectUpload) {
             withLock {
+                _unsafeAcknowledgedIDs.remove(upload.id)
                 _unsafeUploadsByID[upload.id] = UploadStorage(upload: upload)
             }
         }
 
-        func insertIfAbsent(_ upload: DirectUpload) -> Bool {
+        func restore(_ upload: DirectUpload) -> DirectUpload? {
             withLock {
-                guard _unsafeUploadsByID[upload.id] == nil else { return false }
+                guard !_unsafeAcknowledgedIDs.contains(upload.id) else { return nil }
+                if let existing = _unsafeUploadsByID[upload.id]?.upload {
+                    return existing
+                }
                 _unsafeUploadsByID[upload.id] = UploadStorage(upload: upload)
-                return true
+                return upload
             }
         }
 
         func removeUpload(forID id: String) -> DirectUpload? {
             withLock {
-                _unsafeUploadsByID.removeValue(forKey: id)?.upload
+                _unsafeAcknowledgedIDs.insert(id)
+                return _unsafeUploadsByID.removeValue(forKey: id)?.upload
             }
         }
 
@@ -149,21 +161,10 @@ public final class DirectUploadManager {
     /// Attempts to resume an upload that was previously paused or interrupted by process death.
     /// If no upload was found in the cache, this method returns nil without taking any action.
     public func resumeDirectUpload(ofFile url: URL) async -> DirectUpload? {
-        let fileUploader = await uploadActor.getUpload(ofFileAt: url)
-        if let nonNilUploader = fileUploader {
-            nonNilUploader.addDelegate(
-                withToken: UUID().uuidString,
-                makeUploaderDelegate()
-            )
-            let upload = DirectUpload(wrapping: nonNilUploader, uploadManager: self)
-
-            storage.insert(upload)
-
-            notifyDelegates()
-            return upload
-        } else {
-            return nil
-        }
+        guard let uploader = await uploadActor.getUpload(ofFileAt: url),
+              let upload = restorePersistedUpload(uploader) else { return nil }
+        notifyDelegates()
+        return upload
     }
     
     /// Attempts to resume an upload that was previously paused or interrupted by process death.
@@ -184,16 +185,24 @@ public final class DirectUploadManager {
     public func resumeAllDirectUploads() {
         Task.detached { [self] in
             for uploader in await uploadActor.getAllUploads() {
-                let upload = DirectUpload(wrapping: uploader, uploadManager: self)
-                guard storage.insertIfAbsent(upload) else { continue }
-
-                uploader.addDelegate(
-                    withToken: UUID().uuidString,
-                    makeUploaderDelegate()
-                )
+                _ = restorePersistedUpload(uploader)
             }
             notifyDelegates()
         }
+    }
+
+    /// Registers a cached worker without replacing an existing handle or
+    /// reviving an upload acknowledged after the cache snapshot was read.
+    internal func restorePersistedUpload(_ uploader: ChunkedFileUploader) -> DirectUpload? {
+        if let existing = storage.upload(forID: uploader.uploadInfo.id) {
+            return existing
+        }
+        uploader.addDelegate(
+            withToken: UUID().uuidString,
+            makeUploaderDelegate()
+        )
+        let upload = DirectUpload(wrapping: uploader, uploadManager: self)
+        return storage.restore(upload)
     }
     
     /// Adds a ``DirectUploadManagerDelegate``. You can add as many of these as you like.

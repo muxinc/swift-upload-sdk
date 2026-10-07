@@ -72,9 +72,14 @@ final class BulkUploadRestorationTests: XCTestCase {
             XCTAssertEqual(upload.uploadURL, entry.uploadInfo.uploadURL)
             XCTAssertEqual((upload.inputAsset as? AVURLAsset)?.url, entry.uploadInfo.sourceFileURL)
             let worker = try XCTUnwrap(upload.fileWorker)
-            guard case .ready = worker.currentState else {
-                return XCTFail("Restoration should expose a handle without starting transport")
+            guard case .paused = worker.currentState, case .paused = upload.inputStatus else {
+                return XCTFail("Restored uploads should remain paused until explicitly started")
             }
+            XCTAssertFalse(upload.inProgress)
+            XCTAssertEqual(upload.uploadStatus?.isPaused, true)
+            XCTAssertNil(upload.uploadStatus?.startTime)
+            XCTAssertEqual(upload.uploadStatus?.progress?.completedUnitCount, Int64(entry.lastSuccessfulByte))
+            XCTAssertEqual(upload.uploadStatus?.progress?.totalUnitCount, -1)
             let saved = try XCTUnwrap(persistence.readEntry(uploadID: upload.id))
             XCTAssertEqual(saved.lastSuccessfulByte, entry.lastSuccessfulByte)
             XCTAssertEqual(saved.stateCode, entry.stateCode)
@@ -106,6 +111,94 @@ final class BulkUploadRestorationTests: XCTestCase {
         XCTAssertTrue(manager.startedDirectUpload(ofFile: entries[0].inputFileURL) === existing)
         XCTAssertTrue(existing.fileWorker === existingWorker)
         XCTAssertNotNil(manager.startedDirectUpload(ofFile: entries[1].inputFileURL))
+    }
+
+    @MainActor
+    func testSingleResumePreservesABulkRestoredHandle() async throws {
+        let entries = makeEntries()
+        let persistence = try makePersistence(entries: entries)
+        let manager = DirectUploadManager(uploadActor: UploadCacheActor(persistence: persistence))
+        let bulkUpdated = expectation(description: "Bulk restoration finished")
+        let delegate = Delegate { _ in bulkUpdated.fulfill() }
+        manager.addDelegate(delegate)
+        defer { manager.removeDelegate(delegate) }
+        manager.resumeAllDirectUploads()
+        await fulfillment(of: [bulkUpdated], timeout: 2)
+        let existing = try XCTUnwrap(manager.startedDirectUpload(ofFile: entries[0].inputFileURL))
+        let worker = try XCTUnwrap(existing.fileWorker)
+
+        let singleUpdated = expectation(description: "Single restoration finished")
+        delegate.onUpdate = { _ in singleUpdated.fulfill() }
+        let resumed = await manager.resumeDirectUpload(ofFile: entries[0].uploadInfo.sourceFileURL!)
+        await fulfillment(of: [singleUpdated], timeout: 2)
+
+        XCTAssertTrue(resumed === existing)
+        XCTAssertTrue(resumed?.fileWorker === worker)
+    }
+
+    @MainActor
+    func testConcurrentSingleResumesReturnTheSameHandle() async throws {
+        let entry = makeEntries()[0]
+        let persistence = try makePersistence(entries: [entry])
+        let manager = DirectUploadManager(uploadActor: UploadCacheActor(persistence: persistence))
+        let uploads = await withTaskGroup(of: DirectUpload?.self, returning: [DirectUpload].self) { group in
+            for _ in 0..<2 {
+                group.addTask { await manager.resumeDirectUpload(ofFile: entry.inputFileURL) }
+            }
+            var restored: [DirectUpload] = []
+            for await upload in group {
+                if let upload { restored.append(upload) }
+            }
+            return restored
+        }
+        XCTAssertEqual(uploads.count, 2)
+        let first = try XCTUnwrap(uploads.first)
+        XCTAssertTrue(uploads.last === first)
+        XCTAssertTrue(manager.startedDirectUpload(ofFile: entry.inputFileURL) === first)
+    }
+
+    @MainActor
+    func testSnapshotCapturedBeforeAcknowledgementCannotRestoreCancelledUpload() async throws {
+        let entry = makeEntries()[0]
+        let persistence = try makePersistence(entries: [entry])
+        let cache = UploadCacheActor(persistence: persistence)
+        let manager = DirectUploadManager(uploadActor: cache)
+        let initial = expectation(description: "Initial single restoration finished")
+        let delegate = Delegate { _ in initial.fulfill() }
+        manager.addDelegate(delegate)
+        defer { manager.removeDelegate(delegate) }
+        let original = await manager.resumeDirectUpload(ofFile: entry.inputFileURL)
+        await fulfillment(of: [initial], timeout: 2)
+        XCTAssertNotNil(original)
+        let snapshot = await cache.getAllUploads()
+        let staleWorker = try XCTUnwrap(snapshot.first)
+
+        let removed = expectation(description: "Acknowledgement deleted persistence")
+        delegate.onUpdate = { uploads in
+            if uploads.isEmpty { removed.fulfill() }
+        }
+        manager.acknowledgeUpload(id: entry.uploadInfo.id)
+        XCTAssertNil(manager.restorePersistedUpload(staleWorker))
+        await fulfillment(of: [removed], timeout: 2)
+
+        XCTAssertNil(try persistence.readEntry(uploadID: entry.uploadInfo.id))
+        XCTAssertNil(manager.restorePersistedUpload(staleWorker))
+        XCTAssertTrue(manager.allManagedDirectUploads().isEmpty)
+    }
+
+    @MainActor
+    func testExplicitRegistrationAfterAcknowledgementAllowsFreshAttempt() async throws {
+        let entry = makeEntries()[0]
+        let persistence = try makePersistence(entries: [entry])
+        let manager = DirectUploadManager(uploadActor: UploadCacheActor(persistence: persistence))
+        manager.acknowledgeUpload(id: entry.uploadInfo.id)
+        let uploader = ChunkedFileUploader(persistenceEntry: entry)
+        let fresh = DirectUpload(wrapping: uploader, uploadManager: manager)
+
+        manager.registerUpload(fresh)
+
+        XCTAssertTrue(manager.startedDirectUpload(ofFile: entry.inputFileURL) === fresh)
+        XCTAssertTrue(manager.restorePersistedUpload(ChunkedFileUploader(persistenceEntry: entry)) === fresh)
     }
 
     @MainActor
