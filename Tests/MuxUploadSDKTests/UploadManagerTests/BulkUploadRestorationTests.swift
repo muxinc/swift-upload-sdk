@@ -187,6 +187,24 @@ final class BulkUploadRestorationTests: XCTestCase {
     }
 
     @MainActor
+    func testRegisteringRestoredWorkerWithUnknownTotalPreservesCheckpoint() async throws {
+        let entry = makeEntries()[0]
+        let persistence = try makePersistence(entries: [entry])
+        let cache = UploadCacheActor(persistence: persistence)
+        let manager = DirectUploadManager(uploadActor: cache)
+        let worker = ChunkedFileUploader(persistenceEntry: entry)
+        let upload = DirectUpload(wrapping: worker, uploadManager: manager)
+
+        manager.registerUpload(upload)
+        let restored = await manager.resumeDirectUpload(ofFile: entry.inputFileURL)
+        let saved = await cache.getUpload(uploadID: entry.uploadInfo.id)
+
+        XCTAssertTrue(restored === upload)
+        XCTAssertEqual(saved?.currentState.progress?.completedUnitCount, Int64(entry.lastSuccessfulByte))
+        XCTAssertEqual(saved?.currentState.progress?.totalUnitCount, -1)
+    }
+
+    @MainActor
     func testExplicitRegistrationAfterAcknowledgementAllowsFreshAttempt() async throws {
         let entry = makeEntries()[0]
         let persistence = try makePersistence(entries: [entry])

@@ -678,7 +678,8 @@ public final class DirectUpload {
         if !forceRestart && self.manageBySDK && fileWorker == nil {
             // See if there's anything in progress already
             fileWorker = uploadManager.findChunkedFileUploader(
-                inputFileURL: input.sourceAsset.url
+                inputFileURL: input.sourceAsset.url,
+                uploadURL: input.uploadInfo.uploadURL
             )
             usesBorrowedFileWorker = fileWorker != nil
         }
@@ -1134,7 +1135,8 @@ public final class DirectUpload {
             let result = await DirectUploadTransportCommitCoordinator.shared.coordinate {
                 if self.manageBySDK, attempt.allowsWorkerReuse,
                    let existingWorker = self.uploadManager.findChunkedFileUploader(
-                       inputFileURL: self.input.sourceAsset.url
+                       inputFileURL: self.input.sourceAsset.url,
+                       uploadURL: self.input.uploadInfo.uploadURL
                    ) {
                     return await self.preparationLifecycle.commitTransport(for: attempt) {
                         SDKLogger.logger?.warning(

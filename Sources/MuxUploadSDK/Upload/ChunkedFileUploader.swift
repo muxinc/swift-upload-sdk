@@ -422,10 +422,10 @@ class ChunkedFileUploader {
 
         func withCompletedUnitCount(_ completedUnitCount: UInt64) -> Update {
             let safeProgress = Progress(totalUnitCount: progress.totalUnitCount)
-            safeProgress.completedUnitCount = min(
-                Int64(completedUnitCount),
-                progress.totalUnitCount
-            )
+            let completed = Int64(clamping: completedUnitCount)
+            safeProgress.completedUnitCount = progress.totalUnitCount >= 0
+                ? min(completed, progress.totalUnitCount)
+                : completed
             return Update(
                 progress: safeProgress,
                 startTime: startTime,
