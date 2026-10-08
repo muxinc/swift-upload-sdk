@@ -20,16 +20,21 @@ import Foundation
 /// were paused, in progress, or failed. Success must be handled by you, even if it occurs, for example, during a `BGTask`.
 ///
 /// ```swift
-/// // Call during app init
+/// // Register a DirectUploadManagerDelegate during app init.
+/// // Observe restored uploads in its didUpdate(managedDirectUploads:) callback.
 /// DirectUploadManager.shared.resumeAllDirectUploads()
-/// let restartedUploads = DirectUploadManager.shared.allManagedDirectUploads()
-/// // Do something with the restarted uploads, like subscribing to progress updates.
 /// ```
 ///
 public final class DirectUploadManager {
 
     private struct UploadStorage: Equatable, Hashable {
         let upload: DirectUpload
+        let worker: ChunkedFileUploader
+        var workerState: WorkerState = .available
+
+        enum WorkerState {
+            case available, failed, finished
+        }
 
         static func == (lhs: DirectUploadManager.UploadStorage, rhs: DirectUploadManager.UploadStorage) -> Bool {
             ObjectIdentifier(
@@ -56,6 +61,10 @@ public final class DirectUploadManager {
         private let lock = NSLock()
         private var _unsafeUploadsByID: [String: UploadStorage] = [:]
         private var _unsafeDelegatesByToken: [ObjectIdentifier: any DirectUploadManagerDelegate] = [:]
+        // Retained for this manager's lifetime so even an old cache snapshot
+        // cannot restore an acknowledged upload. Explicit registration permits a restart.
+        private var _unsafeAcknowledgedIDs: Set<String> = []
+        private var _unsafePersistenceTask: Task<Void, Never>?
 
         func upload(ofFile url: URL) -> DirectUpload? {
             allUploads().first { $0.videoFile == url }
@@ -67,15 +76,84 @@ public final class DirectUploadManager {
             }
         }
 
-        func insert(_ upload: DirectUpload) {
+        func upload(forID id: String) -> DirectUpload? {
             withLock {
-                _unsafeUploadsByID[upload.id] = UploadStorage(upload: upload)
+                guard let stored = _unsafeUploadsByID[id], stored.workerState != .failed else { return nil }
+                return stored.upload
             }
         }
 
-        func removeUpload(forID id: String) -> DirectUpload? {
+        func uploader(inputFileURL: URL, uploadURL: URL) -> ChunkedFileUploader? {
             withLock {
-                _unsafeUploadsByID.removeValue(forKey: id)?.upload
+                _unsafeUploadsByID.values.first {
+                    $0.workerState == .available && $0.worker.inputFileURL == inputFileURL
+                        && $0.worker.uploadInfo.uploadURL == uploadURL
+                }?.worker
+            }
+        }
+
+        func insert(_ upload: DirectUpload, worker: ChunkedFileUploader, persistence: @escaping () async -> Void) {
+            withLock {
+                _unsafeAcknowledgedIDs.remove(upload.id)
+                _unsafeUploadsByID[upload.id] = UploadStorage(upload: upload, worker: worker)
+                enqueuePersistence(persistence)
+            }
+        }
+
+        func restore(_ upload: DirectUpload, worker: ChunkedFileUploader) -> DirectUpload? {
+            withLock {
+                guard !_unsafeAcknowledgedIDs.contains(upload.id) else { return nil }
+                if let existing = _unsafeUploadsByID[upload.id], existing.workerState != .failed {
+                    return existing.upload
+                }
+                _unsafeUploadsByID[upload.id] = UploadStorage(upload: upload, worker: worker)
+                return upload
+            }
+        }
+
+        func recordState(
+            of worker: ChunkedFileUploader,
+            state: ChunkedFileUploader.InternalUploadState,
+            persistence: @escaping () async -> Void
+        ) {
+            withLock {
+                let id = worker.uploadInfo.id
+                guard var stored = _unsafeUploadsByID[id], stored.worker === worker,
+                      stored.workerState == .available else { return }
+                switch state {
+                case .failure: stored.workerState = .failed
+                case .success: stored.workerState = .finished
+                default: break
+                }
+                _unsafeUploadsByID[id] = stored
+                enqueuePersistence(persistence)
+            }
+        }
+
+        func removeUpload(
+            forID id: String,
+            matching worker: ChunkedFileUploader?,
+            persistence: @escaping () async -> Void
+        ) -> DirectUpload? {
+            withLock {
+                if let worker, _unsafeUploadsByID[id]?.worker !== worker { return nil }
+                _unsafeAcknowledgedIDs.insert(id)
+                enqueuePersistence(persistence)
+                return _unsafeUploadsByID.removeValue(forKey: id)?.upload
+            }
+        }
+
+        func pendingPersistenceTask() -> Task<Void, Never>? {
+            withLock { _unsafePersistenceTask }
+        }
+
+        // Called only while locked. Disk operations run asynchronously and in
+        // observation order, so an earlier progress save cannot follow a deletion.
+        private func enqueuePersistence(_ operation: @escaping () async -> Void) {
+            let previous = _unsafePersistenceTask
+            _unsafePersistenceTask = Task.detached {
+                await previous?.value
+                await operation()
             }
         }
 
@@ -139,27 +217,17 @@ public final class DirectUploadManager {
         storage.allUploads()
     }
 
-    /// Attempts to resume an upload that was previously paused or interrupted by process death.
+    /// Attempts to resume an upload that was previously paused, failed, or interrupted by process death.
     /// If no upload was found in the cache, this method returns nil without taking any action.
     public func resumeDirectUpload(ofFile url: URL) async -> DirectUpload? {
-        let fileUploader = await uploadActor.getUpload(ofFileAt: url)
-        if let nonNilUploader = fileUploader {
-            nonNilUploader.addDelegate(
-                withToken: UUID().uuidString,
-                makeUploaderDelegate()
-            )
-            let upload = DirectUpload(wrapping: nonNilUploader, uploadManager: self)
-
-            storage.insert(upload)
-
-            notifyDelegates()
-            return upload
-        } else {
-            return nil
-        }
+        await storage.pendingPersistenceTask()?.value
+        guard let uploader = await uploadActor.getUpload(ofFileAt: url),
+              let upload = restorePersistedUpload(uploader) else { return nil }
+        notifyDelegates()
+        return upload
     }
     
-    /// Attempts to resume an upload that was previously paused or interrupted by process death.
+    /// Attempts to resume an upload that was previously paused, failed, or interrupted by process death.
     /// If no upload was found in the cache, this method returns nil without taking any action.
     public func resumeDirectUpload(ofFile url: URL, completion: @escaping (DirectUpload) -> Void) {
         Task.detached {
@@ -170,17 +238,32 @@ public final class DirectUploadManager {
         }
     }
     
-    /// Resumes all uploads that were paused or interrupted.
-    /// It can be useful to call this during app initialization to resume uploads that were interrupted by process death.
+    /// Restores all uploads that were paused, interrupted, or failed, retaining live handles already managed by this instance.
+    /// Restoration is asynchronous. Register a ``DirectUploadManagerDelegate`` before calling this method to receive
+    /// the restored list on the main thread, including an empty list when there are no uploads to restore.
+    /// Call ``DirectUpload/start(forceRestart:)`` on a restored upload to continue its transfer.
     public func resumeAllDirectUploads() {
         Task.detached { [self] in
-            for upload in await uploadActor.getAllUploads() {
-                upload.addDelegate(
-                    withToken: UUID().uuidString,
-                    makeUploaderDelegate()
-                )
+            await storage.pendingPersistenceTask()?.value
+            for uploader in await uploadActor.getAllUploads() {
+                _ = restorePersistedUpload(uploader)
             }
+            notifyDelegates()
         }
+    }
+
+    /// Registers a cached worker, retaining live handles and replacing failed ones, without
+    /// reviving an upload acknowledged after the cache snapshot was read.
+    internal func restorePersistedUpload(_ uploader: ChunkedFileUploader) -> DirectUpload? {
+        if let existing = storage.upload(forID: uploader.uploadInfo.id) {
+            return existing
+        }
+        uploader.addDelegate(
+            withToken: UUID().uuidString,
+            makeUploaderDelegate()
+        )
+        let upload = DirectUpload(wrapping: uploader, uploadManager: self)
+        return storage.restore(upload, worker: uploader)
     }
     
     /// Adds a ``DirectUploadManagerDelegate``. You can add as many of these as you like.
@@ -194,24 +277,25 @@ public final class DirectUploadManager {
     }
 
     internal func acknowledgeUpload(id: String) {
-        let upload = storage.removeUpload(forID: id)
+        acknowledgeUpload(id: id, matching: nil)
+    }
+
+    private func acknowledgeUpload(id: String, matching worker: ChunkedFileUploader?) {
+        let upload = storage.removeUpload(forID: id, matching: worker) { [self] in
+            await uploadActor.remove(uploadID: id)
+            notifyDelegates()
+        }
 
         // Reenters this class via the uploader's delegate callbacks, so it has
         // to happen after unlocking.
         upload?.fileWorker?.cancel()
-
-        Task.detached {
-            await self.uploadActor.remove(uploadID: id)
-            self.notifyDelegates()
-        }
     }
     
     internal func findChunkedFileUploader(
-        inputFileURL: URL
+        inputFileURL: URL,
+        uploadURL: URL
     ) -> ChunkedFileUploader? {
-        startedDirectUpload(
-            ofFile: inputFileURL
-        )?.fileWorker
+        storage.uploader(inputFileURL: inputFileURL, uploadURL: uploadURL)
     }
 
     internal func registerUpload(_ upload: DirectUpload) {
@@ -224,19 +308,30 @@ public final class DirectUploadManager {
             return
         }
 
-        storage.insert(upload)
-
         fileWorker.addDelegate(
             withToken: UUID().uuidString,
             makeUploaderDelegate()
         )
+        storage.insert(
+            upload,
+            worker: fileWorker,
+            persistence: persistenceUpdate(for: fileWorker, state: fileWorker.currentState)
+        )
         self.notifyDelegates()
-        Task.detached {
-            await self.uploadActor.updateUpload(
-                fileWorker.uploadInfo,
-                fileInputURL: fileWorker.inputFileURL,
-                withUpdate: fileWorker.currentState
+    }
+
+    private func persistenceUpdate(
+        for uploader: ChunkedFileUploader,
+        state: ChunkedFileUploader.InternalUploadState
+    ) -> () async -> Void {
+        let persistedState = uploader.persistenceState(for: state)
+        return { [self] in
+            await uploadActor.updateUpload(
+                uploader.uploadInfo,
+                fileInputURL: uploader.inputFileURL,
+                withUpdate: persistedState
             )
+            notifyDelegates()
         }
     }
     
@@ -265,21 +360,15 @@ public final class DirectUploadManager {
             _ uploader: ChunkedFileUploader,
             stateUpdated state: ChunkedFileUploader.InternalUploadState
         ) {
-            let _ = Task.detached {
-                await manager.uploadActor.updateUpload(
-                    uploader.uploadInfo,
-                    fileInputURL: uploader.inputFileURL,
-                    withUpdate: uploader.persistenceState(for: state)
-                )
-                manager.notifyDelegates()
-            }
             switch state {
             case .canceled:
-                manager.acknowledgeUpload(
-                    id: uploader.uploadInfo.id
-                )
+                manager.acknowledgeUpload(id: uploader.uploadInfo.id, matching: uploader)
             default:
-                break
+                manager.storage.recordState(
+                    of: uploader,
+                    state: state,
+                    persistence: manager.persistenceUpdate(for: uploader, state: state)
+                )
             }
         }
     }

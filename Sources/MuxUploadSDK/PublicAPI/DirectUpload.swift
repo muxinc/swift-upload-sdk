@@ -562,19 +562,25 @@ public final class DirectUpload {
         wrapping uploader: ChunkedFileUploader,
         uploadManager: DirectUploadManager
     ) {
+        let sourceAsset = AVURLAsset(url: uploader.uploadInfo.sourceFileURL ?? uploader.inputFileURL)
+        let status: UploadInput.Status
+        if case .paused(let update) = uploader.currentState {
+            status = .uploadPaused(sourceAsset, uploader.uploadInfo, TransportStatus(
+                progress: update.progress,
+                updatedTime: update.updateTime,
+                startTime: nil,
+                isPaused: true
+            ))
+        } else {
+            status = .uploadInProgress(sourceAsset, uploader.uploadInfo, TransportStatus(
+                progress: uploader.currentState.progress ?? Progress(),
+                updatedTime: 0,
+                startTime: 0,
+                isPaused: false
+            ))
+        }
         self.init(
-            input: UploadInput(
-                status: .uploadInProgress(
-                    AVURLAsset(url: uploader.uploadInfo.sourceFileURL ?? uploader.inputFileURL),
-                    uploader.uploadInfo,
-                    TransportStatus(
-                        progress: uploader.currentState.progress ?? Progress(),
-                        updatedTime: 0,
-                        startTime: 0,
-                        isPaused: false
-                    )
-                )
-            ),
+            input: UploadInput(status: status),
             uploadManager: uploadManager,
             inputInspector: .shared
         )
@@ -672,7 +678,8 @@ public final class DirectUpload {
         if !forceRestart && self.manageBySDK && fileWorker == nil {
             // See if there's anything in progress already
             fileWorker = uploadManager.findChunkedFileUploader(
-                inputFileURL: input.sourceAsset.url
+                inputFileURL: input.sourceAsset.url,
+                uploadURL: input.uploadInfo.uploadURL
             )
             usesBorrowedFileWorker = fileWorker != nil
         }
@@ -1128,7 +1135,8 @@ public final class DirectUpload {
             let result = await DirectUploadTransportCommitCoordinator.shared.coordinate {
                 if self.manageBySDK, attempt.allowsWorkerReuse,
                    let existingWorker = self.uploadManager.findChunkedFileUploader(
-                       inputFileURL: self.input.sourceAsset.url
+                       inputFileURL: self.input.sourceAsset.url,
+                       uploadURL: self.input.uploadInfo.uploadURL
                    ) {
                     return await self.preparationLifecycle.commitTransport(for: attempt) {
                         SDKLogger.logger?.warning(
