@@ -690,6 +690,7 @@ public final class DirectUpload {
         }
         if fileWorker != nil && !forceRestart {
             SDKLogger.logger?.warning("start() called but upload is already in progress")
+            if let fileWorker { prepareExistingTransport(fileWorker) }
             fileWorker?.addDelegate(
                 withToken: id,
                 InternalUploaderDelegate {
@@ -711,6 +712,23 @@ public final class DirectUpload {
                 sourceAsset: sourceAsset,
                 attempt: attempt
             )
+        }
+    }
+
+    private func prepareExistingTransport(_ worker: ChunkedFileUploader) {
+        uploadManager.markUploadStarted(worker)
+        switch input.status {
+        case .uploadInProgress, .uploadSucceeded, .uploadFailed:
+            return
+        default:
+            let previous = input.transportStatus
+            let now = Date().timeIntervalSince1970
+            input.status = .uploadInProgress(input.sourceAsset, input.uploadInfo, TransportStatus(
+                progress: worker.currentState.progress ?? previous?.progress,
+                updatedTime: now,
+                startTime: previous?.startTime ?? now,
+                isPaused: false
+            ))
         }
     }
 
@@ -1148,6 +1166,7 @@ public final class DirectUpload {
                             withToken: self.id,
                             InternalUploaderDelegate { [self] state in handleStateUpdate(state) }
                         )
+                        self.prepareExistingTransport(existingWorker)
                         self.handleStateUpdate(existingWorker.currentState)
                         existingWorker.start()
                     }

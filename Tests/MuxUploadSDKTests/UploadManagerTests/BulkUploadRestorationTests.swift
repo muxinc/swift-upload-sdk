@@ -137,6 +137,46 @@ final class BulkUploadRestorationTests: XCTestCase {
     }
 
     @MainActor
+    func testFileLookupChoosesNewestSavedSessionBeforeAndAfterBulkRestore() async throws {
+        let template = makeEntries()[0]
+        let now = Date().timeIntervalSince1970
+        let entries = (0..<20).map { index in
+            PersistenceEntry(
+                savedAt: now - Double(19 - index),
+                stateCode: .wasPaused,
+                lastSuccessfulByte: UInt64(index),
+                uploadInfo: UploadInfo(
+                    id: UUID().uuidString,
+                    uploadURL: URL(string: "https://example.invalid/session/\(index)")!,
+                    sourceFileURL: template.uploadInfo.sourceFileURL,
+                    options: .inputStandardizationSkipped
+                ),
+                inputFileURL: template.inputFileURL
+            )
+        }
+        let persistence = try makePersistence(entries: entries)
+        let manager = DirectUploadManager(uploadActor: UploadCacheActor(persistence: persistence))
+        let selected = await manager.resumeDirectUpload(ofFile: template.uploadInfo.sourceFileURL!)
+        XCTAssertEqual(selected?.id, entries.last?.uploadInfo.id)
+        let restored = expectation(description: "All same-file sessions restored")
+        var didRestore = false
+        let delegate = Delegate { uploads in
+            if uploads.count == entries.count, !didRestore {
+                didRestore = true
+                restored.fulfill()
+            }
+        }
+        manager.addDelegate(delegate)
+        defer { manager.removeDelegate(delegate) }
+        manager.resumeAllDirectUploads()
+        await fulfillment(of: [restored], timeout: 2)
+
+        XCTAssertEqual(manager.startedDirectUpload(ofFile: template.inputFileURL)?.id, entries.last?.uploadInfo.id)
+        let resumed = await manager.resumeDirectUpload(ofFile: template.uploadInfo.sourceFileURL!)
+        XCTAssertTrue(resumed === selected)
+    }
+
+    @MainActor
     func testConcurrentSingleResumesReturnTheSameHandle() async throws {
         let entry = makeEntries()[0]
         let persistence = try makePersistence(entries: [entry])

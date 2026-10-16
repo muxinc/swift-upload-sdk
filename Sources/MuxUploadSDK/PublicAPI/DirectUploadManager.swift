@@ -31,9 +31,17 @@ public final class DirectUploadManager {
         let upload: DirectUpload
         let worker: ChunkedFileUploader
         var workerState: WorkerState = .available
+        var isActive: Bool
+        var selectionDate: TimeInterval
 
         enum WorkerState {
             case available, failed, finished
+        }
+
+        static func precedes(_ lhs: UploadStorage, _ rhs: UploadStorage) -> Bool {
+            if lhs.isActive != rhs.isActive { return !lhs.isActive }
+            if lhs.selectionDate != rhs.selectionDate { return lhs.selectionDate < rhs.selectionDate }
+            return lhs.worker.uploadInfo.id < rhs.worker.uploadInfo.id
         }
 
         static func == (lhs: DirectUploadManager.UploadStorage, rhs: DirectUploadManager.UploadStorage) -> Bool {
@@ -67,7 +75,11 @@ public final class DirectUploadManager {
         private var _unsafePersistenceTask: Task<Void, Never>?
 
         func upload(ofFile url: URL) -> DirectUpload? {
-            allUploads().first { $0.videoFile == url }
+            withLock {
+                _unsafeUploadsByID.values.filter {
+                    $0.workerState == .available && ($0.worker.inputFileURL == url || $0.worker.uploadInfo.sourceFileURL == url)
+                }.max(by: UploadStorage.precedes)?.upload
+            }
         }
 
         func allUploads() -> [DirectUpload] {
@@ -85,28 +97,44 @@ public final class DirectUploadManager {
 
         func uploader(inputFileURL: URL, uploadURL: URL) -> ChunkedFileUploader? {
             withLock {
-                _unsafeUploadsByID.values.first {
+                _unsafeUploadsByID.values.filter {
                     $0.workerState == .available && $0.worker.inputFileURL == inputFileURL
                         && $0.worker.uploadInfo.uploadURL == uploadURL
-                }?.worker
+                }.max(by: UploadStorage.precedes)?.worker
+            }
+        }
+
+        func markStarted(_ worker: ChunkedFileUploader) {
+            withLock {
+                let id = worker.uploadInfo.id
+                guard var stored = _unsafeUploadsByID[id], stored.worker === worker,
+                      stored.workerState == .available, !stored.isActive else { return }
+                stored.isActive = true
+                stored.selectionDate = Date().timeIntervalSince1970
+                _unsafeUploadsByID[id] = stored
             }
         }
 
         func insert(_ upload: DirectUpload, worker: ChunkedFileUploader, persistence: @escaping () async -> Void) {
             withLock {
                 _unsafeAcknowledgedIDs.remove(upload.id)
-                _unsafeUploadsByID[upload.id] = UploadStorage(upload: upload, worker: worker)
+                _unsafeUploadsByID[upload.id] = UploadStorage(
+                    upload: upload, worker: worker, isActive: true,
+                    selectionDate: Date().timeIntervalSince1970
+                )
                 enqueuePersistence(persistence)
             }
         }
 
-        func restore(_ upload: DirectUpload, worker: ChunkedFileUploader) -> DirectUpload? {
+        func restore(_ upload: DirectUpload, worker: ChunkedFileUploader, savedAt: TimeInterval) -> DirectUpload? {
             withLock {
                 guard !_unsafeAcknowledgedIDs.contains(upload.id) else { return nil }
                 if let existing = _unsafeUploadsByID[upload.id], existing.workerState != .failed {
                     return existing.upload
                 }
-                _unsafeUploadsByID[upload.id] = UploadStorage(upload: upload, worker: worker)
+                _unsafeUploadsByID[upload.id] = UploadStorage(
+                    upload: upload, worker: worker, isActive: false, selectionDate: savedAt
+                )
                 return upload
             }
         }
@@ -123,6 +151,10 @@ public final class DirectUploadManager {
                 switch state {
                 case .failure: stored.workerState = .failed
                 case .success: stored.workerState = .finished
+                case .paused: stored.isActive = false
+                case .starting, .uploading:
+                    if !stored.isActive { stored.selectionDate = Date().timeIntervalSince1970 }
+                    stored.isActive = true
                 default: break
                 }
                 _unsafeUploadsByID[id] = stored
@@ -202,9 +234,10 @@ public final class DirectUploadManager {
         self.uploadActor = uploadActor
     }
     
-    /// Finds an upload already in progress and returns a new ``DirectUpload`` that can be observed
+    /// Finds a managed upload and returns its ``DirectUpload`` handle, which can be observed
     /// to track and control its state.
-    /// Returns nil if there was no upload in progress for the given file.
+    /// When sessions share a file, prefers active transfers, then the most recently started or saved session.
+    /// Returns nil if there is no active or paused upload for the given file.
     public func startedDirectUpload(ofFile url: URL) -> DirectUpload? {
         storage.upload(ofFile: url)
     }
@@ -218,9 +251,14 @@ public final class DirectUploadManager {
     }
 
     /// Attempts to resume an upload that was previously paused, failed, or interrupted by process death.
-    /// If no upload was found in the cache, this method returns nil without taking any action.
+    /// Retains a live managed handle when available, preferring active transfers. Otherwise restores the newest saved session.
+    /// Returns nil if there is no matching live handle or persisted upload.
     public func resumeDirectUpload(ofFile url: URL) async -> DirectUpload? {
         await storage.pendingPersistenceTask()?.value
+        if let existing = storage.upload(ofFile: url) {
+            notifyDelegates()
+            return existing
+        }
         guard let uploader = await uploadActor.getUpload(ofFileAt: url),
               let upload = restorePersistedUpload(uploader) else { return nil }
         notifyDelegates()
@@ -228,7 +266,7 @@ public final class DirectUploadManager {
     }
     
     /// Attempts to resume an upload that was previously paused, failed, or interrupted by process death.
-    /// If no upload was found in the cache, this method returns nil without taking any action.
+    /// Calls completion on the main thread when a matching managed or persisted upload is found.
     public func resumeDirectUpload(ofFile url: URL, completion: @escaping (DirectUpload) -> Void) {
         Task.detached {
             let upload = await self.resumeDirectUpload(ofFile: url)
@@ -263,7 +301,10 @@ public final class DirectUploadManager {
             makeUploaderDelegate()
         )
         let upload = DirectUpload(wrapping: uploader, uploadManager: self)
-        return storage.restore(upload, worker: uploader)
+        let savedAt: TimeInterval
+        if case .paused(let update) = uploader.currentState { savedAt = update.updateTime }
+        else { savedAt = 0 }
+        return storage.restore(upload, worker: uploader, savedAt: savedAt)
     }
     
     /// Adds a ``DirectUploadManagerDelegate``. You can add as many of these as you like.
@@ -296,6 +337,10 @@ public final class DirectUploadManager {
         uploadURL: URL
     ) -> ChunkedFileUploader? {
         storage.uploader(inputFileURL: inputFileURL, uploadURL: uploadURL)
+    }
+
+    internal func markUploadStarted(_ uploader: ChunkedFileUploader) {
+        storage.markStarted(uploader)
     }
 
     internal func registerUpload(_ upload: DirectUpload) {
@@ -412,9 +457,12 @@ internal actor UploadCacheActor {
 
     func getUpload(ofFileAt: URL) async -> ChunkedFileUploader? {
         return await Task<ChunkedFileUploader?, Never> {
-            guard let matchingEntry = try? persistence.readAll().first(
-                where: { $0.inputFileURL == ofFileAt || $0.uploadInfo.sourceFileURL == ofFileAt }
-            ) else {
+            guard let matchingEntry = try? persistence.readAll().filter({
+                $0.inputFileURL == ofFileAt || $0.uploadInfo.sourceFileURL == ofFileAt
+            }).max(by: {
+                if $0.savedAt != $1.savedAt { return $0.savedAt < $1.savedAt }
+                return $0.uploadInfo.id < $1.uploadInfo.id
+            }) else {
                 return nil
             }
 

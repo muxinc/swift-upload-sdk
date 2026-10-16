@@ -137,9 +137,10 @@ extension UploadInput {
     mutating func processUploadSuccess(
         transportStatus: DirectUpload.TransportStatus
     ) {
-        if case UploadInput.Status.uploadInProgress(let asset, let info, _) = status {
+        switch status {
+        case .uploadInProgress(let asset, let info, _), .uploadPaused(let asset, let info, _):
             status = .uploadSucceeded(asset, info, DirectUpload.SuccessDetails(finalState: transportStatus))
-        } else {
+        default:
             return
         }
     }

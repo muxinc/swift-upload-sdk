@@ -101,7 +101,8 @@ final class RestoredUploadTransportTests: XCTestCase {
         let bytes = Data((0..<4095).map { UInt8($0 % 251) })
         try bytes.write(to: fileURL)
         let listening = expectation(description: "Destination server listening")
-        let server = try UploadServer(listening: listening)
+        let transferring = expectation(description: "New session is transferring")
+        let server = try UploadServer(listening: listening, secondRequest: transferring)
         server.start()
         defer { server.stop() }
         await fulfillment(of: [listening], timeout: 5)
@@ -131,6 +132,11 @@ final class RestoredUploadTransportTests: XCTestCase {
             succeeded.fulfill()
         }
         fresh.start()
+        await fulfillment(of: [transferring], timeout: 5)
+        XCTAssertTrue(manager.startedDirectUpload(ofFile: fileURL) === fresh)
+        let selected = await manager.resumeDirectUpload(ofFile: fileURL)
+        XCTAssertTrue(selected === fresh)
+        server.releaseSecondRequest()
         await fulfillment(of: [succeeded], timeout: 5)
 
         XCTAssertEqual(server.paths, Array(repeating: "/new-session", count: 4))

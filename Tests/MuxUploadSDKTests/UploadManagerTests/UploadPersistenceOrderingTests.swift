@@ -1,9 +1,49 @@
+import AVFoundation
 import Foundation
 import XCTest
 
 @testable import MuxUploadSDK
 
 final class UploadPersistenceOrderingTests: XCTestCase {
+    @MainActor
+    func testRestoredUploadFinishesWhenFirstProgressEventIsComplete() async throws {
+        for usesRestoredHandle in [true, false] {
+            let entry = PersistenceEntry(basename: UUID().uuidString)
+            let persistence = UploadPersistence(innerFile: FakeUploadsFile.simiulatedStorage(), atURL: entry.inputFileURL)
+            let manager = DirectUploadManager(uploadActor: UploadCacheActor(persistence: persistence))
+            let worker = RecordingWorker(persistenceEntry: entry)
+            let restored = DirectUpload(wrapping: worker, uploadManager: manager)
+            manager.registerUpload(restored)
+            let upload = usesRestoredHandle ? restored : DirectUpload(
+                input: UploadInput(asset: AVURLAsset(url: entry.inputFileURL), info: UploadInfo(
+                    uploadURL: entry.uploadInfo.uploadURL, options: entry.uploadInfo.options
+                )),
+                uploadManager: manager
+            )
+            let completed = expectation(description: "Single remaining chunk completes")
+            worker.onStart = { [weak worker] in
+                guard let worker else { return }
+                let progress = Progress(totalUnitCount: 100)
+                progress.completedUnitCount = 100
+                worker.emit(.uploading(.init(progress: progress, startTime: 1, updateTime: 2)))
+                worker.emit(.success(.init(finalProgress: progress, startTime: 1, finishTime: 2)))
+            }
+            upload.resultHandler = { result in
+                guard case .success = result else { return XCTFail("Expected successful upload") }
+                completed.fulfill()
+            }
+
+            upload.start()
+            await fulfillment(of: [completed], timeout: 2)
+
+            XCTAssertTrue(upload.complete)
+            XCTAssertTrue(restored.complete)
+            guard case .finished(_, .success) = upload.inputStatus else {
+                return XCTFail("A successful restored upload must leave paused state")
+            }
+        }
+    }
+
     @MainActor
     func testAcknowledgementRejectsLateSavesAcrossManagerLifetimes() async throws {
         let (manager, disk, worker, upload) = makeUpload()
@@ -91,12 +131,14 @@ final class UploadPersistenceOrderingTests: XCTestCase {
 
     private final class RecordingWorker: ChunkedFileUploader {
         private var delegates: [String: ChunkedFileUploaderDelegate] = [:]
+        var onStart: (() -> Void)?
 
         override func addDelegate(withToken token: String, _ delegate: ChunkedFileUploaderDelegate) {
             delegates[token] = delegate
         }
         override func removeDelegate(withToken token: String) { delegates.removeValue(forKey: token) }
         override func cancel() { }
+        override func start() { onStart?() }
         override func persistenceState(for state: InternalUploadState) -> InternalUploadState { state }
 
         func emit(_ state: InternalUploadState) {
