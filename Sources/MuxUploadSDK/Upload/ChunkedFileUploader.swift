@@ -366,6 +366,14 @@ class ChunkedFileUploader {
             file: ChunkedFile(chunkSize: persistenceEntry.uploadInfo.options.transport.chunkSizeInBytes),
             startingByte: persistenceEntry.lastSuccessfulByte
         )
+        let fileSize = try? FileManager.default.fileSizeOfItem(atPath: inputFileURL.path)
+        overallProgress.totalUnitCount = fileSize.flatMap { Int64(exactly: $0) } ?? -1
+        overallProgress.completedUnitCount = Int64(clamping: persistenceEntry.lastSuccessfulByte)
+        currentState = .paused(Update(
+            progress: overallProgress,
+            startTime: 0,
+            updateTime: persistenceEntry.savedAt
+        ))
     }
     
     init(
@@ -414,10 +422,10 @@ class ChunkedFileUploader {
 
         func withCompletedUnitCount(_ completedUnitCount: UInt64) -> Update {
             let safeProgress = Progress(totalUnitCount: progress.totalUnitCount)
-            safeProgress.completedUnitCount = min(
-                Int64(completedUnitCount),
-                progress.totalUnitCount
-            )
+            let completed = Int64(clamping: completedUnitCount)
+            safeProgress.completedUnitCount = progress.totalUnitCount >= 0
+                ? min(completed, progress.totalUnitCount)
+                : completed
             return Update(
                 progress: safeProgress,
                 startTime: startTime,

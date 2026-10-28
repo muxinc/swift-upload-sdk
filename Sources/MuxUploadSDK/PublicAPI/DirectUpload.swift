@@ -562,19 +562,25 @@ public final class DirectUpload {
         wrapping uploader: ChunkedFileUploader,
         uploadManager: DirectUploadManager
     ) {
+        let sourceAsset = AVURLAsset(url: uploader.uploadInfo.sourceFileURL ?? uploader.inputFileURL)
+        let status: UploadInput.Status
+        if case .paused(let update) = uploader.currentState {
+            status = .uploadPaused(sourceAsset, uploader.uploadInfo, TransportStatus(
+                progress: update.progress,
+                updatedTime: update.updateTime,
+                startTime: nil,
+                isPaused: true
+            ))
+        } else {
+            status = .uploadInProgress(sourceAsset, uploader.uploadInfo, TransportStatus(
+                progress: uploader.currentState.progress ?? Progress(),
+                updatedTime: 0,
+                startTime: 0,
+                isPaused: false
+            ))
+        }
         self.init(
-            input: UploadInput(
-                status: .uploadInProgress(
-                    AVURLAsset(url: uploader.uploadInfo.sourceFileURL ?? uploader.inputFileURL),
-                    uploader.uploadInfo,
-                    TransportStatus(
-                        progress: uploader.currentState.progress ?? Progress(),
-                        updatedTime: 0,
-                        startTime: 0,
-                        isPaused: false
-                    )
-                )
-            ),
+            input: UploadInput(status: status),
             uploadManager: uploadManager,
             inputInspector: .shared
         )
@@ -672,7 +678,8 @@ public final class DirectUpload {
         if !forceRestart && self.manageBySDK && fileWorker == nil {
             // See if there's anything in progress already
             fileWorker = uploadManager.findChunkedFileUploader(
-                inputFileURL: input.sourceAsset.url
+                inputFileURL: input.sourceAsset.url,
+                uploadURL: input.uploadInfo.uploadURL
             )
             usesBorrowedFileWorker = fileWorker != nil
         }
@@ -683,6 +690,7 @@ public final class DirectUpload {
         }
         if fileWorker != nil && !forceRestart {
             SDKLogger.logger?.warning("start() called but upload is already in progress")
+            if let fileWorker { prepareExistingTransport(fileWorker) }
             fileWorker?.addDelegate(
                 withToken: id,
                 InternalUploaderDelegate {
@@ -704,6 +712,23 @@ public final class DirectUpload {
                 sourceAsset: sourceAsset,
                 attempt: attempt
             )
+        }
+    }
+
+    private func prepareExistingTransport(_ worker: ChunkedFileUploader) {
+        uploadManager.markUploadStarted(worker)
+        switch input.status {
+        case .uploadInProgress, .uploadSucceeded, .uploadFailed:
+            return
+        default:
+            let previous = input.transportStatus
+            let now = Date().timeIntervalSince1970
+            input.status = .uploadInProgress(input.sourceAsset, input.uploadInfo, TransportStatus(
+                progress: worker.currentState.progress ?? previous?.progress,
+                updatedTime: now,
+                startTime: previous?.startTime ?? now,
+                isPaused: false
+            ))
         }
     }
 
@@ -1128,7 +1153,8 @@ public final class DirectUpload {
             let result = await DirectUploadTransportCommitCoordinator.shared.coordinate {
                 if self.manageBySDK, attempt.allowsWorkerReuse,
                    let existingWorker = self.uploadManager.findChunkedFileUploader(
-                       inputFileURL: self.input.sourceAsset.url
+                       inputFileURL: self.input.sourceAsset.url,
+                       uploadURL: self.input.uploadInfo.uploadURL
                    ) {
                     return await self.preparationLifecycle.commitTransport(for: attempt) {
                         SDKLogger.logger?.warning(
@@ -1140,6 +1166,7 @@ public final class DirectUpload {
                             withToken: self.id,
                             InternalUploaderDelegate { [self] state in handleStateUpdate(state) }
                         )
+                        self.prepareExistingTransport(existingWorker)
                         self.handleStateUpdate(existingWorker.currentState)
                         existingWorker.start()
                     }
