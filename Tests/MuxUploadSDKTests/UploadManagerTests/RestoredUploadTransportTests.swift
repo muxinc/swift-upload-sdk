@@ -18,7 +18,7 @@ final class RestoredUploadTransportTests: XCTestCase {
     }
 
     @MainActor
-    func testBulkResumeAfterFailureContinuesFromCheckpoint() async throws {
+    func testBulkResumeOfStandardizedPayloadInNewSessionContinuesFromCheckpoint() async throws {
         try await resumeAfterFailure(usingBulkRestoration: true)
     }
 
@@ -27,7 +27,18 @@ final class RestoredUploadTransportTests: XCTestCase {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
-        let fileURL = directory.appendingPathComponent("input.bin")
+        let sourceURL = directory.appendingPathComponent("source.bin")
+        try Data([9, 8, 7]).write(to: sourceURL)
+        let fileURL = try FileSystemTemporaryStoragePreflighter().outputURL(
+            for: sourceURL, duration: .zero,
+            conversion: StandardInputConversion(
+                sourceCodec: .h264, outputCodec: .h264, sourceDynamicRange: .sdr,
+                sourceDisplayDimensions: .known(.init(width: 64, height: 64)),
+                toneMapsToSDR: false, selection: .init(maximumResolution: .preset1920x1080),
+                requirementsToRemediate: []
+            )
+        )
+        defer { try? FileManager.default.removeItem(at: fileURL) }
         let bytes = Data((0..<4095).map { UInt8($0 % 251) })
         try bytes.write(to: fileURL)
         let listening = expectation(description: "Failure server listening")
@@ -36,8 +47,9 @@ final class RestoredUploadTransportTests: XCTestCase {
         defer { server.stop() }
         await fulfillment(of: [listening], timeout: 5)
         let port = try XCTUnwrap(server.port)
-        let entry = makeEntry(fileURL: fileURL, port: port, checkpoint: 1024)
-        let persistence = UploadPersistence(innerFile: FakeUploadsFile.simiulatedStorage(), atURL: fileURL)
+        let entry = makeEntry(fileURL: fileURL, port: port, checkpoint: 1024, sourceURL: sourceURL)
+        let persistenceURL = directory.appendingPathComponent("uploads.json")
+        let persistence = UploadPersistence(innerFile: DiskUploadsFile(url: persistenceURL), atURL: persistenceURL)
         try persistence.write(entry: entry, for: entry.uploadInfo.id)
         let cache = UploadCacheActor(persistence: persistence)
         let manager = DirectUploadManager(uploadActor: cache)
@@ -51,6 +63,13 @@ final class RestoredUploadTransportTests: XCTestCase {
         failed.start()
         await fulfillment(of: [failure], timeout: 5)
 
+        // Drain the first manager's ordered persistence before simulating process exit.
+        let inSessionReplacement = await manager.resumeDirectUpload(ofFile: sourceURL)
+        // Read only on-disk state using fresh session objects, as on the next app launch.
+        XCTAssertTrue(FileManager.default.fileExists(atPath: fileURL.path))
+        let nextPersistence = UploadPersistence(innerFile: DiskUploadsFile(url: persistenceURL), atURL: persistenceURL)
+        let nextCache = UploadCacheActor(persistence: nextPersistence)
+        let nextManager = DirectUploadManager(uploadActor: nextCache)
         let resumed: DirectUpload
         if usingBulkRestoration {
             let restored = expectation(description: "Failed handle replaced")
@@ -61,21 +80,20 @@ final class RestoredUploadTransportTests: XCTestCase {
                     restored.fulfill()
                 }
             }
-            manager.addDelegate(delegate)
-            manager.resumeAllDirectUploads()
+            nextManager.addDelegate(delegate)
+            nextManager.resumeAllDirectUploads()
             await fulfillment(of: [restored], timeout: 5)
-            manager.removeDelegate(delegate)
-            resumed = try XCTUnwrap(manager.startedDirectUpload(ofFile: fileURL))
+            nextManager.removeDelegate(delegate)
+            resumed = try XCTUnwrap(nextManager.startedDirectUpload(ofFile: fileURL))
         } else {
-            let restored = await manager.resumeDirectUpload(ofFile: fileURL)
-            resumed = try XCTUnwrap(restored)
+            resumed = try XCTUnwrap(inSessionReplacement)
         }
         XCTAssertFalse(resumed === failed)
         XCTAssertNotNil(resumed.fileWorker)
         XCTAssertFalse(resumed.inProgress)
         XCTAssertEqual(resumed.uploadStatus?.progress?.completedUnitCount, 1024)
-        XCTAssertEqual(manager.allManagedDirectUploads().count, 1)
-        let saved = await cache.getUpload(uploadID: entry.uploadInfo.id)
+        XCTAssertEqual((usingBulkRestoration ? nextManager : manager).allManagedDirectUploads().count, 1)
+        let saved = await (usingBulkRestoration ? nextCache : cache).getUpload(uploadID: entry.uploadInfo.id)
         XCTAssertEqual(saved?.currentState.progress?.completedUnitCount, 1024)
 
         let success = expectation(description: "Checkpoint transfer succeeds")
@@ -90,6 +108,84 @@ final class RestoredUploadTransportTests: XCTestCase {
             "bytes 1024-2047/4095", "bytes 2048-3071/4095", "bytes 3072-4094/4095"
         ])
         XCTAssertEqual(server.receivedBytes, bytes.subdata(in: 1024..<2048) + bytes.subdata(in: 1024..<4095))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: fileURL.path))
+        XCTAssertEqual(try Data(contentsOf: sourceURL), Data([9, 8, 7]))
+    }
+
+    func testLegacyStandardizedPayloadMovesToCurrentContainerAndExpires() throws {
+        let name = "mux-upload-\(UUID().uuidString).mp4"
+        let legacy = FileManager.default.temporaryDirectory
+            .appendingPathComponent(FileSystemTemporaryStoragePreflighter.directoryName)
+            .appendingPathComponent(name)
+        try FileManager.default.createDirectory(at: legacy.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data([1, 2, 3]).write(to: legacy)
+        let durable = FileSystemTemporaryStoragePreflighter.durableBaseDirectory
+            .appendingPathComponent(FileSystemTemporaryStoragePreflighter.directoryName).appendingPathComponent(name)
+        defer {
+            try? FileManager.default.removeItem(at: legacy)
+            try? FileManager.default.removeItem(at: durable)
+        }
+        // An older install's absolute container path, with bytes still present in today's tmp.
+        let oldURL = URL(fileURLWithPath: "/previous-container/tmp/MuxUploadSDK/Standardized/" + name)
+        let entry = makeEntry(fileURL: oldURL, port: 1, checkpoint: 2)
+        let disk = FakeUploadsFile.simiulatedStorage()
+        try disk.writeContents(of: UploadsFileContents(entries: [entry]))
+        let persistence = UploadPersistence(innerFile: disk, atURL: legacy)
+        let restored = try XCTUnwrap(persistence.readEntry(uploadID: entry.uploadInfo.id))
+        XCTAssertEqual(restored.inputFileURL, durable)
+        XCTAssertEqual(restored.lastSuccessfulByte, 2)
+        XCTAssertEqual(try Data(contentsOf: durable), Data([1, 2, 3]))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: legacy.path))
+        XCTAssertEqual(try durable.deletingLastPathComponent().resourceValues(forKeys: [.isExcludedFromBackupKey]).isExcludedFromBackup, true)
+
+        // A subsequent container-path change also resolves the same durable bytes.
+        let moved = entry.with(inputFileURL: URL(fileURLWithPath:
+            "/previous-container/Library/Application Support/MuxUploadSDK/Standardized/" + name),
+                               uploadURL: entry.uploadInfo.uploadURL)
+        try disk.writeContents(of: UploadsFileContents(entries: [moved]))
+        let reloaded = UploadPersistence(innerFile: disk, atURL: legacy)
+        XCTAssertEqual(try reloaded.readEntry(uploadID: entry.uploadInfo.id)?.inputFileURL, durable)
+        try reloaded.write(entry: restored.with(savedAt: Date().timeIntervalSince1970 - 4 * 24 * 60 * 60,
+                                               inputFileURL: durable, uploadURL: entry.uploadInfo.uploadURL),
+                           for: entry.uploadInfo.id)
+        XCTAssertTrue(try UploadPersistence(innerFile: disk, atURL: legacy).readAll().isEmpty)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: durable.path))
+    }
+
+    @MainActor
+    func testMissingLegacyPayloadReportsFileErrorAndDiscardsCheckpoint() async throws {
+        let source = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try Data([9, 8, 7]).write(to: source)
+        defer { try? FileManager.default.removeItem(at: source) }
+        let missing = FileManager.default.temporaryDirectory
+            .appendingPathComponent("MuxUploadSDK/Standardized/mux-upload-\(UUID().uuidString).mp4")
+        let entry = makeEntry(fileURL: missing, port: 1, checkpoint: 1024, sourceURL: source)
+        let disk = FakeUploadsFile.simiulatedStorage()
+        try disk.writeContents(of: UploadsFileContents(entries: [entry]))
+        let cache = UploadCacheActor(persistence: UploadPersistence(innerFile: disk, atURL: missing))
+        let manager = DirectUploadManager(uploadActor: cache)
+        let restored = await manager.resumeDirectUpload(ofFile: source)
+        let upload = try XCTUnwrap(restored)
+        let failure = expectation(description: "Missing payload is reported")
+        upload.resultHandler = { result in
+            guard case .failure(let error) = result else { return XCTFail("Must report missing bytes") }
+            XCTAssertEqual(error.kind, .file)
+            XCTAssertTrue(error.message.contains("Start a new upload"))
+            failure.fulfill()
+        }
+        upload.start()
+        await fulfillment(of: [failure], timeout: 5)
+        // Observe the ordered removal before reading the next session's disk state.
+        for _ in 0..<100 {
+            if await cache.getUpload(uploadID: entry.uploadInfo.id) == nil { break }
+            try await Task.sleep(nanoseconds: 1_000_000)
+        }
+        let nextManager = DirectUploadManager(uploadActor: UploadCacheActor(
+            persistence: UploadPersistence(innerFile: disk, atURL: missing)))
+        let retry = await nextManager.resumeDirectUpload(ofFile: source)
+        XCTAssertNil(retry)
+        XCTAssertTrue(try disk.readContents().entriesAbsFileUrlToUploadInfo.isEmpty)
+        XCTAssertEqual(try Data(contentsOf: source), Data([9, 8, 7]))
     }
 
     @MainActor
@@ -150,13 +246,14 @@ final class RestoredUploadTransportTests: XCTestCase {
         XCTAssertNil(manager.findChunkedFileUploader(inputFileURL: fileURL, uploadURL: newURL))
     }
 
-    private func makeEntry(fileURL: URL, port: UInt16, checkpoint: UInt64) -> PersistenceEntry {
+    private func makeEntry(fileURL: URL, port: UInt16, checkpoint: UInt64, sourceURL: URL? = nil) -> PersistenceEntry {
         PersistenceEntry(
             savedAt: Date().timeIntervalSince1970,
             stateCode: .wasPaused,
             lastSuccessfulByte: checkpoint,
             uploadInfo: UploadInfo(
                 uploadURL: URL(string: "http://127.0.0.1:\(port)/old-session")!,
+                sourceFileURL: sourceURL,
                 options: DirectUploadOptions(
                     eventTracking: .init(optedOut: true),
                     inputStandardization: .skipped,
@@ -375,5 +472,17 @@ final class RestoredUploadTransportTests: XCTestCase {
                 connection.cancel()
             })
         }
+    }
+}
+
+private struct DiskUploadsFile: UploadsFile {
+    let url: URL
+    func maybeOpenCache() throws {}
+    func readContents() throws -> UploadsFileContents {
+        guard FileManager.default.fileExists(atPath: url.path) else { return UploadsFileContents(entries: []) }
+        return try JSONDecoder().decode(UploadsFileContents.self, from: Data(contentsOf: url))
+    }
+    func writeContents(of contents: UploadsFileContents) throws {
+        try JSONEncoder().encode(contents).write(to: url, options: .atomic)
     }
 }

@@ -1341,6 +1341,9 @@ public final class DirectUpload {
         }
         case .failure(let error): do {
             let failedFileURL = fileWorker?.inputFileURL
+            let canResume = failedFileURL.map {
+                PersistenceEntry.fromUploadState(state, forUpload: input.uploadInfo, inputFileURL: $0) != nil
+            } ?? false
             let parsedError = parseAsUploadError(
                 lastSeenUploadStatus: input.transportStatus ?? TransportStatus(
                     progress: nil,
@@ -1373,7 +1376,8 @@ public final class DirectUpload {
             }
             fileWorker?.removeDelegate(withToken: id)
             fileWorker = nil
-            removeOwnedTemporaryFile(failedFileURL)
+            // Persistence keeps this checkpoint; it must keep these exact bytes too.
+            if !canResume { removeOwnedTemporaryFile(failedFileURL) }
         }
         case .uploading(let update): do {
             let status = TransportStatus(
@@ -1464,6 +1468,14 @@ extension DirectUpload {
                 )
             }
         } else if let realError = error.asInternalUploaderError() {
+            if realError.isMissingInputFile {
+                return DirectUploadError(
+                    lastStatus: lastSeenUploadStatus,
+                    kind: .file,
+                    message: "The saved upload file is missing. Start a new upload from the original file.",
+                    reason: realError
+                )
+            }
             // All DirectUploadError does is wrap ChunkedFile
             // and ChunkWorker errors
             return DirectUploadError(
