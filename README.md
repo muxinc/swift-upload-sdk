@@ -76,6 +76,43 @@ final class UploadCoordinator {
 }
 ```
 
+### Restore and retry managed uploads
+
+Keep the original file in durable, app-owned storage until the upload completes. For example, copy a PhotosPicker temporary file to your app's Documents or Application Support directory before creating a `DirectUpload`.
+
+At application startup, retain a coordinator and restore uploads before starting them. The completion below identifies when restoration has finished; unrelated delegate notifications may arrive earlier.
+
+```swift
+let manager = DirectUploadManager.shared
+manager.resumeAllDirectUploads { result in
+    switch result {
+    case .success(let uploads):
+        for upload in uploads where !upload.inProgress && !upload.complete {
+            upload.resultHandler = { result in
+                // On failure, inspect error.httpStatusCode and error.requiresNewUpload.
+                // When requiresNewUpload is true, check the Direct Upload with your backend.
+                // If incomplete, request a new URL before retrying the original file.
+            }
+            upload.start()
+        }
+    case .failure(let error):
+        print("Could not restore uploads: \(error.localizedDescription)")
+    }
+}
+```
+
+The SDK records preparation before conversion starts. After relaunch, an unfinished preparation starts again from the original file. Once transport begins, the SDK retains and verifies the exact standardized payload and reconciles its checkpoint with the upload server. A recoverable failure can be retried with `start()` on the same handle. Repeated starts do not create a second transport.
+
+`start(forceRestart: true)` restarts preparation only before transport begins. After transport begins it resumes the retained payload, without re-encoding or resetting the server's offset. To upload different bytes, or after explicit cancellation, create a new Direct Upload with a **new upload URL**.
+
+The SDK removes its generated files after confirmed completion, cancellation, terminal failure, or local checkpoint expiry (seven days without an update). Your backend must give upload URLs a timeout covering your intended recovery window. A non-retryable HTTP rejection of the upload URL is terminal even when local files still exist. A backend `timed_out` status does not guarantee that the storage URL immediately rejects requests; do not use that status alone as proof that an asset cannot still be created. Keep the backend Direct Upload ID associated with each upload. If the final response was lost and the session has since expired, check that ID with your backend before creating a replacement: the asset may already exist. The application owns cleanup of the original source. Upload execution resumes when your application launches and calls the restore/start APIs; force-quitting does not keep execution running.
+
+This recovery format applies to uploads started on the updated SDK. It does not migrate in-progress uploads from earlier SDK versions or reconstruct missing payloads. Error classification now exposes nested HTTP/connection/file causes instead of reporting every transport failure as unknown; `httpStatusCode` and `requiresNewUpload` support application recovery decisions.
+
+SDK success confirms transport completion. Check the Direct Upload and asset status through your backend to confirm processing reached `ready`; retain the original longer if your application needs to recover from processing errors.
+
+The example app restores managed uploads at launch and keeps picker exports in durable storage.
+
 ### Configure Input Standardization
 
 Input standardization is enabled by default and is best effort. The SDK uploads compliant H.264 and HEVC inputs without re-encoding them. When local inspection, conversion, or validation cannot complete, the SDK uploads the original input by default so that Mux can process it.

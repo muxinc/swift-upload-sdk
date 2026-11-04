@@ -3,62 +3,35 @@ import XCTest
 @testable import MuxUploadSDK
 
 final class DirectUploadForceRestartTests: XCTestCase {
-    func testForceRestartDoesNotCancelAnotherUploadsWorker() async throws {
-        for alreadySharing in [false, true] {
-            let manager = DirectUploadManager()
-            let input = try UploadInput.mockReadyInput()
-            let firstStarted = expectation(description: "First upload transport")
-            let shared = alreadySharing ? expectation(description: "Normal start reuses the first worker") : nil
-            var startCount = 0
-            let first = makeUpload(input: input, inspector: RestartInspector(), manager: manager) {
-                startCount += 1
-                if startCount == 1 { firstStarted.fulfill() }
-                else { shared?.fulfill() }
-            }
-            let second = makeUpload(input: try UploadInput.mockReadyInput(), inspector: RestartInspector(), manager: manager)
-            XCTAssertNotEqual(first.id, second.id)
-            first.start()
-            await fulfillment(of: [firstStarted], timeout: 2)
-            let originalWorker = try XCTUnwrap(first.fileWorker as? RestartFileWorker)
-            first.inputStatusHandler = nil
-            first.resultHandler = { _ in XCTFail("Restarting another upload must not terminate the first") }
-
-            if let shared {
-                second.start()
-                await fulfillment(of: [shared], timeout: 2)
-                XCTAssertTrue(second.fileWorker === originalWorker)
-            }
-
-            let replacementStarted = expectation(description: "Forced start creates independent transport")
-            second.inputStatusHandler = { status in
-                if case .transportInProgress = status { replacementStarted.fulfill() }
-            }
-            second.start(forceRestart: true)
-            await fulfillment(of: [replacementStarted], timeout: 2)
-            XCTAssertFalse(originalWorker.wasCancelled)
-            XCTAssertTrue(first.fileWorker === originalWorker)
-            XCTAssertFalse(second.fileWorker === originalWorker)
-            let replacement = try XCTUnwrap(second.fileWorker as? RestartFileWorker)
-            XCTAssertEqual(replacement.startingByte, 0)
-
-            // Both independent uploads must still deliver their own completion.
-            let firstFinished = expectation(description: "First upload completes")
-            let secondFinished = expectation(description: "Second upload completes")
-            first.resultHandler = { result in
-                if case .success = result { firstFinished.fulfill() }
-            }
-            second.resultHandler = { result in
-                if case .success = result { secondFinished.fulfill() }
-            }
-            originalWorker.emit(.success(.init(
-                finalProgress: Progress(totalUnitCount: 100), startTime: 1, finishTime: 2
-            )))
-            XCTAssertTrue(second.fileWorker === replacement)
-            replacement.emit(.success(.init(
-                finalProgress: Progress(totalUnitCount: 100), startTime: 1, finishTime: 2
-            )))
-            await fulfillment(of: [firstFinished, secondFinished], timeout: 2)
+    func testForceRestartOfBorrowedTransportKeepsTheSamePayloadAndWorker() async throws {
+        let manager = makeTestUploadManager()
+        let firstStarted = expectation(description: "Original transport starts")
+        let borrowed = expectation(description: "Second handle borrows transport")
+        let resumed = expectation(description: "Forced restart resumes the existing transport")
+        var starts = 0
+        let first = makeUpload(input: try UploadInput.mockReadyInput(), inspector: RestartInspector(), manager: manager) {
+            starts += 1
+            if starts == 1 { firstStarted.fulfill() }
+            else if starts == 2 { borrowed.fulfill() }
+            else if starts == 3 { resumed.fulfill() }
         }
+        let second = makeUpload(input: try UploadInput.mockReadyInput(), inspector: RestartInspector(), manager: manager)
+        first.start()
+        await fulfillment(of: [firstStarted], timeout: 2)
+        let original = try XCTUnwrap(first.fileWorker as? RestartFileWorker)
+        second.start()
+        await fulfillment(of: [borrowed], timeout: 2)
+        second.start(forceRestart: true)
+        await fulfillment(of: [resumed], timeout: 2)
+        XCTAssertTrue(second.fileWorker === original)
+        XCTAssertTrue(first.fileWorker === original)
+        XCTAssertFalse(original.wasCancelled)
+        let completed = expectation(description: "Both handles observe the same completion")
+        completed.expectedFulfillmentCount = 2
+        first.resultHandler = { if case .success = $0 { completed.fulfill() } }
+        second.resultHandler = { if case .success = $0 { completed.fulfill() } }
+        original.emit(.success(.init(finalProgress: Progress(totalUnitCount: 100), startTime: 1, finishTime: 2)))
+        await fulfillment(of: [completed], timeout: 2)
     }
 
     func testForceRestartDuringInspectionSuppressesOldCompletion() async throws {
@@ -95,57 +68,32 @@ final class DirectUploadForceRestartTests: XCTestCase {
         }
     }
 
-    func testForceRestartDuringTransportResetsProgressAndPreservesCallbacks() async throws {
+    func testForceRestartDuringTransportPreservesWorkerAndCallbacks() async throws {
         for paused in [false, true] {
-            let firstTransport = expectation(description: "First transport")
-            let secondTransport = expectation(description: "Replacement transport")
-            let progress = expectation(description: "Progress handler survives restart")
-            let success = expectation(description: "Result handler survives restart")
-            let pauseReached = paused ? expectation(description: "Transport paused") : nil
+            let started = expectation(description: "Transport starts")
+            let resumed = expectation(description: "The same transport resumes")
+            let finished = expectation(description: "Result handler survives")
             let upload = try makeUpload(inspector: RestartInspector())
-            var transportCount = 0
-            var lastWorker: ChunkedFileUploader?
-            upload.inputStatusHandler = { status in
-                if case .transportInProgress = status, upload.fileWorker !== lastWorker {
-                    lastWorker = upload.fileWorker
-                    transportCount += 1
-                    (transportCount == 1 ? firstTransport : secondTransport).fulfill()
-                }
-            }
+            upload.inputStatusHandler = { if case .transportInProgress = $0 { started.fulfill() } }
             upload.start()
-            await fulfillment(of: [firstTransport], timeout: 2)
-            let oldWorker = try XCTUnwrap(upload.fileWorker as? RestartFileWorker)
-            oldWorker.emit(.uploading(.init(
-                progress: Progress(totalUnitCount: 100).withCompleted(50),
-                startTime: 1, updateTime: 2
-            )))
-            if let pauseReached {
-                oldWorker.onPause = { pauseReached.fulfill() }
+            await fulfillment(of: [started], timeout: 2)
+            upload.inputStatusHandler = nil
+            let worker = try XCTUnwrap(upload.fileWorker as? RestartFileWorker)
+            worker.emit(.uploading(.init(progress: Progress(totalUnitCount: 100).withCompleted(50), startTime: 1, updateTime: 2)))
+            if paused {
+                let didPause = expectation(description: "Paused")
+                worker.onPause = { didPause.fulfill() }
                 upload.pause()
-                await fulfillment(of: [pauseReached], timeout: 2)
+                await fulfillment(of: [didPause], timeout: 2)
             }
-            upload.progressHandler = { _ in progress.fulfill() }
-            upload.resultHandler = { result in
-                guard case .success = result else {
-                    return XCTFail("Old transport must not report a terminal result")
-                }
-                success.fulfill()
-            }
+            worker.onStart = { resumed.fulfill() }
+            upload.resultHandler = { if case .success = $0 { finished.fulfill() } }
             upload.start(forceRestart: true)
-            await fulfillment(of: [secondTransport], timeout: 2)
-            let replacement = try XCTUnwrap(upload.fileWorker as? RestartFileWorker)
-            XCTAssertFalse(oldWorker === replacement)
-            XCTAssertTrue(oldWorker.wasCancelled)
-            XCTAssertEqual(replacement.startingByte, 0)
-            oldWorker.emit(.failure(CancellationError()))
-            XCTAssertTrue(upload.fileWorker === replacement)
-            replacement.emit(.uploading(.init(
-                progress: Progress(totalUnitCount: 100), startTime: 3, updateTime: 4
-            )))
-            replacement.emit(.success(.init(
-                finalProgress: Progress(totalUnitCount: 100), startTime: 3, finishTime: 5
-            )))
-            await fulfillment(of: [progress, success], timeout: 2)
+            await fulfillment(of: [resumed], timeout: 2)
+            XCTAssertTrue(upload.fileWorker === worker)
+            XCTAssertFalse(worker.wasCancelled)
+            worker.emit(.success(.init(finalProgress: Progress(totalUnitCount: 100).withCompleted(100), startTime: 1, finishTime: 3)))
+            await fulfillment(of: [finished], timeout: 2)
         }
     }
 
@@ -161,7 +109,7 @@ final class DirectUploadForceRestartTests: XCTestCase {
     }
 
     private func makeUpload(inspector: RestartInspector) throws -> DirectUpload {
-        makeUpload(input: try UploadInput.mockReadyInput(), inspector: inspector, manager: DirectUploadManager())
+        makeUpload(input: try UploadInput.mockReadyInput(), inspector: inspector, manager: makeTestUploadManager())
     }
 
     private func makeUpload(

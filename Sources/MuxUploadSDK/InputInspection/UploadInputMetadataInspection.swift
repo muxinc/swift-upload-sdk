@@ -398,8 +398,12 @@ enum AVFoundationUploadInputMetadataReader {
             count: pictureParameterSetCount,
             data: data,
             offset: &offset
-        ), offset + 2 < data.count else {
-            return nil
+        ) else { return nil }
+        // AVAssetWriter can omit the optional high-profile avcC extension.
+        // The SPS still carries authoritative chroma and bit-depth evidence.
+        guard offset + 2 < data.count else {
+            guard offset == data.count, sequenceParameterSetCount == 1 else { return nil }
+            return inspectAVCPixelFormatInSPS(data)
         }
 
         let chromaFormat = byte(in: data, at: offset) & 0x03
@@ -410,6 +414,49 @@ enum AVFoundationUploadInputMetadataReader {
             bitDepth: max(lumaBitDepth, chromaBitDepth),
             chromaSubsampling: chromaFormat == 1 ? .yuv420 : .other
         )
+    }
+
+    private static func inspectAVCPixelFormatInSPS(_ data: Data) -> StandardInputPixelFormat? {
+        guard data.count >= 8 else { return nil }
+        let length = Int(byte(in: data, at: 6)) * 256 + Int(byte(in: data, at: 7))
+        guard length >= 5, length <= data.count - 8,
+              byte(in: data, at: 8) & 0x1f == 7,
+              byte(in: data, at: 9) == byte(in: data, at: 1) else { return nil }
+        var rbsp: [UInt8] = []
+        var zeros = 0
+        for index in 9..<(8 + length) {
+            let value = byte(in: data, at: index)
+            if zeros == 2 && value == 3 { zeros = 0; continue }
+            rbsp.append(value)
+            zeros = value == 0 ? zeros + 1 : 0
+        }
+        var bit = 24 // profile_idc, constraint flags, level_idc
+        func readBit() -> Int? {
+            guard bit < rbsp.count * 8 else { return nil }
+            defer { bit += 1 }
+            return Int((rbsp[bit / 8] >> (7 - bit % 8)) & 1)
+        }
+        func unsignedGolomb() -> Int? {
+            var zeros = 0
+            while true {
+                guard let value = readBit(), zeros <= 16 else { return nil }
+                if value == 1 { break }
+                zeros += 1
+            }
+            var suffix = 0
+            for _ in 0..<zeros {
+                guard let value = readBit() else { return nil }
+                suffix = suffix * 2 + value
+            }
+            return (1 << zeros) - 1 + suffix
+        }
+        guard let parameterSet = unsignedGolomb(), parameterSet < 32,
+              let chroma = unsignedGolomb(), chroma < 4 else { return nil }
+        if chroma == 3, readBit() == nil { return nil }
+        guard let luma = unsignedGolomb(), luma <= 6,
+              let chromaDepth = unsignedGolomb(), chromaDepth <= 6 else { return nil }
+        return StandardInputPixelFormat(bitDepth: 8 + max(luma, chromaDepth),
+            chromaSubsampling: chroma == 1 ? .yuv420 : .other)
     }
 
     private static func skipLengthPrefixedEntries(

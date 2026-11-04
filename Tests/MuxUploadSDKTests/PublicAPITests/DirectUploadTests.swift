@@ -47,7 +47,7 @@ class DirectUploadTests: XCTestCase {
         for iteration in 0..<100 {
             let upload = DirectUpload(
                 input: try UploadInput.mockReadyInput(),
-                uploadManager: DirectUploadManager(),
+                uploadManager: makeTestUploadManager(),
                 inputInspector: MockUploadInputInspector(shouldDeferCompletion: true)
             )
             let cancellation = expectation(
@@ -106,7 +106,7 @@ class DirectUploadTests: XCTestCase {
 
         let upload = DirectUpload(
             input: input,
-            uploadManager: DirectUploadManager(),
+            uploadManager: makeTestUploadManager(),
             inputInspector: MockUploadInputInspector.alwaysStandard
         )
 
@@ -144,7 +144,7 @@ class DirectUploadTests: XCTestCase {
         let standardizer = MockUploadInputStandardizer()
         let upload = DirectUpload(
             input: input,
-            uploadManager: DirectUploadManager(),
+            uploadManager: makeTestUploadManager(),
             inputInspector: inspector,
             inputStandardizer: standardizer
         )
@@ -213,7 +213,7 @@ class DirectUploadTests: XCTestCase {
         let upload = DirectUpload(
             input: input,
             manage: false,
-            uploadManager: DirectUploadManager(),
+            uploadManager: makeTestUploadManager(),
             inputInspector: MockUploadInputInspector(
                 mockInspectionResult: source,
                 duration: CMTime(seconds: 10, preferredTimescale: 600),
@@ -327,7 +327,7 @@ class DirectUploadTests: XCTestCase {
             description: "Cancellation was reported after cleanup"
         )
         let allowWorkerCreation = DispatchSemaphore(value: 0)
-        let uploadManager = DirectUploadManager()
+        let uploadManager = makeTestUploadManager()
         let upload = DirectUpload(
             input: input,
             uploadManager: uploadManager,
@@ -374,7 +374,7 @@ class DirectUploadTests: XCTestCase {
         await fulfillment(of: [completionFinished], timeout: 1.0)
 
         XCTAssertNil(upload.fileWorker)
-        XCTAssertTrue(uploadManager.allManagedDirectUploads().isEmpty)
+        XCTAssertEqual(uploadManager.allManagedDirectUploads().map(\.id), [upload.id])
         guard case .preparing = upload.inputStatus else {
             return XCTFail("Expected the old attempt not to advance the new attempt")
         }
@@ -387,7 +387,7 @@ class DirectUploadTests: XCTestCase {
 
         let upload = DirectUpload(
             input: input,
-            uploadManager: DirectUploadManager(),
+            uploadManager: makeTestUploadManager(),
             inputInspector: MockUploadInputInspector.alwaysFailing,
             standardizationDiagnosticLogger: diagnostics
         )
@@ -429,7 +429,7 @@ class DirectUploadTests: XCTestCase {
         let input = try UploadInput.mockReadyInput()
         let upload = DirectUpload(
             input: input,
-            uploadManager: DirectUploadManager(),
+            uploadManager: makeTestUploadManager(),
             inputInspector: MockUploadInputInspector.alwaysFailing
         )
         var handlerCallCount = 0
@@ -458,7 +458,7 @@ class DirectUploadTests: XCTestCase {
         let input = try UploadInput.mockReadyInput()
         let upload = DirectUpload(
             input: input,
-            uploadManager: DirectUploadManager(),
+            uploadManager: makeTestUploadManager(),
             inputInspector: MockUploadInputInspector.alwaysFailing
         )
         var handlerCallCount = 0
@@ -562,7 +562,7 @@ class DirectUploadTests: XCTestCase {
         )
         let upload = DirectUpload(
             input: input,
-            uploadManager: DirectUploadManager(),
+            uploadManager: makeTestUploadManager(),
             inputInspector: MockUploadInputInspector(mockInspectionResult: inspection),
             inputStandardizer: standardizer,
             capabilityProvider: FullyCapablePlanningProvider(),
@@ -616,7 +616,7 @@ class DirectUploadTests: XCTestCase {
         let diagnostics = RecordingStandardizationDiagnosticLogger()
         let upload = DirectUpload(
             input: input,
-            uploadManager: DirectUploadManager(),
+            uploadManager: makeTestUploadManager(),
             inputInspector: MockUploadInputInspector(
                 mockInspectionResult: inspectionResult(
                     facts: compliantFacts(
@@ -674,7 +674,7 @@ class DirectUploadTests: XCTestCase {
         let diagnostics = RecordingStandardizationDiagnosticLogger()
         let upload = DirectUpload(
             input: input,
-            uploadManager: DirectUploadManager(),
+            uploadManager: makeTestUploadManager(),
             inputInspector: MockUploadInputInspector(
                 mockInspectionResult: source,
                 duration: CMTime(seconds: 10, preferredTimescale: 600),
@@ -742,7 +742,7 @@ class DirectUploadTests: XCTestCase {
         let diagnostics = RecordingStandardizationDiagnosticLogger()
         let upload = DirectUpload(
             input: input,
-            uploadManager: DirectUploadManager(),
+            uploadManager: makeTestUploadManager(),
             inputInspector: MockUploadInputInspector(
                 mockInspectionResult: source,
                 duration: CMTime(seconds: 10, preferredTimescale: 600),
@@ -790,7 +790,7 @@ class DirectUploadTests: XCTestCase {
         let diagnostics = RecordingStandardizationDiagnosticLogger()
         let upload = DirectUpload(
             input: input,
-            uploadManager: DirectUploadManager(),
+            uploadManager: makeTestUploadManager(),
             inputInspector: MockUploadInputInspector(
                 mockInspectionResult: inspectionResult(
                     facts: conversionFacts(codec: .other)
@@ -835,7 +835,7 @@ class DirectUploadTests: XCTestCase {
         let diagnostics = RecordingStandardizationDiagnosticLogger()
         let upload = DirectUpload(
             input: input,
-            uploadManager: DirectUploadManager(),
+            uploadManager: makeTestUploadManager(),
             inputInspector: MockUploadInputInspector(
                 mockInspectionResult: inspectionResult(
                     facts: conversionFacts(codec: .other)
@@ -890,7 +890,7 @@ class DirectUploadTests: XCTestCase {
         )
         let upload = DirectUpload(
             input: input,
-            uploadManager: DirectUploadManager(),
+            uploadManager: makeTestUploadManager(),
             inputInspector: MockUploadInputInspector(
                 mockInspectionResult: inspectionResult(
                     facts: conversionFacts(codec: .other)
@@ -947,7 +947,7 @@ class DirectUploadTests: XCTestCase {
         )
         let upload = DirectUpload(
             input: input,
-            uploadManager: DirectUploadManager(),
+            uploadManager: makeTestUploadManager(),
             inputInspector: MockUploadInputInspector(
                 mockInspectionResult: source,
                 duration: CMTime(seconds: 10, preferredTimescale: 600),
@@ -972,6 +972,7 @@ class DirectUploadTests: XCTestCase {
         upload.start()
         await fulfillment(of: [failureExpectation], timeout: 1.0)
 
+        await upload.waitForPreparation()
         XCTAssertTrue(FileManager.default.fileExists(atPath: outputURL.path))
         await cancelAndWait(upload)
         for _ in 0..<100 where FileManager.default.fileExists(atPath: outputURL.path) {
@@ -994,7 +995,7 @@ class DirectUploadTests: XCTestCase {
         )
         let upload = DirectUpload(
             input: input,
-            uploadManager: DirectUploadManager(),
+            uploadManager: makeTestUploadManager(),
             inputInspector: MockUploadInputInspector.alwaysFailing,
             storagePreflighter: FixedTemporaryStoragePreflighter(outputURL: nil),
             fileWorkerFactory: makeFailingFileWorker
@@ -1036,7 +1037,7 @@ class DirectUploadTests: XCTestCase {
         let standardizer = MockUploadInputStandardizer()
         let upload = DirectUpload(
             input: input,
-            uploadManager: DirectUploadManager(),
+            uploadManager: makeTestUploadManager(),
             inputInspector: MockUploadInputInspector(
                 mockInspectionResult: inspectionResult
             ),

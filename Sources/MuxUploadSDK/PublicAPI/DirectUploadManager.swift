@@ -5,6 +5,7 @@
 //  Created by Emily Dixon on 3/8/23.
 //
 
+import AVFoundation
 import Foundation
 
 /// Manages uploads in progress by the Mux Upload SDK. Uploads are managed globally by default and can be started, paused,
@@ -68,6 +69,7 @@ public final class DirectUploadManager {
     private final class LockedStorage {
         private let lock = NSLock()
         private var _unsafeUploadsByID: [String: UploadStorage] = [:]
+        private var _unsafePreparations: [String: DirectUpload] = [:]
         private var _unsafeDelegatesByToken: [ObjectIdentifier: any DirectUploadManagerDelegate] = [:]
         // Retained for this manager's lifetime so even an old cache snapshot
         // cannot restore an acknowledged upload. Explicit registration permits a restart.
@@ -79,17 +81,19 @@ public final class DirectUploadManager {
                 _unsafeUploadsByID.values.filter {
                     $0.workerState == .available && ($0.worker.inputFileURL == url || $0.worker.uploadInfo.sourceFileURL == url)
                 }.max(by: UploadStorage.precedes)?.upload
+                    ?? _unsafePreparations.values.first { $0.sourceFileURL == url }
             }
         }
 
         func allUploads() -> [DirectUpload] {
             withLock {
-                Array(_unsafeUploadsByID.values.map(\.upload))
+                Array(_unsafeUploadsByID.values.map(\.upload)) + Array(_unsafePreparations.values)
             }
         }
 
         func upload(forID id: String) -> DirectUpload? {
             withLock {
+                if let preparing = _unsafePreparations[id] { return preparing }
                 guard let stored = _unsafeUploadsByID[id], stored.workerState != .failed else { return nil }
                 return stored.upload
             }
@@ -98,7 +102,7 @@ public final class DirectUploadManager {
         func uploader(inputFileURL: URL, uploadURL: URL) -> ChunkedFileUploader? {
             withLock {
                 _unsafeUploadsByID.values.filter {
-                    $0.workerState == .available && $0.worker.inputFileURL == inputFileURL
+                    $0.workerState == .available && ($0.worker.inputFileURL == inputFileURL || $0.worker.uploadInfo.sourceFileURL == inputFileURL)
                         && $0.worker.uploadInfo.uploadURL == uploadURL
                 }.max(by: UploadStorage.precedes)?.worker
             }
@@ -115,9 +119,24 @@ public final class DirectUploadManager {
             }
         }
 
+        func prepare(_ upload: DirectUpload, persistence: (() async -> Void)? = nil) -> DirectUpload? {
+            withLock {
+                if persistence == nil, _unsafeAcknowledgedIDs.contains(upload.id) { return nil }
+                if let existing = _unsafePreparations[upload.id], persistence == nil { return existing }
+                _unsafeAcknowledgedIDs.remove(upload.id)
+                if _unsafeUploadsByID[upload.id]?.workerState == .failed {
+                    _unsafeUploadsByID.removeValue(forKey: upload.id)
+                }
+                _unsafePreparations[upload.id] = upload
+                if let persistence { enqueuePersistence(persistence) }
+                return upload
+            }
+        }
+
         func insert(_ upload: DirectUpload, worker: ChunkedFileUploader, persistence: @escaping () async -> Void) {
             withLock {
                 _unsafeAcknowledgedIDs.remove(upload.id)
+                _unsafePreparations.removeValue(forKey: upload.id)
                 _unsafeUploadsByID[upload.id] = UploadStorage(
                     upload: upload, worker: worker, isActive: true,
                     selectionDate: Date().timeIntervalSince1970
@@ -171,7 +190,8 @@ public final class DirectUploadManager {
                 if let worker, _unsafeUploadsByID[id]?.worker !== worker { return nil }
                 _unsafeAcknowledgedIDs.insert(id)
                 enqueuePersistence(persistence)
-                return _unsafeUploadsByID.removeValue(forKey: id)?.upload
+                let preparing = _unsafePreparations.removeValue(forKey: id)
+                return _unsafeUploadsByID.removeValue(forKey: id)?.upload ?? preparing
             }
         }
 
@@ -207,7 +227,7 @@ public final class DirectUploadManager {
             withLock {
                 NotificationSnapshot(
                     delegates: Array(_unsafeDelegatesByToken.values),
-                    uploads: Array(_unsafeUploadsByID.values.map(\.upload))
+                    uploads: Array(_unsafeUploadsByID.values.map(\.upload)) + Array(_unsafePreparations.values)
                 )
             }
         }
@@ -259,6 +279,9 @@ public final class DirectUploadManager {
             notifyDelegates()
             return existing
         }
+        if let entry = await uploadActor.preparation(ofFile: url) {
+            return restorePreparation(entry)
+        }
         guard let uploader = await uploadActor.getUpload(ofFileAt: url),
               let upload = restorePersistedUpload(uploader) else { return nil }
         notifyDelegates()
@@ -281,12 +304,71 @@ public final class DirectUploadManager {
     /// the restored list on the main thread, including an empty list when there are no uploads to restore.
     /// Call ``DirectUpload/start(forceRestart:)`` on a restored upload to continue its transfer.
     public func resumeAllDirectUploads() {
-        Task.detached { [self] in
-            await storage.pendingPersistenceTask()?.value
-            for uploader in await uploadActor.getAllUploads() {
-                _ = restorePersistedUpload(uploader)
-            }
+        resumeAllDirectUploads { result in
+            if case .failure = result { SDKLogger.logger?.error("Could not restore managed uploads") }
+        }
+    }
+
+    /// An authoritative restoration result, independent of unrelated delegate updates.
+    /// Completion is delivered on the main thread. Restored uploads are not started automatically.
+    public func resumeAllDirectUploads(completion: @escaping (Result<[DirectUpload], Error>) -> Void) {
+        Task { [self] in
+            await waitForPersistence()
+            let result: Result<[DirectUpload], Error>
+            do {
+                for entry in try await uploadActor.entries() {
+                    if entry.stateCode == .preparing { _ = restorePreparation(entry) }
+                    else { _ = restorePersistedUpload(ChunkedFileUploader(persistenceEntry: entry)) }
+                }
+                result = .success(storage.allUploads())
+            } catch { result = .failure(error) }
             notifyDelegates()
+            await MainActor.run { completion(result) }
+        }
+    }
+
+    private func restorePreparation(_ entry: PersistenceEntry) -> DirectUpload? {
+        if let live = storage.upload(forID: entry.uploadInfo.id) { return live }
+        let upload = DirectUpload(input: UploadInput(asset: AVURLAsset(url: entry.inputFileURL), info: entry.uploadInfo),
+                                  uploadManager: self)
+        return storage.prepare(upload)
+    }
+
+    internal func registerPreparation(_ upload: DirectUpload) async throws {
+        let source = upload.sourceFileURL
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            _ = storage.prepare(upload) { [self] in
+                do {
+                    try await uploadActor.savePreparation(upload.uploadInfo, source: source)
+                    continuation.resume()
+                } catch { continuation.resume(throwing: error) }
+            }
+        }
+        notifyDelegates()
+    }
+
+    internal func waitForPersistence() async { await storage.pendingPersistenceTask()?.value }
+
+    internal func retryWorker(id: String) async -> ChunkedFileUploader? {
+        await waitForPersistence()
+        return await uploadActor.getUpload(uploadID: id)
+    }
+
+    internal func canRestartPreparation(id: String) async -> Bool {
+        await waitForPersistence()
+        return await uploadActor.canRestartPreparation(id: id)
+    }
+
+    internal func recordTerminalState(_ worker: ChunkedFileUploader, state: ChunkedFileUploader.InternalUploadState) {
+        storage.recordState(of: worker, state: state, persistence: persistenceUpdate(for: worker, state: state))
+    }
+
+    private func configurePayloadValidation(_ worker: ChunkedFileUploader) {
+        worker.beforeUpload = { [weak worker, self] in
+            await waitForPersistence()
+            guard let worker else { throw CancellationError() }
+            worker.allowsExistingServerBytes = try await uploadActor.prepareTransport(
+                id: worker.uploadInfo.id, file: worker.inputFileURL)
         }
     }
 
@@ -296,6 +378,7 @@ public final class DirectUploadManager {
         if let existing = storage.upload(forID: uploader.uploadInfo.id) {
             return existing
         }
+        configurePayloadValidation(uploader)
         uploader.addDelegate(
             withToken: UUID().uuidString,
             makeUploaderDelegate()
@@ -353,6 +436,7 @@ public final class DirectUploadManager {
             return
         }
 
+        configurePayloadValidation(fileWorker)
         fileWorker.addDelegate(
             withToken: UUID().uuidString,
             makeUploaderDelegate()
@@ -380,7 +464,7 @@ public final class DirectUploadManager {
         }
     }
     
-    private func notifyDelegates() {
+    internal func notifyDelegates() {
         Task { @MainActor in
             // No await between snapshot and delivery: the main actor is serial,
             // so the last notification to arrive also holds the newest
@@ -442,44 +526,64 @@ internal actor UploadCacheActor {
         )
     }
     
+    func entries() throws -> [PersistenceEntry] { try persistence.readAll() }
+
+    func savePreparation(_ inputInfo: UploadInfo, source: URL) throws {
+        var info = inputInfo
+        info.sourceFileURL = source
+        let existing = try persistence.readAll()
+        guard !existing.contains(where: { $0.uploadInfo.uploadURL == info.uploadURL && $0.uploadInfo.id != info.id }) else {
+            throw UploadRecoveryError.newUploadRequired
+        }
+        try persistence.write(entry: PersistenceEntry(savedAt: Date().timeIntervalSince1970, stateCode: .preparing,
+            lastSuccessfulByte: 0, uploadInfo: info, inputFileURL: source), for: info.id)
+    }
+
+    func preparation(ofFile url: URL) -> PersistenceEntry? {
+        try? persistence.readAll().filter { $0.stateCode == .preparing && $0.inputFileURL == url }
+            .max { $0.savedAt < $1.savedAt }
+    }
+
+    func prepareTransport(id: String, file: URL) async throws -> Bool {
+        guard let before = try persistence.readEntry(uploadID: id), before.inputFileURL == file, before.stateCode != .preparing else {
+            try Task.checkCancellation()
+            throw NSError(domain: NSCocoaErrorDomain, code: NSFileWriteUnknownError)
+        }
+        let hashing = Task.detached { try uploadPayloadDigest(at: file) }
+        let digest = try await withTaskCancellationHandler(operation: { try await hashing.value },
+                                                          onCancel: { hashing.cancel() })
+        try Task.checkCancellation()
+        guard let entry = try persistence.readEntry(uploadID: id), entry.inputFileURL == file,
+              entry.stateCode != .preparing else { throw CancellationError() }
+        if let expected = entry.payloadDigest, expected != digest { throw UploadRecoveryError.payloadChanged }
+        try persistence.write(entry: entry.with(payloadDigest: digest, inputFileURL: file,
+            uploadURL: entry.uploadInfo.uploadURL), for: id)
+        return entry.payloadDigest != nil || entry.lastSuccessfulByte > 0
+    }
+
+    func canRestartPreparation(id: String) -> Bool {
+        // A preparing record is safe to regenerate: the transport barrier
+        // prohibits all network requests until the payload record is durable.
+        (try? persistence.readEntry(uploadID: id))?.stateCode == .preparing
+    }
+
     func getUpload(uploadID: String) async -> ChunkedFileUploader? {
-        // reminder: doesn't start the uploader, just makes it
-        return await Task<ChunkedFileUploader?, Never> {
-            try? persistence
-                .readEntry(uploadID: uploadID)
-                .map({ entry in
-                    return ChunkedFileUploader(
-                        persistenceEntry: entry
-                    )
-                })
-        }.value
+        guard let entry = try? persistence.readEntry(uploadID: uploadID), entry.stateCode != .preparing else { return nil }
+        return ChunkedFileUploader(persistenceEntry: entry)
     }
 
-    func getUpload(ofFileAt: URL) async -> ChunkedFileUploader? {
-        return await Task<ChunkedFileUploader?, Never> {
-            guard let matchingEntry = try? persistence.readAll().filter({
-                $0.inputFileURL == ofFileAt || $0.uploadInfo.sourceFileURL == ofFileAt
-            }).max(by: {
-                if $0.savedAt != $1.savedAt { return $0.savedAt < $1.savedAt }
-                return $0.uploadInfo.id < $1.uploadInfo.id
-            }) else {
-                return nil
-            }
-
-            return ChunkedFileUploader(
-                persistenceEntry: matchingEntry
-            )
-        }.value
+    func getUpload(ofFileAt url: URL) async -> ChunkedFileUploader? {
+        guard let entry = try? persistence.readAll().filter({
+            $0.stateCode != .preparing && ($0.inputFileURL == url || $0.uploadInfo.sourceFileURL == url)
+        }).max(by: {
+            if $0.savedAt != $1.savedAt { return $0.savedAt < $1.savedAt }
+            return $0.uploadInfo.id < $1.uploadInfo.id
+        }) else { return nil }
+        return ChunkedFileUploader(persistenceEntry: entry)
     }
-    
+
     func getAllUploads() async -> [ChunkedFileUploader] {
-        return await Task<[ChunkedFileUploader]?, Never> {
-            return try? persistence.readAll().compactMap { it in
-                ChunkedFileUploader(
-                    persistenceEntry: it
-                )
-            }
-        }.value ?? []
+        (try? persistence.readAll().filter { $0.stateCode != .preparing }.map(ChunkedFileUploader.init(persistenceEntry:))) ?? []
     }
 
     func remove(uploadID: String) async {

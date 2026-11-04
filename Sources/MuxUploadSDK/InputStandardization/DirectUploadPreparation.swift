@@ -125,11 +125,13 @@ struct FileSystemTemporaryStoragePreflighter: TemporaryStoragePreflighting {
         FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
     }
 
+    static let sessionStart = Date()
     private let baseDirectory: URL
 
     init(
         baseDirectory: URL = Self.durableBaseDirectory
     ) {
+        _ = Self.sessionStart
         self.baseDirectory = baseDirectory
     }
 
@@ -175,39 +177,24 @@ struct FileSystemTemporaryStoragePreflighter: TemporaryStoragePreflighting {
     }
 
     func ownsTemporaryOutput(_ url: URL) -> Bool {
-        let directory = baseDirectory.appendingPathComponent(Self.directoryName).standardizedFileURL
-        let legacyDirectory = FileManager.default.temporaryDirectory
-            .appendingPathComponent(Self.directoryName).standardizedFileURL
-        let candidate = url.standardizedFileURL
-        return candidate.isFileURL && candidate.lastPathComponent.hasPrefix(Self.filePrefix)
-            && (candidate.deletingLastPathComponent() == directory
-                || candidate.deletingLastPathComponent() == legacyDirectory)
+        let directory = baseDirectory.appendingPathComponent(Self.directoryName, isDirectory: true)
+        return url.isFileURL && url.standardizedFileURL.deletingLastPathComponent().path == directory.standardizedFileURL.path
+            && url.lastPathComponent.hasPrefix(Self.filePrefix)
     }
 
-    /// Resolve SDK paths in the current container and move legacy tmp payloads
-    /// without regenerating bytes or changing the saved checkpoint.
-    func restoredOutputURL(_ url: URL) throws -> URL {
-        let candidate = url.standardizedFileURL
-        let parent = candidate.deletingLastPathComponent().path
-        let durableSuffix = "/Library/Application Support/" + Self.directoryName
-        let legacySuffix = "/tmp/" + Self.directoryName
-        guard candidate.isFileURL, candidate.lastPathComponent.hasPrefix(Self.filePrefix),
-              ownsTemporaryOutput(candidate) || parent.hasSuffix(durableSuffix)
-                || parent.hasSuffix(legacySuffix) else { return url }
-
-        let destination = baseDirectory.appendingPathComponent(Self.directoryName)
-            .appendingPathComponent(candidate.lastPathComponent)
-        guard candidate != destination else { return destination }
-        // Also recovers a move completed before the updated uploads.json was written.
-        if FileManager.default.fileExists(atPath: destination.path) { return destination }
-        let legacy = FileManager.default.temporaryDirectory.appendingPathComponent(Self.directoryName)
-            .appendingPathComponent(candidate.lastPathComponent)
-        let source = FileManager.default.fileExists(atPath: candidate.path) ? candidate : legacy
-        if FileManager.default.fileExists(atPath: source.path) {
-            _ = try makeOutputDirectory()
-            try FileManager.default.moveItem(at: source, to: destination)
+    /// Persistence opens lazily; leave this process's unrecorded conversions alone.
+    func removeAbandonedOutputs(referencedBy entries: [PersistenceEntry], before processStart: Date) throws {
+        let directory = baseDirectory.appendingPathComponent(Self.directoryName, isDirectory: true)
+        guard FileManager.default.fileExists(atPath: directory.path) else { return }
+        let referenced = Set(entries.map { $0.inputFileURL.standardizedFileURL.path })
+        for url in try FileManager.default.contentsOfDirectory(at: directory,
+            includingPropertiesForKeys: [.contentModificationDateKey, .isRegularFileKey]) {
+            guard ownsTemporaryOutput(url), !referenced.contains(url.standardizedFileURL.path) else { continue }
+            let values = try url.resourceValues(forKeys: [.contentModificationDateKey, .isRegularFileKey])
+            if values.isRegularFile == true, let modified = values.contentModificationDate, modified < processStart {
+                try FileManager.default.removeItem(at: url)
+            }
         }
-        return destination
     }
 
     private func availableCapacity(at directory: URL) throws -> Int64 {

@@ -10,6 +10,18 @@ import XCTest
 
 final class UploadInputMetadataInspectionTests: XCTestCase {
 
+    func testHighProfileSPSProvidesEvidenceWhenOptionalAVCCExtensionIsAbsent() {
+        let valid = Data([1, 100, 0, 40, 0xff, 0xe1, 0, 5, 0x67, 100, 0, 40, 0xac, 1, 0, 1, 0x68])
+        func inspect(_ data: Data) -> StandardInputPixelFormat? {
+            AVFoundationUploadInputMetadataReader.codecConfiguration(codec: .h264,
+                extensions: [kCMFormatDescriptionExtension_SampleDescriptionExtensionAtoms: ["avcC": data]] as NSDictionary)
+        }
+        XCTAssertEqual(inspect(valid), StandardInputPixelFormat(bitDepth: 8, chromaSubsampling: .yuv420))
+        for length in 0..<valid.count { XCTAssertNil(inspect(valid.prefix(length))) }
+        XCTAssertNil(inspect(valid + Data([0xfc])))
+        XCTAssertNil(inspect(valid + Data([0xfc, 0xf8])))
+    }
+
     func testClassifiesIdentityTrimAndComplexEditMappings() {
         let identity = AVFoundationVideoTrackSegmentMetadata(
             timeMapping: CMTimeMapping(

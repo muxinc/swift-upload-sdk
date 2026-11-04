@@ -23,19 +23,28 @@ class ChunkedFileUploader {
     private var overallProgress: Progress = Progress()
     private var lastReadCount: UInt64 = 0
     private var lastSuccessfulByte: UInt64 = 0
+    var beforeUpload: (() async throws -> Void)?
+    var allowsExistingServerBytes = true
+    private var attemptID = UUID()
     private let reporter: Reporter
     
     func addDelegate(withToken token: String, _ delegate: ChunkedFileUploaderDelegate) {
+        if !Thread.isMainThread { DispatchQueue.main.sync { self.addDelegate(withToken: token, delegate) }; return }
         delegates.updateValue(delegate, forKey: token)
     }
     
     func removeDelegate(withToken: String) {
+        if !Thread.isMainThread { DispatchQueue.main.sync { self.removeDelegate(withToken: withToken) }; return }
         delegates.removeValue(forKey: withToken)
     }
     
     /// If currently uploading, will pause the upload. If not uploading, this methd has no effect
     func pause() {
+        if !Thread.isMainThread { DispatchQueue.main.sync { self.pause() }; return }
+        attemptID = UUID()
         switch currentState {
+        case .ready:
+            currentState = .paused(Update(progress: Progress(totalUnitCount: 0), startTime: 0, updateTime: 0))
         case .starting: do {
             currentWorkTask?.cancel()
             currentWorkTask = nil
@@ -61,6 +70,7 @@ class ChunkedFileUploader {
     
     /// Starts the upload if it wasn't already starting
     func start() {
+        if !Thread.isMainThread { DispatchQueue.main.sync { self.start() }; return }
         switch currentState {
         case .ready: fallthrough
         case .paused(_):
@@ -71,6 +81,7 @@ class ChunkedFileUploader {
     }
 
     func start(duration: CMTime) {
+        if !Thread.isMainThread { DispatchQueue.main.sync { self.start(duration: duration) }; return }
         switch currentState {
         case .ready: fallthrough
         case .paused(_):
@@ -82,9 +93,10 @@ class ChunkedFileUploader {
     
     /// Cancels the upload. It can't be restarted
     func cancel() {
+        if !Thread.isMainThread { DispatchQueue.main.sync { self.cancel() }; return }
+        attemptID = UUID()
         currentWorkTask?.cancel()
         currentWorkTask = nil
-        cleanupResources()
 
         switch currentState {
         case .starting: fallthrough
@@ -98,240 +110,64 @@ class ChunkedFileUploader {
         }
     }
     
-    private func beginUpload() {
-        let task = Task.detached { [self] in
+    private func beginUpload() { beginUpload(duration: nil) }
 
-            let asset = AVAsset(url: inputFileURL)
-
-            var duration: CMTime
-
+    private func beginUpload(duration: CMTime?) {
+        let token = UUID()
+        attemptID = token
+        currentState = .starting // Claim synchronously: repeated start() is idempotent.
+        let attemptFile = file.fresh()
+        currentWorkTask = Task.detached { [self] in
+            let startedAt = Date()
+            var reportingDuration = CMTime.zero
+            var reportingSize: UInt64 = 0
+            defer { attemptFile.close() }
             do {
-                duration = try await asset.load(.duration)
+                try await beforeUpload?()
+                try Task.checkCancellation()
+                let assetDuration: CMTime
+                if let duration { assetDuration = duration }
+                else { assetDuration = (try? await AVAsset(url: inputFileURL).load(.duration)) ?? .zero }
+                let size = try FileManager.default.fileSizeOfItem(atPath: inputFileURL.path)
+                reportingDuration = assetDuration
+                reportingSize = size
+                let result = try await Worker(uploadInfo: uploadInfo, inputFileURL: inputFileURL,
+                    chunkedFile: attemptFile, allowsExistingServerBytes: allowsExistingServerBytes) {
+                        [weak self] progress, startTime, eventTime, acknowledged in
+                        let notify = {
+                            guard let self, self.attemptID == token else { return }
+                            if let acknowledged { self.recordSuccessfulChunk(endByte: acknowledged) }
+                            self.notifyStateFromMain(.uploading(Update(progress: progress,
+                                startTime: startTime, updateTime: eventTime)))
+                        }
+                        if Thread.isMainThread { notify() } else { DispatchQueue.main.sync(execute: notify) }
+                    }.performUpload()
+                reporter.reportUploadSuccess(inputDuration: assetDuration.seconds, inputSize: size,
+                    options: uploadInfo.options, uploadEndTime: Date(timeIntervalSince1970: result.updateTime),
+                    uploadStartTime: Date(timeIntervalSince1970: result.startTime), uploadURL: uploadInfo.uploadURL)
+                await MainActor.run {
+                    guard self.attemptID == token else { return }
+                    self.notifyStateFromMain(.success(UploadResult(finalProgress: result.progress,
+                        startTime: result.startTime, finishTime: result.updateTime)))
+                }
             } catch {
-                // Cannot get duration, assume it is zero
-                duration = CMTime.zero
-            }
-
-            do {
-                let fileSize = try FileManager.default.fileSizeOfItem(
-                    atPath: inputFileURL.path
-                )
-                let result = try await makeWorker().performUpload()
-                file.close()
-
-                let success = UploadResult(
-                    finalProgress: result.progress,
-                    startTime: result.startTime,
-                    finishTime: result.updateTime
-                )
-
-                reporter.reportUploadSuccess(
-                    inputDuration: duration.seconds,
-                    inputSize: fileSize,
-                    options: uploadInfo.options,
-                    uploadEndTime: Date(
-                        timeIntervalSince1970: success.finishTime
-                    ),
-                    uploadStartTime: Date(
-                        timeIntervalSince1970: success.startTime
-                    ),
-                    uploadURL: uploadInfo.uploadURL
-                )
-                notifyStateFromWorker(.success(success))
-            } catch {
-                handle(
-                    error: error,
-                    duration: duration
-                )
-            }
-        }
-        currentWorkTask = task
-    }
-
-    private func handle(
-        error: Error,
-        duration: CMTime
-    ) {
-        file.close()
-        if error is CancellationError {
-            SDKLogger.logger?.debug("Task finished due to cancellation in state \(String(describing: self.currentState))")
-            if case let .uploading(update) = self.currentState {
-                self.currentState = .paused(update.withCompletedUnitCount(lastSuccessfulByte))
-            }
-        } else {
-            SDKLogger.logger?.debug("Task finished due to error in state \(String(describing: self.currentState))")
-            let uploadError = InternalUploaderError(reason: error, lastByte: lastSuccessfulByte)
-
-            let lastUpdate: Update?
-            if case InternalUploadState.uploading(let update) = currentState {
-                lastUpdate = update
-            } else {
-                lastUpdate = nil
-            }
-
-            // This modifies currentState, so capture
-            // the last update first
-            notifyStateFromWorker(.failure(uploadError))
-
-            // FIXME: Will only work if currentState
-            // was uploading before the upload failed
-            // may miss some edge cases
-            if let lastUpdate {
-                let fileSize = (try? FileManager.default.fileSizeOfItem(atPath: inputFileURL.path)) ?? 0
-
-                let startTime = Date(
-                    timeIntervalSince1970: lastUpdate.startTime
-                )
-                // When failing assume transport ends
-                // when error is received
-                let endTime = Date()
-
-                reporter.reportUploadFailure(
-                    errorDescription: uploadError.localizedDescription,
-                    inputDuration: duration.seconds,
-                    inputSize: fileSize,
-                    options: uploadInfo.options,
-                    uploadEndTime: endTime,
-                    uploadStartTime: startTime,
-                    uploadURL: uploadInfo.uploadURL
-                )
-            }
-        }
-    }
-
-    private func beginUpload(duration: CMTime) {
-        let task = Task.detached { [self] in
-            do {
-                // It's fine if it's already open, that's handled by ignoring the call
-                let fileSize = try FileManager.default.fileSizeOfItem(
-                    atPath: inputFileURL.path
-                )
-                let result = try await makeWorker().performUpload()
-                file.close()
-
-                let success = UploadResult(
-                    finalProgress: result.progress,
-                    startTime: result.startTime,
-                    finishTime: result.updateTime
-                )
-
-                reporter.reportUploadSuccess(
-                    inputDuration: duration.seconds,
-                    inputSize: fileSize,
-                    options: uploadInfo.options,
-                    uploadEndTime: Date(
-                        timeIntervalSince1970: success.finishTime
-                    ),
-                    uploadStartTime: Date(
-                        timeIntervalSince1970: success.startTime
-                    ),
-                    uploadURL: uploadInfo.uploadURL
-                )
-                notifyStateFromWorker(.success(success))
-            } catch {
-                file.close()
-                if error is CancellationError {
-                    SDKLogger.logger?.debug("Task finished due to cancellation in state \(String(describing: self.currentState))")
-                    if case let .uploading(update) = self.currentState {
-                        self.currentState = .paused(update.withCompletedUnitCount(lastSuccessfulByte))
-                    }
-                } else {
-                    SDKLogger.logger?.debug("Task finished due to error in state \(String(describing: self.currentState))")
-                    let uploadError = InternalUploaderError(reason: error, lastByte: lastSuccessfulByte)
-
-                    let lastUpdate: Update?
-                    if case InternalUploadState.uploading(let update) = currentState {
-                        lastUpdate = update
-                    } else {
-                        lastUpdate = nil
-                    }
-
-                    // This modifies currentState, so capture
-                    // the last update first
-                    notifyStateFromWorker(.failure(uploadError))
-
-                    // FIXME: Will only work if currentState
-                    // was uploading before the upload failed
-                    // may miss some edge cases
-                    if let lastUpdate {
-                        let fileSize = try? FileManager.default.fileSizeOfItem(
-                            atPath: inputFileURL.path
-                        )
-
-                        let startTime = Date(
-                            timeIntervalSince1970: lastUpdate.startTime
-                        )
-                        // When failing assume transport ends
-                        // when error is received
-                        let endTime = Date()
-
-                        reporter.reportUploadFailure(
-                            errorDescription: uploadError.localizedDescription,
-                            inputDuration: duration.seconds,
-                            inputSize: fileSize ?? 0,
-                            options: uploadInfo.options,
-                            uploadEndTime: endTime,
-                            uploadStartTime: startTime,
-                            uploadURL: uploadInfo.uploadURL
-                        )
-                    }
+                guard !(error is CancellationError), !Task.isCancelled else { return }
+                reporter.reportUploadFailure(errorDescription: error.localizedDescription,
+                    inputDuration: reportingDuration.seconds, inputSize: reportingSize,
+                    options: uploadInfo.options, uploadEndTime: Date(), uploadStartTime: startedAt,
+                    uploadURL: uploadInfo.uploadURL)
+                await MainActor.run {
+                    guard self.attemptID == token else { return }
+                    self.notifyStateFromMain(.failure(InternalUploaderError(reason: error, lastByte: self.lastSuccessfulByte)))
                 }
             }
         }
-        currentWorkTask = task
     }
-    
-    private func makeWorker() -> Worker {
-        return Worker(
-            uploadInfo: uploadInfo,
-            inputFileURL: inputFileURL,
-            chunkedFile: file,
-            progress: overallProgress,
-            startByte: lastSuccessfulByte
-        ) { [self] progress, startTime, eventTime, completedChunkByte in
-            let update = Update(
-                progress: progress,
-                startTime: startTime,
-                updateTime: eventTime
-            )
 
-            if let completedChunkByte {
-                self.recordSuccessfulChunk(endByte: completedChunkByte)
-            }
-
-            let notify = {
-                self.notifyStateFromMain(.uploading(update))
-            }
-
-            if Thread.isMainThread {
-                notify()
-            } else {
-                DispatchQueue.main.sync(execute: notify)
-            }
-        }
-    }
-    
-    private func cleanupResources() {
-        // TODO: Make sure everything is taken care of here
-        currentWorkTask?.cancel()
-        currentWorkTask = nil
-        file.close()
-    }
-    
-    // do thing: need ChunkWorkers, need starting method, need to open the file and stuff
-    
-    /// Notify delegates of state updates. This method *must* be called from the main thread. See ``notifyStateFromWorker``
     private func notifyStateFromMain(_ state: InternalUploadState) {
         currentState = state
-        
-        if case .uploading(let update) = state {
-            let count = update.progress.completedUnitCount
-            lastReadCount = UInt64(count)
-        }
-
-        for delegate in delegates.values {
-            delegate.chunkedFileUploader(self, stateUpdated: state)
-        }
+        if case .uploading(let update) = state { lastReadCount = UInt64(max(0, update.progress.completedUnitCount)) }
+        for delegate in Array(delegates.values) { delegate.chunkedFileUploader(self, stateUpdated: state) }
     }
 
     private func recordSuccessfulChunk(endByte: UInt64) {
@@ -350,13 +186,6 @@ class ChunkedFileUploader {
         }
     }
     
-    /// Notify delegates of state updates from a background worker
-    private func notifyStateFromWorker(_ state: InternalUploadState) {
-        DispatchQueue.main.async {
-            self.notifyStateFromMain(state)
-        }
-    }
-
     convenience init(
         persistenceEntry: PersistenceEntry
     ) {
@@ -445,8 +274,7 @@ struct InternalUploaderError : Error {
     let lastByte: UInt64
 
     var isMissingInputFile: Bool {
-        let error = reason as NSError
-        return error.domain == NSCocoaErrorDomain && error.code == NSFileReadNoSuchFileError
+        reason.uploadFileIsMissing
     }
 
     var localizedDescription: String { "Failed to upload file because of:\n\t\(reason.localizedDescription)\n" }
@@ -458,114 +286,75 @@ fileprivate actor Worker {
     private let uploadInfo: UploadInfo
     private let inputFileURL: URL
     private let chunkedFile: ChunkedFile
-    private let overallProgress: Progress
     private let progressHandler: ProgressHandler
-    private let startingReadCount: UInt64
+    private let allowsExistingServerBytes: Bool
     
     func performUpload() async throws -> ChunkedFileUploader.Update {
         try chunkedFile.openFile(fileURL: inputFileURL)
-        try chunkedFile.seekTo(byte: startingReadCount)
-        
+        let size = try FileManager.default.fileSizeOfItem(atPath: inputFileURL.path)
+        guard size > 0, size < Int64.max else { throw UploadRecoveryError.payloadChanged }
         let startTime = Date().timeIntervalSince1970
-        let fileSize = try FileManager.default.fileSizeOfItem(
-            atPath: inputFileURL.path
-        )
-        let wideFileSize: Int64
-
-        // Prevent overflow if UInt64 exceeds Int64.max
-        if fileSize >= Int64.max {
-            wideFileSize = Int64.max
-        } else {
-            wideFileSize = Int64(fileSize)
+        func report(_ completed: UInt64, acknowledged: UInt64?) {
+            let progress = Progress(totalUnitCount: Int64(size))
+            progress.completedUnitCount = Int64(min(completed, size))
+            progressHandler(progress, startTime, Date().timeIntervalSince1970, acknowledged)
+        }
+        func query() async throws -> ChunkWorker.Success {
+            let chunk = FileChunk(startByte: 0, endByte: 0, totalFileSize: size, chunkData: Data())
+            return try await ChunkWorker(uploadURL: uploadInfo.uploadURL, chunkProgress: Progress(),
+                maxRetries: uploadInfo.options.transport.retryLimitPerChunk).directUpload(chunk: chunk) as! ChunkWorker.Success
         }
 
-        overallProgress.totalUnitCount = wideFileSize
-        overallProgress.isCancellable = false
-        overallProgress.completedUnitCount = Int64(startingReadCount)
-        
-        var readBytes: Int
-        repeat {
+        // A local checkpoint can lag behind an accepted request or its final response.
+        var response = try await query()
+        guard allowsExistingServerBytes || (response.nextByte == 0 && !response.isComplete) else {
+            throw UploadRecoveryError.newUploadRequired
+        }
+        var next = response.nextByte
+        report(next, acknowledged: next)
+        var stalled = 0
+        while !response.isComplete {
             try Task.checkCancellation()
-
-            guard case let Result.success(chunk) = chunkedFile.readNextChunk() else {
-                // TODO: report error accurately
-                throw ChunkWorker.ChunkWorkerError.init(
-                    lastSeenProgress: ChunkWorker.Update(
-                        progress: overallProgress,
-                        bytesSinceLastUpdate: 0,
-                        chunkStartTime: Date().timeIntervalSince1970,
-                        eventTime: Date().timeIntervalSince1970
-                    ), 
-                    reason: nil
-                )
+            if next == size {
+                response = try await query()
+            } else {
+                try chunkedFile.seekTo(byte: next)
+                let chunk = try chunkedFile.readNextChunk().get()
+                guard chunk.totalFileSize == size, !chunk.chunkData.isEmpty else { throw UploadRecoveryError.payloadChanged }
+                let worker = ChunkWorker(uploadURL: uploadInfo.uploadURL,
+                    chunkProgress: Progress(totalUnitCount: Int64(chunk.size())),
+                    maxRetries: uploadInfo.options.transport.retryLimitPerChunk)
+                worker.addDelegate { update in
+                    report(chunk.startByte + UInt64(max(0, update.progress.completedUnitCount)), acknowledged: nil)
+                }
+                response = try await worker.directUpload(chunk: chunk) as! ChunkWorker.Success
             }
-
-            readBytes = chunk.size()
-            
-            let wideChunkSize = Int64(chunk.size())
-            let chunkProgress = Progress(totalUnitCount: wideChunkSize)
-            
-            let chunkWorker = ChunkWorker(
-                uploadURL: uploadInfo.uploadURL,
-                chunkProgress: chunkProgress,
-                maxRetries: uploadInfo.options.transport.retryLimitPerChunk
-            )
-            chunkWorker.addDelegate {[self] update in
-                // Called on the main thread
-                let chunkStartByte = Int64(chunk.startByte)
-                let absoluteCompletedByte = chunkStartByte + update.progress.completedUnitCount
-                overallProgress.completedUnitCount = min(
-                    absoluteCompletedByte,
-                    Int64(chunk.totalFileSize)
-                )
-                progressHandler(
-                    self.overallProgress,
-                    startTime,
-                    update.eventTime,
-                    nil
-                )
+            stalled = response.nextByte <= next && !response.isComplete ? stalled + 1 : 0
+            guard stalled < max(1, uploadInfo.options.transport.retryLimitPerChunk) else {
+                throw UploadRecoveryError.invalidAcknowledgement
             }
-            
-            // Do not use task in a loop it will create an memory consumption issue.
-            guard let chunkResult = try await chunkWorker.directUpload(chunk: chunk) as? ChunkWorker.Success else {
-                throw ChunkedFileUploaderError.unexpectedChunkResult
-            }
-            overallProgress.completedUnitCount = Int64(chunk.endByte)
-            progressHandler(
-                self.overallProgress,
-                startTime,
-                chunkResult.finalState.eventTime,
-                chunk.endByte
-            )
-            SDKLogger.logger?.info("Completed Chunk:\n \(String(describing: chunkResult))")
-        } while (readBytes == uploadInfo.options.transport.chunkSizeInBytes)
-
-        SDKLogger.logger?.info("Finished uploading file: \(self.inputFileURL.relativeString)")
-
-        let finalState = ChunkedFileUploader.Update(
-            progress: overallProgress,
-            startTime: startTime,
-            updateTime: Date().timeIntervalSince1970
-        )
-        return finalState
+            next = response.nextByte
+            report(next, acknowledged: next)
+        }
+        let progress = Progress(totalUnitCount: Int64(size))
+        progress.completedUnitCount = Int64(size)
+        return ChunkedFileUploader.Update(progress: progress, startTime: startTime, updateTime: Date().timeIntervalSince1970)
     }
-    
+
     typealias ProgressHandler = (Progress, TimeInterval, TimeInterval, UInt64?) ->  Void
     
     init(
         uploadInfo: UploadInfo,
         inputFileURL: URL,
         chunkedFile: ChunkedFile,
-        progress: Progress,
-        startByte: UInt64,
+        allowsExistingServerBytes: Bool = true,
         _ progressHandler: @escaping ProgressHandler
     ) {
         self.uploadInfo = uploadInfo
         self.inputFileURL = inputFileURL
         self.chunkedFile = chunkedFile
         self.progressHandler = progressHandler
-        self.overallProgress = progress
-        self.startingReadCount = startByte
+        self.allowsExistingServerBytes = allowsExistingServerBytes
     }
 }
 

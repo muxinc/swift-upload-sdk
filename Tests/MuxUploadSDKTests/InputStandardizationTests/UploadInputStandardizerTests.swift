@@ -571,6 +571,10 @@ final class UploadInputStandardizerTests: XCTestCase {
             .naturalSize
         )
         XCTAssertEqual(formatDescriptions.first?.mediaSubType, .h264)
+        let description = try XCTUnwrap(formatDescriptions.first)
+        let extensions = try XCTUnwrap(CMFormatDescriptionGetExtensions(description) as NSDictionary?)
+        XCTAssertEqual(AVFoundationUploadInputMetadataReader.codecConfiguration(codec: .h264, extensions: extensions),
+                       StandardInputPixelFormat(bitDepth: 8, chromaSubsampling: .yuv420))
         XCTAssertEqual(naturalSize, CGSize(width: 64, height: 64))
         let audioTracks = try await standardizedAsset.loadTracks(withMediaType: .audio)
         XCTAssertTrue(audioTracks.isEmpty)

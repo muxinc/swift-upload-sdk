@@ -22,7 +22,7 @@ class UploadManagerTests: XCTestCase {
 
     func testUploadManagerURLDeduplication() async throws {
 
-        let uploadManager = DirectUploadManager()
+        let uploadManager = makeTestUploadManager()
 
         let uploadURL = try XCTUnwrap(
             URL(string: "https://www.example.com/upload")

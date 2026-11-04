@@ -23,7 +23,7 @@ struct UploadInput: Transferable {
 }
 
 @MainActor
-final class UploadCreationModel: ObservableObject {
+final class UploadCreationModel: ObservableObject, DirectUploadManagerDelegate {
 
     /// Keep the SDK's on-device resolution tier aligned with the Direct Upload
     /// created by the trusted environment. This sample uses the 1080p tier so
@@ -67,6 +67,9 @@ final class UploadCreationModel: ObservableObject {
 
     @Published var photosAuthStatus: PhotosAuthState
     @Published var workflowState: WorkflowState = .idle
+    @Published private(set) var managedUploads: [DirectUpload] = []
+    @Published private(set) var restorationError: String?
+    private let uploadManager = DirectUploadManager.shared
     @Published var pickedItem: [PhotosPickerItem] = [] {
         didSet {
             guard let pickedItem = pickedItem.first else {
@@ -80,6 +83,37 @@ final class UploadCreationModel: ObservableObject {
         let innerAuthStatus = PHPhotoLibrary.authorizationStatus(for: .readWrite)
         self.photosAuthStatus = innerAuthStatus.asAppAuthState()
         self.workflowState = .idle
+        // Keep this coordinator alive for the app's lifetime. Delegate updates
+        // can occur during startup; the completion identifies the restored set.
+        uploadManager.addDelegate(self)
+        uploadManager.resumeAllDirectUploads { [weak self] result in
+            Task { @MainActor in
+                guard let self else { return }
+                switch result {
+                case .failure(let error): self.restorationError = error.localizedDescription
+                case .success(let uploads):
+                    self.managedUploads = uploads
+                    for upload in uploads where !upload.inProgress && !upload.complete {
+                        let file = upload.sourceFileURL
+                        let prepared = PreparedUpload(thumbnail: nil, localVideoFile: file, remoteURL: upload.uploadURL)
+                        self.attachHandlers(to: upload, preparedMedia: prepared)
+                        if case .idle = self.workflowState {
+                            self.workflowState = .uploading(upload, progress: upload.uploadStatus, preparedMedia: prepared)
+                        }
+                        upload.start()
+                    }
+                }
+            }
+        }
+    }
+
+    nonisolated func didUpdate(managedDirectUploads: [DirectUpload]) {
+        Task { @MainActor [weak self] in self?.managedUploads = managedDirectUploads }
+    }
+
+    private static var inputDirectory: URL {
+        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("ExampleUploadInputs", isDirectory: true)
     }
 
     func resetSelection() {
@@ -176,10 +210,22 @@ final class UploadCreationModel: ObservableObject {
         }
         upload.resultHandler = { [weak self, weak upload] result in
             Task { @MainActor in
-                guard let self, let upload, self.isCurrentUpload(upload) else {
-                    return
+                guard let self, let upload else { return }
+                switch result {
+                case .success:
+                    self.logger.notice("Managed upload completed")
+                    if preparedMedia.localVideoFile.deletingLastPathComponent() == Self.inputDirectory {
+                        try? FileManager.default.removeItem(at: preparedMedia.localVideoFile)
+                    }
+                case .failure(let error):
+                    self.logger.error("Upload failed: \(error.localizedDescription)")
+                    if error.requiresNewUpload {
+                        self.logger.notice("Check the Direct Upload with your backend; if incomplete, request a new upload URL")
+                    }
                 }
-                self.workflowState = .completed(result, preparedMedia: preparedMedia)
+                if self.isCurrentUpload(upload) {
+                    self.workflowState = .completed(result, preparedMedia: preparedMedia)
+                }
             }
         }
     }
@@ -192,9 +238,11 @@ final class UploadCreationModel: ObservableObject {
         cancelActiveUpload()
         workflowState = .preparing
 
-        let tempFile = FileManager.default.temporaryDirectory
-            .appending(component: "upload-\(Date().timeIntervalSince1970)")
-            .appendingPathExtension("mp4")
+        // A PhotosPicker export is app-owned input, so it must survive relaunch
+        // even when standardization is skipped or preparation is interrupted.
+        do { try FileManager.default.createDirectory(at: Self.inputDirectory, withIntermediateDirectories: true) }
+        catch { workflowState = .preparationFailed(PickerError.assetExportSessionFailed); return }
+        let tempFile = Self.inputDirectory.appendingPathComponent("upload-\(UUID().uuidString).mp4")
 
         guard photosAuthStatus.canFetchPhotoKitAssets else {
             prepareTransferredFileForUpload(from: pickerItem, outFile: tempFile)

@@ -17,7 +17,8 @@ class ChunkWorker {
     let maxRetries: Int
     let chunkProgress: Progress
     
-    private var chunkStartTime: TimeInterval? = nil
+    private let chunkStartTime = Date().timeIntervalSince1970
+    private let progressLock = NSLock()
     private var lastSeenUpdate: Update = Update(progress: Progress(totalUnitCount: 10), bytesSinceLastUpdate: 0, chunkStartTime: 0, eventTime: 0)
     private var progressDelegate: ProgressHandler?
     
@@ -38,7 +39,6 @@ class ChunkWorker {
         chunk: FileChunk
     ) -> Task<Success, Error> {
         guard let uploadTask else {
-            chunkStartTime = Date().timeIntervalSince1970
             let uploadTask = makeUploadTask(chunk: chunk)
             self.uploadTask = uploadTask
             return uploadTask
@@ -56,60 +56,58 @@ class ChunkWorker {
     func directUpload(
         chunk: FileChunk
     ) async throws -> Sendable {
-        var retries = 0
+        var attempts = 0
         var requestError: Error?
-        let repsonseValidator = ChunkResponseValidator()
-        
         repeat {
             try Task.checkCancellation()
-
+            attempts += 1
+            var delay = min(pow(2, Double(attempts - 1)) * 0.25, 5)
             do {
-                let chunkActor = ChunkActor(
-                    uploadURL: uploadURL,
-                    chunk: chunk,
-                    chunkStartTime: Date().timeIntervalSince1970,
-                    urlSession: urlSession
-                )
-                
-                let resp = try await chunkActor.upload()
-                
-                let httpResponse = resp as! HTTPURLResponse
-                SDKLogger.logger?.info("ChunkWorker: Upload chunk with response: \(String(describing: httpResponse.statusCode))")
-                switch repsonseValidator.validate(statusCode: httpResponse.statusCode) {
-                case .error: do {
-                    // Throw and break out if the request can't be retried
-                    throw HttpError(
-                        statusCode: httpResponse.statusCode,
-                        statusMsg: httpResponse.description
-                    )
+                let actor = ChunkActor(uploadURL: uploadURL, chunk: chunk,
+                    chunkStartTime: chunkStartTime, urlSession: urlSession)
+                let response = try await actor.upload() as! HTTPURLResponse
+                switch ChunkResponseValidator().validate(statusCode: response.statusCode) {
+                case .proceed:
+                    let complete = [200, 201].contains(response.statusCode)
+                    let next: UInt64
+                    if complete { next = chunk.totalFileSize }
+                    else if let range = response.value(forHTTPHeaderField: "Range") {
+                        let parts = range.replacingOccurrences(of: "bytes=", with: "").split(separator: "-")
+                        guard parts.count == 2, parts[0] == "0", let end = UInt64(parts[1]),
+                              end < chunk.totalFileSize else { throw UploadRecoveryError.invalidAcknowledgement }
+                        next = end + 1
+                    } else { next = 0 }
+                    return Success(finalState: progressSnapshot(), tries: attempts,
+                                   nextByte: next, isComplete: complete)
+                case .retry:
+                    requestError = HttpError(statusCode: response.statusCode, statusMsg: "Upload temporarily unavailable")
+                    if let value = response.value(forHTTPHeaderField: "Retry-After"), let seconds = Double(value), seconds.isFinite, seconds >= 0 {
+                        delay = min(max(seconds, delay), 60)
+                    }
+                case .error:
+                    throw HttpError(statusCode: response.statusCode, statusMsg: "Upload request rejected")
                 }
-                case .retry: do {
-                    requestError = HttpError(
-                        statusCode: httpResponse.statusCode,
-                        statusMsg: httpResponse.description
-                    )
-                    // Retry if there's still some retries
-                    continue
-                }
-                case .proceed: do {
-                    // Chunk was uploaded successfully so we're done
-                    return Success(finalState: lastSeenUpdate, tries: retries + 1)
-                }
-                } // switch responseValidator.validate()
             } catch {
-                if Task.isCancelled || error.isCancellation {
-                    throw CancellationError()
-                }
-
-                SDKLogger.logger?.error("Failed to upload a chunk with error: \(error.localizedDescription)")
-                retries += 1
+                if Task.isCancelled || error.isCancellation { throw CancellationError() }
+                if error.uploadRequiresNewURL { throw ChunkWorkerError(lastSeenProgress: progressSnapshot(), reason: error) }
                 requestError = error
             }
-        } while(retries < maxRetries)
-        // Out of retries. Notify failure
-        throw ChunkWorkerError(lastSeenProgress: lastSeenUpdate, reason: requestError)
+            if attempts < max(1, maxRetries) {
+                try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+            }
+        } while attempts < max(1, maxRetries)
+        throw ChunkWorkerError(lastSeenProgress: progressSnapshot(), reason: requestError)
     }
-    
+
+    private func progressSnapshot() -> Update {
+        progressLock.withLock {
+            let progress = Progress(totalUnitCount: lastSeenUpdate.progress.totalUnitCount)
+            progress.completedUnitCount = lastSeenUpdate.progress.completedUnitCount
+            return Update(progress: progress, bytesSinceLastUpdate: lastSeenUpdate.bytesSinceLastUpdate,
+                          chunkStartTime: lastSeenUpdate.chunkStartTime, eventTime: lastSeenUpdate.eventTime)
+        }
+    }
+
     private func makeUploadTask(
         chunk: FileChunk
     ) -> Task<Success, Error> {
@@ -129,10 +127,10 @@ class ChunkWorker {
             let update = Update(
                 progress: progress,
                 bytesSinceLastUpdate: bytesSent,
-                chunkStartTime: chunkStartTime ?? 0,
+                chunkStartTime: chunkStartTime,
                 eventTime: Date().timeIntervalSince1970
             )
-            lastSeenUpdate = update
+            progressLock.withLock { lastSeenUpdate = update }
             if let delegate = progressDelegate {
                 delegate(update)
             }
@@ -160,6 +158,8 @@ class ChunkWorker {
     struct Success : Sendable {
         let finalState: Update
         let tries: Int
+        let nextByte: UInt64
+        let isComplete: Bool
     }
     
     convenience init(
@@ -201,7 +201,9 @@ fileprivate actor ChunkActor {
             endByte = "\(chunk.endByte - 1)"
         }
         
-        let contentRangeValue = "bytes \(startByte)-\(endByte)/\(chunk.totalFileSize)"
+        let contentRangeValue = chunk.chunkData.isEmpty
+            ? "bytes */\(chunk.totalFileSize)"
+            : "bytes \(startByte)-\(endByte)/\(chunk.totalFileSize)"
         var request = URLRequest(url: uploadURL)
         request.httpMethod = "PUT"
         request.setValue("video/*", forHTTPHeaderField: "Content-Type")
@@ -244,7 +246,7 @@ fileprivate class ProgressReportingURLSessionTaskDelegate : NSObject, URLSession
 
 class ChunkResponseValidator {
     static let acceptableHTTPStatusCodes = [200, 201, 202, 204, 308]
-    static let retryableHTTPStatusCodes = [408, 502, 503, 504]
+    static let retryableHTTPStatusCodes = [408, 429, 500, 502, 503, 504]
     
     func validate(statusCode: Int) -> Disposition {
         if ChunkResponseValidator.acceptableHTTPStatusCodes.contains(statusCode) {

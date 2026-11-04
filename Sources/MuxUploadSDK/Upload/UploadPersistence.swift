@@ -12,11 +12,12 @@ import Foundation
 ///  of its type in the process (inside MuxUploadManager).
 ///  It is not thread-safe
 class UploadPersistence {
-    private static let ENTRY_TTL: TimeInterval = 3 * 24 * 60 * 60 // 3 days
+    private static let ENTRY_TTL: TimeInterval = 7 * 24 * 60 * 60 // Maximum Mux upload URL lifetime
     
     private let fileURL: URL
     private var cache: [String : PersistenceEntry]? // populated on first write for this object (see ensureCache())
     private let uploadsFile: UploadsFile
+    private let outputStorage: FileSystemTemporaryStoragePreflighter?
     
     func update(
         uploadState state: ChunkedFileUploader.InternalUploadState,
@@ -30,7 +31,10 @@ class UploadPersistence {
                 forUpload: uploadInfo,
                 inputFileURL: fileInputURL
             ) {
-                try write(entry: entry, for: uploadInfo.id)
+                let previous = try readEntry(uploadID: uploadInfo.id)
+                let digest = previous?.inputFileURL == fileInputURL ? previous?.payloadDigest : nil
+                try write(entry: entry.with(payloadDigest: digest, inputFileURL: fileInputURL,
+                                           uploadURL: uploadInfo.uploadURL), for: uploadInfo.id)
             } else {
                 try remove(entryAtID: uploadInfo.id)
             }
@@ -57,11 +61,11 @@ class UploadPersistence {
         try maybeOpenCache()
         if var cache = cache {
             let removed = cache.removeValue(forKey: id)
-            self.cache = cache
-            // write-through
+            // Keep the record and its bytes if disk removal fails.
             try uploadsFile.writeContents(of: UploadsFileContents(mapOf: cache))
+            self.cache = cache
             if let removed, !cache.values.contains(where: { $0.inputFileURL == removed.inputFileURL }),
-               FileSystemTemporaryStoragePreflighter().ownsTemporaryOutput(removed.inputFileURL) {
+               (outputStorage ?? FileSystemTemporaryStoragePreflighter()).ownsTemporaryOutput(removed.inputFileURL) {
                 try? FileManager.default.removeItem(at: removed.inputFileURL)
             }
         }
@@ -73,10 +77,8 @@ class UploadPersistence {
         try maybeOpenCache()
         if var cache = cache {
             cache.updateValue(entry, forKey: uploadID)
+            try uploadsFile.writeContents(of: UploadsFileContents(mapOf: cache))
             self.cache = cache
-            try uploadsFile.writeContents(
-                of: UploadsFileContents(entries: cache.map { (key, value) in value })
-            )
         }
         
     }
@@ -95,17 +97,9 @@ class UploadPersistence {
         if cache == nil {
             try self.uploadsFile.maybeOpenCache()
             let entries = try uploadsFile.readContents().entriesAbsFileUrlToUploadInfo
-            let storage = FileSystemTemporaryStoragePreflighter()
-            let restored = entries.map { entry in
-                // A failed migration must not hide other uploads or prevent use of
-                // legacy bytes that are still readable at their existing path.
-                let url = (try? storage.restoredOutputURL(entry.inputFileURL)) ?? entry.inputFileURL
-                return entry.with(inputFileURL: url, uploadURL: entry.uploadInfo.uploadURL)
-            }
-            self.cache = UploadsFileContents(entries: restored).asDictionary()
-            if zip(entries, restored).contains(where: { $0.inputFileURL != $1.inputFileURL }) {
-                try uploadsFile.writeContents(of: UploadsFileContents(entries: restored))
-            }
+            self.cache = UploadsFileContents(entries: entries).asDictionary()
+            try outputStorage?.removeAbandonedOutputs(referencedBy: entries,
+                before: FileSystemTemporaryStoragePreflighter.sessionStart)
             try cleanUpOldEntries() // Obligatory
         }
     }
@@ -127,17 +121,19 @@ class UploadPersistence {
     
     /// Configures and initlaizes an ``UploadPersistence`` for normal production use
     init() throws {
+        self.outputStorage = FileSystemTemporaryStoragePreflighter()
         let baseDirectory = FileManager.default.urls(
             for: .applicationSupportDirectory,
             in: .userDomainMask
         ).first ?? FileManager.default.temporaryDirectory
         let directoryURL = baseDirectory.appendingPathComponent("mux", isDirectory: true)
-        self.fileURL = directoryURL.appendingPathComponent("uploads.json")
+        self.fileURL = directoryURL.appendingPathComponent("uploads-v2.json")
         self.uploadsFile = try UploadsFileImpl(fromFile: fileURL)
     }
     
     /// Allows an UploasdFile to be injected at the given path
-    init(innerFile: UploadsFile, atURL url: URL) {
+    init(innerFile: UploadsFile, atURL url: URL, outputStorage: FileSystemTemporaryStoragePreflighter? = nil) {
+        self.outputStorage = outputStorage
         self.uploadsFile = innerFile
         self.fileURL = url
     }
@@ -150,9 +146,56 @@ struct PersistenceEntry : Codable {
     let lastSuccessfulByte: UInt64
     let uploadInfo: UploadInfo
     let inputFileURL: URL
-    
+    var payloadDigest: String? = nil
+
+    private enum CodingKeys: String, CodingKey {
+        case savedAt, stateCode, lastSuccessfulByte, uploadInfo, inputFileURL, payloadDigest
+        case relativeInputPath, relativeSourcePath
+    }
+
+    init(savedAt: TimeInterval, stateCode: PreviousStateCode, lastSuccessfulByte: UInt64,
+         uploadInfo: UploadInfo, inputFileURL: URL, payloadDigest: String? = nil) {
+        self.savedAt = savedAt; self.stateCode = stateCode; self.lastSuccessfulByte = lastSuccessfulByte
+        self.uploadInfo = uploadInfo; self.inputFileURL = inputFileURL; self.payloadDigest = payloadDigest
+    }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        savedAt = try values.decode(TimeInterval.self, forKey: .savedAt)
+        stateCode = try values.decode(PreviousStateCode.self, forKey: .stateCode)
+        lastSuccessfulByte = try values.decode(UInt64.self, forKey: .lastSuccessfulByte)
+        var info = try values.decode(UploadInfo.self, forKey: .uploadInfo)
+        let home = URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)
+        if let path = try values.decodeIfPresent(String.self, forKey: .relativeSourcePath) {
+            info.sourceFileURL = home.appendingPathComponent(path)
+        }
+        uploadInfo = info
+        if let path = try values.decodeIfPresent(String.self, forKey: .relativeInputPath) {
+            inputFileURL = home.appendingPathComponent(path)
+        } else { inputFileURL = try values.decode(URL.self, forKey: .inputFileURL) }
+        payloadDigest = try values.decodeIfPresent(String.self, forKey: .payloadDigest)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var values = encoder.container(keyedBy: CodingKeys.self)
+        try values.encode(savedAt, forKey: .savedAt)
+        try values.encode(stateCode, forKey: .stateCode)
+        try values.encode(lastSuccessfulByte, forKey: .lastSuccessfulByte)
+        try values.encode(uploadInfo, forKey: .uploadInfo)
+        try values.encode(inputFileURL, forKey: .inputFileURL)
+        try values.encodeIfPresent(payloadDigest, forKey: .payloadDigest)
+        let home = URL(fileURLWithPath: NSHomeDirectory()).resolvingSymlinksInPath().path + "/"
+        func relative(_ url: URL?) -> String? {
+            guard let url, url.isFileURL else { return nil }
+            let path = url.resolvingSymlinksInPath().path
+            return path.hasPrefix(home) ? String(path.dropFirst(home.count)) : nil
+        }
+        try values.encodeIfPresent(relative(inputFileURL), forKey: .relativeInputPath)
+        try values.encodeIfPresent(relative(uploadInfo.sourceFileURL), forKey: .relativeSourcePath)
+    }
+
     enum PreviousStateCode : Int, Codable {
-        case wasInProgress = 0, wasPaused = 1
+        case wasInProgress = 0, wasPaused = 1, preparing = 2
     }
     
     func with(
@@ -160,6 +203,7 @@ struct PersistenceEntry : Codable {
         stateCode: PreviousStateCode? = nil,
         lastSuccessfulByte: UInt64? = nil,
         uploadInfo: UploadInfo? = nil,
+        payloadDigest: String? = nil,
         inputFileURL: URL,
         uploadURL: URL
     ) -> PersistenceEntry {
@@ -168,10 +212,11 @@ struct PersistenceEntry : Codable {
             stateCode: stateCode ?? self.stateCode,
             lastSuccessfulByte: lastSuccessfulByte ?? self.lastSuccessfulByte,
             uploadInfo: uploadInfo ?? self.uploadInfo,
-            inputFileURL: inputFileURL
+            inputFileURL: inputFileURL,
+            payloadDigest: payloadDigest ?? self.payloadDigest
         )
     }
-    
+
     static func fromUploadState(
         _ state: ChunkedFileUploader.InternalUploadState,
         forUpload upload: UploadInfo,
@@ -182,7 +227,7 @@ struct PersistenceEntry : Codable {
         case .success(_), .canceled: return nil
         case .failure(let error):
             guard let uploadError = error as? InternalUploaderError,
-                  !uploadError.isMissingInputFile else { return nil }
+                  !uploadError.uploadRequiresNewURL else { return nil }
             return PersistenceEntry(
                 savedAt: Date().timeIntervalSince1970,
                 stateCode: .wasInProgress,
@@ -242,7 +287,7 @@ struct UploadsFileContents : Codable {
 
 /// A JSON file containing the list of available uploads. Can be written or read all at once.
 /// Doesn't hold onto read or witten data other than writing or reading the file
-fileprivate struct UploadsFileImpl : UploadsFile {
+struct UploadsFileImpl : UploadsFile {
     
     private let fileURL: URL
     
@@ -251,9 +296,12 @@ fileprivate struct UploadsFileImpl : UploadsFile {
         if !FileManager.default.fileExists(atPath: dir.path) {
             try FileManager.default.createDirectory(atPath: dir.path, withIntermediateDirectories: true)
         }
-        
+        var directory = dir
+        var values = URLResourceValues()
+        values.isExcludedFromBackup = true
+        try directory.setResourceValues(values)
     }
-    
+
     func writeContents(of jsonData: UploadsFileContents) throws {
         let data = try JSONEncoder().encode(jsonData)
         try data.write(to: fileURL, options: .atomic)

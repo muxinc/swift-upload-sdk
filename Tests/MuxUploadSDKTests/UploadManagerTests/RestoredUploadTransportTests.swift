@@ -42,14 +42,14 @@ final class RestoredUploadTransportTests: XCTestCase {
         let bytes = Data((0..<4095).map { UInt8($0 % 251) })
         try bytes.write(to: fileURL)
         let listening = expectation(description: "Failure server listening")
-        let server = try UploadServer(listening: listening, failFirstRequest: true)
+        let server = try UploadServer(listening: listening, failFirstRequest: true, initialOffset: 1024)
         server.start()
         defer { server.stop() }
         await fulfillment(of: [listening], timeout: 5)
         let port = try XCTUnwrap(server.port)
         let entry = makeEntry(fileURL: fileURL, port: port, checkpoint: 1024, sourceURL: sourceURL)
         let persistenceURL = directory.appendingPathComponent("uploads.json")
-        let persistence = UploadPersistence(innerFile: DiskUploadsFile(url: persistenceURL), atURL: persistenceURL)
+        let persistence = UploadPersistence(innerFile: try UploadsFileImpl(fromFile: persistenceURL), atURL: persistenceURL)
         try persistence.write(entry: entry, for: entry.uploadInfo.id)
         let cache = UploadCacheActor(persistence: persistence)
         let manager = DirectUploadManager(uploadActor: cache)
@@ -67,7 +67,7 @@ final class RestoredUploadTransportTests: XCTestCase {
         let inSessionReplacement = await manager.resumeDirectUpload(ofFile: sourceURL)
         // Read only on-disk state using fresh session objects, as on the next app launch.
         XCTAssertTrue(FileManager.default.fileExists(atPath: fileURL.path))
-        let nextPersistence = UploadPersistence(innerFile: DiskUploadsFile(url: persistenceURL), atURL: persistenceURL)
+        let nextPersistence = UploadPersistence(innerFile: try UploadsFileImpl(fromFile: persistenceURL), atURL: persistenceURL)
         let nextCache = UploadCacheActor(persistence: nextPersistence)
         let nextManager = DirectUploadManager(uploadActor: nextCache)
         let resumed: DirectUpload
@@ -112,48 +112,8 @@ final class RestoredUploadTransportTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: sourceURL), Data([9, 8, 7]))
     }
 
-    func testLegacyStandardizedPayloadMovesToCurrentContainerAndExpires() throws {
-        let name = "mux-upload-\(UUID().uuidString).mp4"
-        let legacy = FileManager.default.temporaryDirectory
-            .appendingPathComponent(FileSystemTemporaryStoragePreflighter.directoryName)
-            .appendingPathComponent(name)
-        try FileManager.default.createDirectory(at: legacy.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try Data([1, 2, 3]).write(to: legacy)
-        let durable = FileSystemTemporaryStoragePreflighter.durableBaseDirectory
-            .appendingPathComponent(FileSystemTemporaryStoragePreflighter.directoryName).appendingPathComponent(name)
-        defer {
-            try? FileManager.default.removeItem(at: legacy)
-            try? FileManager.default.removeItem(at: durable)
-        }
-        // An older install's absolute container path, with bytes still present in today's tmp.
-        let oldURL = URL(fileURLWithPath: "/previous-container/tmp/MuxUploadSDK/Standardized/" + name)
-        let entry = makeEntry(fileURL: oldURL, port: 1, checkpoint: 2)
-        let disk = FakeUploadsFile.simiulatedStorage()
-        try disk.writeContents(of: UploadsFileContents(entries: [entry]))
-        let persistence = UploadPersistence(innerFile: disk, atURL: legacy)
-        let restored = try XCTUnwrap(persistence.readEntry(uploadID: entry.uploadInfo.id))
-        XCTAssertEqual(restored.inputFileURL, durable)
-        XCTAssertEqual(restored.lastSuccessfulByte, 2)
-        XCTAssertEqual(try Data(contentsOf: durable), Data([1, 2, 3]))
-        XCTAssertFalse(FileManager.default.fileExists(atPath: legacy.path))
-        XCTAssertEqual(try durable.deletingLastPathComponent().resourceValues(forKeys: [.isExcludedFromBackupKey]).isExcludedFromBackup, true)
-
-        // A subsequent container-path change also resolves the same durable bytes.
-        let moved = entry.with(inputFileURL: URL(fileURLWithPath:
-            "/previous-container/Library/Application Support/MuxUploadSDK/Standardized/" + name),
-                               uploadURL: entry.uploadInfo.uploadURL)
-        try disk.writeContents(of: UploadsFileContents(entries: [moved]))
-        let reloaded = UploadPersistence(innerFile: disk, atURL: legacy)
-        XCTAssertEqual(try reloaded.readEntry(uploadID: entry.uploadInfo.id)?.inputFileURL, durable)
-        try reloaded.write(entry: restored.with(savedAt: Date().timeIntervalSince1970 - 4 * 24 * 60 * 60,
-                                               inputFileURL: durable, uploadURL: entry.uploadInfo.uploadURL),
-                           for: entry.uploadInfo.id)
-        XCTAssertTrue(try UploadPersistence(innerFile: disk, atURL: legacy).readAll().isEmpty)
-        XCTAssertFalse(FileManager.default.fileExists(atPath: durable.path))
-    }
-
     @MainActor
-    func testMissingLegacyPayloadReportsFileErrorAndDiscardsCheckpoint() async throws {
+    func testMissingPayloadRequiresANewURLAndDiscardsCheckpoint() async throws {
         let source = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try Data([9, 8, 7]).write(to: source)
         defer { try? FileManager.default.removeItem(at: source) }
@@ -170,7 +130,7 @@ final class RestoredUploadTransportTests: XCTestCase {
         upload.resultHandler = { result in
             guard case .failure(let error) = result else { return XCTFail("Must report missing bytes") }
             XCTAssertEqual(error.kind, .file)
-            XCTAssertTrue(error.message.contains("Start a new upload"))
+            XCTAssertTrue(error.message.contains("new upload URL"))
             failure.fulfill()
         }
         upload.start()
@@ -198,7 +158,7 @@ final class RestoredUploadTransportTests: XCTestCase {
         try bytes.write(to: fileURL)
         let listening = expectation(description: "Destination server listening")
         let transferring = expectation(description: "New session is transferring")
-        let server = try UploadServer(listening: listening, secondRequest: transferring)
+        let server = try UploadServer(listening: listening, secondRequest: transferring, initialOffset: 1024)
         server.start()
         defer { server.stop() }
         await fulfillment(of: [listening], timeout: 5)
@@ -246,7 +206,7 @@ final class RestoredUploadTransportTests: XCTestCase {
         XCTAssertNil(manager.findChunkedFileUploader(inputFileURL: fileURL, uploadURL: newURL))
     }
 
-    private func makeEntry(fileURL: URL, port: UInt16, checkpoint: UInt64, sourceURL: URL? = nil) -> PersistenceEntry {
+    private func makeEntry(fileURL: URL, port: UInt16, checkpoint: UInt64, sourceURL: URL? = nil, retryLimit: Int = 1) -> PersistenceEntry {
         PersistenceEntry(
             savedAt: Date().timeIntervalSince1970,
             stateCode: .wasPaused,
@@ -258,7 +218,7 @@ final class RestoredUploadTransportTests: XCTestCase {
                     eventTracking: .init(optedOut: true),
                     inputStandardization: .skipped,
                     chunkSizeInBytes: 1024,
-                    retryLimitPerChunk: 1
+                    retryLimitPerChunk: retryLimit
                 )
             ),
             inputFileURL: fileURL
@@ -275,7 +235,7 @@ final class RestoredUploadTransportTests: XCTestCase {
         try originalBytes.write(to: fileURL)
         let listening = expectation(description: "Loopback server listening")
         let secondRequest = expectation(description: "Second chunk held while checkpoint is checked")
-        let server = try UploadServer(listening: listening, secondRequest: secondRequest)
+        let server = try UploadServer(listening: listening, secondRequest: secondRequest, initialOffset: 1234)
         server.start()
         defer { server.stop() }
         await fulfillment(of: [listening], timeout: 5)
@@ -357,31 +317,285 @@ final class RestoredUploadTransportTests: XCTestCase {
         XCTAssertNil(remaining)
     }
 
+    @MainActor
+    func testStartAfterFailureRetriesTheSameHandleAndPayload() async throws {
+        try await exerciseRecovery(failFirst: true)
+    }
+
+    @MainActor
+    func testPartialAcknowledgementAndStaleCheckpointUseServerOffset() async throws {
+        try await exerciseRecovery(checkpoint: 1024, remoteOffset: 0, partialAck: true)
+    }
+
+    @MainActor
+    func testCheckpointAtEOFChecksServerWithoutSendingAnEmptyChunk() async throws {
+        try await exerciseRecovery(checkpoint: 4095, remoteOffset: 4095, complete: true)
+    }
+
+    @MainActor
+    func testLostFinalResponseIsRecognizedOnTheNextStart() async throws {
+        try await exerciseRecovery(loseFinal: true)
+    }
+
+    @MainActor
+    func testRetryExhaustionRetainsPayloadButExpiredURLRemovesIt() async throws {
+        for status in [503, 429, 403, 404] { try await exerciseRecovery(status: status) }
+    }
+
+    @MainActor
+    func testChangedPayloadFailsBeforeContactingTheUploadServer() async throws {
+        try await exerciseRecovery(changed: true)
+    }
+
+    @MainActor
+    func testFailedCompletionWriteRetainsPayloadForServerConfirmedRecovery() async throws {
+        try await exerciseRecovery(failedCompletionWrite: true)
+    }
+
+    @MainActor
+    func testRetryLimitAndCancellationAfterFailureAreHonored() async throws {
+        try await exerciseRecovery(status: 503, attempts: 3)
+        try await exerciseRecovery(status: 503, cancelAndRestart: true)
+    }
+
+    @MainActor
+    private func exerciseRecovery(checkpoint: UInt64 = 0, remoteOffset: Int = 0,
+                                  failFirst: Bool = false, partialAck: Bool = false,
+                                  complete: Bool = false, loseFinal: Bool = false,
+                                  status: Int? = nil, changed: Bool = false, attempts: Int = 1,
+                                  failedCompletionWrite: Bool = false, cancelAndRestart: Bool = false) async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let source = directory.appendingPathComponent("original.bin")
+        try Data([9, 8, 7]).write(to: source)
+        let payloadDirectory = FileSystemTemporaryStoragePreflighter.durableBaseDirectory
+            .appendingPathComponent(FileSystemTemporaryStoragePreflighter.directoryName, isDirectory: true)
+        try FileManager.default.createDirectory(at: payloadDirectory, withIntermediateDirectories: true)
+        let payload = payloadDirectory.appendingPathComponent("mux-upload-\(UUID().uuidString).mp4")
+        let bytes = Data((0..<4095).map { UInt8($0 % 251) })
+        try bytes.write(to: payload)
+        defer { try? FileManager.default.removeItem(at: payload) }
+        let listening = expectation(description: "Strict server listening")
+        let server = try UploadServer(listening: listening, failFirstRequest: failFirst,
+            initialOffset: remoteOffset, partialFirstAck: partialAck, forcedStatus: status,
+            initiallyComplete: complete, loseFinalResponse: loseFinal)
+        server.start()
+        defer { server.stop() }
+        await fulfillment(of: [listening], timeout: 5)
+        var entry = makeEntry(fileURL: payload, port: try XCTUnwrap(server.port), checkpoint: checkpoint, sourceURL: source,
+                              retryLimit: attempts)
+        entry.payloadDigest = try uploadPayloadDigest(at: payload)
+        if changed { try Data(repeating: 7, count: bytes.count).write(to: payload) }
+        let manifest = directory.appendingPathComponent("uploads.json")
+        let disk = CompletionWriteFailureFile(inner: try UploadsFileImpl(fromFile: manifest), failRemoval: failedCompletionWrite)
+        let persistence = UploadPersistence(innerFile: disk, atURL: manifest)
+        try persistence.write(entry: entry, for: entry.uploadInfo.id)
+        let manager = DirectUploadManager(uploadActor: UploadCacheActor(persistence: persistence))
+        let restored = await manager.resumeDirectUpload(ofFile: source)
+        let upload = try XCTUnwrap(restored)
+        let result = expectation(description: "First result")
+        var first: DirectUploadResult?
+        upload.resultHandler = { first = $0; result.fulfill() }
+        upload.start()
+        upload.start() // Repeated calls must not create concurrent transports.
+        await fulfillment(of: [result], timeout: 5)
+        if failFirst || loseFinal {
+            guard case .failure = first else { return XCTFail("Expected an interrupted first attempt") }
+            XCTAssertTrue(FileManager.default.fileExists(atPath: payload.path))
+            let success = expectation(description: "Same handle recovers")
+            upload.resultHandler = {
+                if case .failure(let error) = $0 { XCTFail("Retry failed: \(error)") }
+                success.fulfill()
+            }
+            upload.start(forceRestart: loseFinal)
+            await fulfillment(of: [success], timeout: 5)
+            XCTAssertEqual(server.queries.count, 2)
+        } else if let status {
+            guard case .failure(let error) = first else { return XCTFail("Expected HTTP failure") }
+            XCTAssertEqual(error.kind, .http)
+            XCTAssertEqual(error.httpStatusCode, status)
+            XCTAssertEqual(error.requiresNewUpload, status < 500 && status != 429)
+            XCTAssertEqual(server.ranges.count, attempts, "Retry limit must bound the first failed chunk")
+            XCTAssertEqual(FileManager.default.fileExists(atPath: payload.path), !error.requiresNewUpload)
+            XCTAssertEqual(try persistence.readEntry(uploadID: entry.uploadInfo.id) != nil, !error.requiresNewUpload)
+            let cancelled = expectation(description: "Cancellation is durably complete")
+            upload.inputStatusHandler = { if case .ready = $0 { cancelled.fulfill() } }
+            upload.cancel()
+            await fulfillment(of: [cancelled], timeout: 2)
+            if cancelAndRestart {
+                let rejected = expectation(description: "Cancelled session requires a new URL")
+                upload.resultHandler = {
+                    guard case .failure(let failure) = $0 else { return XCTFail("Cancellation must be terminal") }
+                    XCTAssertTrue(failure.requiresNewUpload)
+                    rejected.fulfill()
+                }
+                upload.start()
+                await fulfillment(of: [rejected], timeout: 2)
+                XCTAssertEqual(server.queries.count, 1)
+                XCTAssertFalse(FileManager.default.fileExists(atPath: payload.path))
+                XCTAssertNil(try persistence.readEntry(uploadID: entry.uploadInfo.id))
+            }
+            return
+        } else if changed {
+            guard case .failure(let error) = first else { return XCTFail("Changed payload must fail") }
+            XCTAssertTrue(error.requiresNewUpload)
+            XCTAssertTrue(server.queries.isEmpty)
+        } else {
+            guard case .success = first else { return XCTFail("Expected server-confirmed completion") }
+        }
+        if failedCompletionWrite {
+            XCTAssertTrue(FileManager.default.fileExists(atPath: payload.path))
+            XCTAssertNotNil(try persistence.readEntry(uploadID: entry.uploadInfo.id))
+            disk.allowRemoval()
+            let reloaded = DirectUploadManager(uploadActor: UploadCacheActor(persistence:
+                UploadPersistence(innerFile: disk, atURL: manifest)))
+            let candidate = await reloaded.resumeDirectUpload(ofFile: source)
+            let recovered = try XCTUnwrap(candidate)
+            let done = expectation(description: "Remote success survives a failed local completion write")
+            recovered.resultHandler = { if case .failure(let error) = $0 { XCTFail("Unexpected failure: \(error)") }; done.fulfill() }
+            recovered.start()
+            await fulfillment(of: [done], timeout: 5)
+            XCTAssertEqual(server.queries.count, 2)
+            XCTAssertEqual(server.ranges.count, 4, "Already-completed bytes must not be sent again")
+        }
+        if complete { XCTAssertTrue(server.ranges.isEmpty) }
+        if partialAck { XCTAssertEqual(server.ranges.prefix(2), ["bytes 0-1023/4095", "bytes 512-1535/4095"]) }
+        if !changed { XCTAssertTrue(upload.complete) }
+        let finalPersistence = UploadPersistence(innerFile: disk, atURL: manifest)
+        XCTAssertNil(try finalPersistence.readEntry(uploadID: entry.uploadInfo.id))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: payload.path))
+        XCTAssertEqual(try Data(contentsOf: source), Data([9, 8, 7]))
+    }
+
+    @MainActor
+    func testPreparationIntentIsPersistedAndRestoredBeforeTransport() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let source = directory.appendingPathComponent("source.bin")
+        try Data(repeating: 1, count: 100).write(to: source)
+        let manifest = directory.appendingPathComponent("uploads.json")
+        let persistence = UploadPersistence(innerFile: try UploadsFileImpl(fromFile: manifest), atURL: manifest)
+        let manager = DirectUploadManager(uploadActor: UploadCacheActor(persistence: persistence))
+        let inspector = MockUploadInputInspector(shouldDeferCompletion: true)
+        let upload = DirectUpload(input: UploadInput(asset: AVURLAsset(url: source), info:
+            UploadInfo(uploadURL: URL(string: "https://example.com/new-session")!, options: .default)),
+            uploadManager: manager, inputInspector: inspector)
+        upload.start()
+        _ = await inspector.waitForDeferredInspectionStart()
+        let entry = try XCTUnwrap(persistence.readEntry(uploadID: upload.id))
+        XCTAssertEqual(entry.stateCode, .preparing)
+        XCTAssertNil(upload.videoFile)
+        let reopened = DirectUploadManager(uploadActor: UploadCacheActor(persistence:
+            UploadPersistence(innerFile: try UploadsFileImpl(fromFile: manifest), atURL: manifest)))
+        let restored = expectation(description: "Authoritative startup restoration completes")
+        reopened.resumeAllDirectUploads { result in
+            do {
+                let handles = try result.get()
+                XCTAssertEqual(handles.map(\.id), [upload.id])
+                XCTAssertEqual(handles.first?.sourceFileURL, source)
+                XCTAssertNil(handles.first?.videoFile)
+                XCTAssertFalse(handles.first?.inProgress ?? true)
+            } catch { XCTFail("Restoration failed: \(error)") }
+            restored.fulfill()
+        }
+        await fulfillment(of: [restored], timeout: 2)
+        upload.cancel()
+        await inspector.completeDeferredInspection()
+        await upload.waitForPreparation()
+        await manager.waitForPersistence()
+    }
+
+    @MainActor
+    func testFailedPayloadCommitPreventsNetworkAndSameHandleCanRetry() async throws {
+        let source = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try Data((0..<4095).map { UInt8($0 % 251) }).write(to: source)
+        defer { try? FileManager.default.removeItem(at: source) }
+        let listening = expectation(description: "Server listening")
+        let server = try UploadServer(listening: listening)
+        server.start()
+        defer { server.stop() }
+        await fulfillment(of: [listening], timeout: 5)
+        let disk = PayloadCommitFailureFile()
+        let persistence = UploadPersistence(innerFile: disk, atURL: source)
+        let manager = DirectUploadManager(uploadActor: UploadCacheActor(persistence: persistence))
+        let info = makeEntry(fileURL: source, port: try XCTUnwrap(server.port), checkpoint: 0).uploadInfo
+        let upload = DirectUpload(input: UploadInput(asset: AVURLAsset(url: source), info: info), uploadManager: manager)
+        let failed = expectation(description: "Persistence failure surfaced")
+        upload.resultHandler = {
+            guard case .failure(let error) = $0 else { return XCTFail("Must not upload uncommitted bytes") }
+            XCTAssertFalse(error.requiresNewUpload)
+            failed.fulfill()
+        }
+        upload.start()
+        await fulfillment(of: [failed], timeout: 5)
+        XCTAssertTrue(server.queries.isEmpty)
+        XCTAssertTrue(server.ranges.isEmpty)
+        XCTAssertEqual(try persistence.readEntry(uploadID: upload.id)?.stateCode, .preparing)
+        disk.allowPayloadCommit()
+        let succeeded = expectation(description: "Same handle retries after storage recovers")
+        upload.resultHandler = {
+            if case .failure(let error) = $0 { XCTFail("Retry failed: \(error)") }
+            succeeded.fulfill()
+        }
+        upload.start()
+        await fulfillment(of: [succeeded], timeout: 5)
+        XCTAssertEqual(server.queries.count, 1)
+        XCTAssertEqual(server.receivedBytes, try Data(contentsOf: source))
+        XCTAssertTrue(try persistence.readAll().isEmpty)
+    }
+
+    @MainActor
+    func testBulkRestorationReportsUnreadableManifest() async throws {
+        let manager = DirectUploadManager(uploadActor: UploadCacheActor(persistence:
+            UploadPersistence(innerFile: FakeUploadsFile.failsReadAndWrite(),
+                              atURL: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString))))
+        let reported = expectation(description: "Restoration reports storage failure")
+        manager.resumeAllDirectUploads { result in
+            XCTAssertTrue(Thread.isMainThread)
+            if case .success = result { XCTFail("An unreadable manifest must not look like an empty queue") }
+            reported.fulfill()
+        }
+        await fulfillment(of: [reported], timeout: 2)
+    }
+
     private final class UploadServer {
         private let lock = NSLock()
         private let queue = DispatchQueue(label: "restored-upload-loopback-server")
         private let listener: NWListener
         private let listening: XCTestExpectation
         private var capturedRanges: [String] = []
+        private var capturedQueries: [String] = []
         private var capturedPaths: [String] = []
         private var bodies: [Data] = []
         private var connections: [NWConnection] = []
-        private var heldRequest: NWConnection?
+        private var held: (NWConnection, String, Int, Int)?
+        private var offsets: [String: Int] = [:]
+        private var completed: Set<String> = []
         private let secondRequest: XCTestExpectation?
         private let failFirstRequest: Bool
+        private let initialOffset: Int
+        private let partialFirstAck: Bool
+        private let forcedStatus: Int?
+        private let initiallyComplete: Bool
+        private let loseFinalResponse: Bool
 
-        init(listening: XCTestExpectation, secondRequest: XCTestExpectation? = nil, failFirstRequest: Bool = false) throws {
+        init(listening: XCTestExpectation, secondRequest: XCTestExpectation? = nil,
+             failFirstRequest: Bool = false, initialOffset: Int = 0, partialFirstAck: Bool = false,
+             forcedStatus: Int? = nil, initiallyComplete: Bool = false, loseFinalResponse: Bool = false) throws {
             let parameters = NWParameters.tcp
             parameters.requiredLocalEndpoint = .hostPort(host: "127.0.0.1", port: .any)
             listener = try NWListener(using: parameters)
-            self.listening = listening
-            self.secondRequest = secondRequest
-            self.failFirstRequest = failFirstRequest
+            self.listening = listening; self.secondRequest = secondRequest
+            self.failFirstRequest = failFirstRequest; self.initialOffset = initialOffset
+            self.partialFirstAck = partialFirstAck; self.forcedStatus = forcedStatus
+            self.initiallyComplete = initiallyComplete; self.loseFinalResponse = loseFinalResponse
         }
 
         var port: UInt16? { listener.port?.rawValue }
-
         var ranges: [String] { lock.withLock { capturedRanges } }
+        var queries: [String] { lock.withLock { capturedQueries } }
         var paths: [String] { lock.withLock { capturedPaths } }
         var receivedBytes: Data { lock.withLock { bodies.reduce(into: Data()) { $0.append($1) } } }
 
@@ -401,8 +615,7 @@ final class RestoredUploadTransportTests: XCTestCase {
 
         func stop() {
             listener.cancel()
-            let active = lock.withLock { connections }
-            active.forEach { $0.cancel() }
+            lock.withLock { connections }.forEach { $0.cancel() }
         }
 
         private func receive(on connection: NWConnection, accumulated: Data) {
@@ -414,12 +627,9 @@ final class RestoredUploadTransportTests: XCTestCase {
                    let headers = String(data: request[..<separator.lowerBound], encoding: .utf8) {
                     let fields = headers.components(separatedBy: "\r\n").dropFirst().reduce(into: [String: String]()) { result, line in
                         let parts = line.split(separator: ":", maxSplits: 1)
-                        if parts.count == 2 {
-                            result[parts[0].lowercased()] = parts[1].trimmingCharacters(in: .whitespaces)
-                        }
+                        if parts.count == 2 { result[parts[0].lowercased()] = parts[1].trimmingCharacters(in: .whitespaces) }
                     }
-                    if let length = fields["content-length"].flatMap(Int.init),
-                       request.count - separator.upperBound >= length {
+                    if let length = fields["content-length"].flatMap(Int.init), request.count - separator.upperBound >= length {
                         let path = headers.components(separatedBy: "\r\n").first?.split(separator: " ").dropFirst().first.map(String.init) ?? "missing"
                         self.handle(connection, path: path, range: fields["content-range"] ?? "missing",
                                     body: request.subdata(in: separator.upperBound..<(separator.upperBound + length)))
@@ -427,62 +637,87 @@ final class RestoredUploadTransportTests: XCTestCase {
                     }
                 }
                 if error == nil && !complete { self.receive(on: connection, accumulated: request) }
-                else { XCTFail("Incomplete loopback upload request") }
             }
         }
 
         private func handle(_ request: NWConnection, path: String, range: String, body: Data) {
+            let offset = lock.withLock { offsets[path] ?? (path == "/new-session" ? 0 : initialOffset) }
+            if range.hasPrefix("bytes */") {
+                lock.withLock { capturedQueries.append(range) }
+                let done = lock.withLock { completed.contains(path) } || initiallyComplete
+                respond(to: request, statusCode: done ? 200 : 308, offset: offset)
+                return
+            }
             let index = lock.withLock {
-                capturedRanges.append(range)
-                capturedPaths.append(path)
-                bodies.append(body)
-                let index = capturedRanges.count - 1
-                if index == 1, secondRequest != nil { heldRequest = request }
-                return index
+                capturedRanges.append(range); capturedPaths.append(path); bodies.append(body)
+                return capturedRanges.count - 1
             }
-            if index == 0, failFirstRequest {
-                respond(to: request, statusCode: 500)
-            } else if index == 1, let secondRequest {
-                secondRequest.fulfill()
-            } else {
-                let bounds = range.split(separator: "/")
-                let end = bounds.first?.split(separator: "-").last.flatMap { Int($0) }
-                let total = bounds.last.flatMap { Int($0) }
-                respond(to: request, statusCode: end == total.map({ $0 - 1 }) ? 200 : 308)
+            let pieces = range.replacingOccurrences(of: "bytes ", with: "").split(separator: "/")
+            let bounds = pieces.first?.split(separator: "-") ?? []
+            guard pieces.count == 2, bounds.count == 2, let start = Int(bounds[0]),
+                  let end = Int(bounds[1]), let total = Int(pieces[1]), start <= end,
+                  start == offset, body.count == end - start + 1, end < total else {
+                respond(to: request, statusCode: 416, offset: offset); return
             }
+            if let forcedStatus { respond(to: request, statusCode: forcedStatus, offset: offset); return }
+            if index == 0 && failFirstRequest { respond(to: request, statusCode: 500, offset: offset); return }
+            if index == 1, let secondRequest {
+                lock.withLock { held = (request, path, end, total) }
+                secondRequest.fulfill(); return
+            }
+            let accepted = index == 0 && partialFirstAck ? min(body.count, 512) : body.count
+            let next = start + accepted
+            lock.withLock {
+                offsets[path] = next
+                if next == total { completed.insert(path) }
+            }
+            if next == total && loseFinalResponse { request.cancel(); return }
+            respond(to: request, statusCode: next == total ? 200 : 308, offset: next)
         }
 
         func releaseSecondRequest() {
-            let request = takeHeldRequest()
-            XCTAssertNotNil(request)
-            if let request { respond(to: request, statusCode: 308) }
+            guard let (request, path, end, total) = lock.withLock({ let current = held; held = nil; return current }) else {
+                return XCTFail("Expected a held second chunk")
+            }
+            lock.withLock { offsets[path] = end + 1; if end + 1 == total { completed.insert(path) } }
+            respond(to: request, statusCode: end + 1 == total ? 200 : 308, offset: end + 1)
         }
 
-        private func takeHeldRequest() -> NWConnection? {
-            lock.withLock {
-                let request = heldRequest
-                heldRequest = nil
-                return request
-            }
-        }
-        private func respond(to connection: NWConnection, statusCode: Int) {
-            let response = Data("HTTP/1.1 \(statusCode) OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".utf8)
-            connection.send(content: response, completion: .contentProcessed { error in
-                XCTAssertNil(error)
-                connection.cancel()
-            })
+        private func respond(to connection: NWConnection, statusCode: Int, offset: Int) {
+            let acknowledged = statusCode == 308 && offset > 0 ? "Range: bytes=0-\(offset - 1)\r\n" : ""
+            let response = Data("HTTP/1.1 \(statusCode) OK\r\n\(acknowledged)Content-Length: 0\r\nConnection: close\r\n\r\n".utf8)
+            connection.send(content: response, completion: .contentProcessed { _ in connection.cancel() })
         }
     }
 }
 
-private struct DiskUploadsFile: UploadsFile {
-    let url: URL
-    func maybeOpenCache() throws {}
-    func readContents() throws -> UploadsFileContents {
-        guard FileManager.default.fileExists(atPath: url.path) else { return UploadsFileContents(entries: []) }
-        return try JSONDecoder().decode(UploadsFileContents.self, from: Data(contentsOf: url))
-    }
+private final class CompletionWriteFailureFile: UploadsFile {
+    private let inner: UploadsFile
+    private let lock = NSLock()
+    private var failRemoval: Bool
+    init(inner: UploadsFile, failRemoval: Bool) { self.inner = inner; self.failRemoval = failRemoval }
+    func allowRemoval() { lock.withLock { failRemoval = false } }
+    func maybeOpenCache() throws { try inner.maybeOpenCache() }
+    func readContents() throws -> UploadsFileContents { try inner.readContents() }
     func writeContents(of contents: UploadsFileContents) throws {
-        try JSONEncoder().encode(contents).write(to: url, options: .atomic)
+        if contents.entriesAbsFileUrlToUploadInfo.isEmpty && lock.withLock({ failRemoval }) {
+            throw NSError(domain: NSCocoaErrorDomain, code: NSFileWriteOutOfSpaceError)
+        }
+        try inner.writeContents(of: contents)
+    }
+}
+
+private final class PayloadCommitFailureFile: UploadsFile {
+    private let inner = FakeUploadsFile.simiulatedStorage()
+    private let lock = NSLock()
+    private var failCommit = true
+    func allowPayloadCommit() { lock.withLock { failCommit = false } }
+    func maybeOpenCache() throws { try inner.maybeOpenCache() }
+    func readContents() throws -> UploadsFileContents { try inner.readContents() }
+    func writeContents(of contents: UploadsFileContents) throws {
+        if lock.withLock({ failCommit }), contents.entriesAbsFileUrlToUploadInfo.contains(where: { $0.stateCode != .preparing }) {
+            throw NSError(domain: NSCocoaErrorDomain, code: NSFileWriteOutOfSpaceError)
+        }
+        try inner.writeContents(of: contents)
     }
 }

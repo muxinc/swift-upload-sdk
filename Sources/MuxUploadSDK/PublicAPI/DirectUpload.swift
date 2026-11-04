@@ -295,7 +295,7 @@ public final class DirectUpload {
         input.status
     }
 
-    private var uploadInfo: UploadInfo {
+    internal var uploadInfo: UploadInfo {
         input.uploadInfo
     }
 
@@ -431,6 +431,7 @@ public final class DirectUpload {
     private let standardizationDiagnosticLogger: StandardizationDiagnosticLogging
     private let fileWorkerFactory: FileWorkerFactory
     private var lifecycleCommands: DirectUploadLifecycleCommandQueue!
+    private var preparationTask: Task<Void, Never>?
 
     typealias FileWorkerFactory = (
         UploadInfo,
@@ -443,6 +444,9 @@ public final class DirectUpload {
     // A normal start may observe another DirectUpload's managed transport.
     // Restarting this instance must detach from, rather than cancel, that worker.
     private var usesBorrowedFileWorker = false
+    private var hasCommittedTransport = false
+    private var cancelledTransport = false
+    private var terminalVersion = 0
 
     /// Represents the state of an upload when it is being 
     /// sent to Mux over the network
@@ -585,6 +589,7 @@ public final class DirectUpload {
             inputInspector: .shared
         )
         self.fileWorker = uploader
+        self.hasCommittedTransport = true
 
         handleStateUpdate(uploader.currentState)
         uploader.addDelegate(
@@ -609,7 +614,8 @@ public final class DirectUpload {
     /// more frequently than every 100 milliseconds.
     public var progressHandler: StateHandler?
 
-    /// Details of a successfully completed ``DirectUpload``
+    /// Details of completed upload transport. Asset processing may still be
+    /// underway; confirm asset readiness through your trusted backend.
     public struct SuccessDetails : Sendable, Hashable {
         public let finalState: TransportStatus
     }
@@ -653,6 +659,9 @@ public final class DirectUpload {
     URL to the file that will be uploaded, will return nil until
      the upload has been prepared
      */
+    /// Original caller-owned source. Keep it available until this upload completes.
+    public var sourceFileURL: URL { input.sourceAsset.url }
+
     public var videoFile: URL? {
         return fileWorker?.inputFileURL
     }
@@ -663,15 +672,42 @@ public final class DirectUpload {
     }
 
     /// Starts the upload.
-    /// - Parameter forceRestart: If true, cancels the current attempt and starts
-    /// from the beginning, preserving the upload's handlers. If false, resumes
-    /// a paused upload or starts an upload that is ready.
-    /// A forced restart does not cancel or reuse another upload's transport.
+    /// - Parameter forceRestart: Restarts local preparation before transport begins.
+    /// Once transport has begun, both values resume the same retained payload;
+    /// re-encoding bytes for an existing upload URL is unsafe. To replace the
+    /// payload, or after cancellation, create a DirectUpload with a new upload URL.
     public func start(forceRestart: Bool = false) {
         lifecycleCommands.start(forceRestart: forceRestart)
     }
 
-    fileprivate func processStartCommand(forceRestart: Bool) async {
+    fileprivate func processStartCommand(forceRestart requestedRestart: Bool) async {
+        if cancelledTransport {
+            resultHandler?(.failure(parseAsUploadError(lastSeenUploadStatus: uploadStatus ??
+                TransportStatus(progress: nil, updatedTime: Date().timeIntervalSince1970, startTime: nil, isPaused: false),
+                error: UploadRecoveryError.newUploadRequired)))
+            return
+        }
+        let forceRestart = requestedRestart && !hasCommittedTransport
+        if case .uploadFailed(_, _, let error) = input.status, !forceRestart {
+            guard !error.requiresNewUpload else { resultHandler?(.failure(error)); return }
+            let canRestartPreparation = await uploadManager.canRestartPreparation(id: id)
+            if let worker = await uploadManager.retryWorker(id: id) {
+                fileWorker = worker
+                usesBorrowedFileWorker = false
+                input.status = .uploadPaused(input.sourceAsset, input.uploadInfo, TransportStatus(
+                    progress: worker.currentState.progress, updatedTime: Date().timeIntervalSince1970,
+                    startTime: nil, isPaused: true))
+                uploadManager.registerUpload(self)
+            } else if !hasCommittedTransport || canRestartPreparation {
+                hasCommittedTransport = false
+                input.processUploadCancellation()
+            } else {
+                resultHandler?(.failure(parseAsUploadError(lastSeenUploadStatus: error.lastStatus ??
+                    TransportStatus(progress: nil, updatedTime: 0, startTime: nil, isPaused: false),
+                    error: UploadRecoveryError.newUploadRequired)))
+                return
+            }
+        }
         if !forceRestart, await preparationLifecycle.resume() {
             return
         }
@@ -705,9 +741,21 @@ public final class DirectUpload {
             return
         }
         guard await preparationLifecycle.isActive(attempt) else { return }
+        terminalVersion += 1
+        do { try await uploadManager.registerPreparation(self) }
+        catch {
+            _ = await preparationLifecycle.cancel()
+            uploadManager.acknowledgeUpload(id: id)
+            let failure = parseAsUploadError(lastSeenUploadStatus: TransportStatus(progress: nil,
+                updatedTime: Date().timeIntervalSince1970, startTime: nil, isPaused: false), error: error)
+            input.processUploadFailure(error: failure)
+            resultHandler?(.failure(failure))
+            return
+        }
+        guard await preparationLifecycle.isActive(attempt) else { return }
         input.status = .started(input.sourceAsset, input.uploadInfo)
         let sourceAsset = input.sourceAsset
-        Task { [weak self] in
+        preparationTask = Task { [weak self] in
             await self?.startInspection(
                 sourceAsset: sourceAsset,
                 attempt: attempt
@@ -715,7 +763,11 @@ public final class DirectUpload {
         }
     }
 
+    internal func waitForPreparation() async { await preparationTask?.value }
+
     private func prepareExistingTransport(_ worker: ChunkedFileUploader) {
+        hasCommittedTransport = true
+        terminalVersion += 1
         uploadManager.markUploadStarted(worker)
         switch input.status {
         case .uploadInProgress, .uploadSucceeded, .uploadFailed:
@@ -1008,12 +1060,11 @@ public final class DirectUpload {
                     uploadInfo: input.uploadInfo
                 )
             }) else { return }
-            await startNetworkTransport(
+            transferredOutputOwnership = await startNetworkTransport(
                 videoFile: generatedAsset.url,
                 duration: duration,
                 attempt: attempt
             )
-            transferredOutputOwnership = fileWorker?.inputFileURL == generatedAsset.url
         } catch is CancellationError {
             return
         } catch {
@@ -1121,7 +1172,7 @@ public final class DirectUpload {
         videoFile: URL,
         attempt: DirectUploadPreparationLifecycle.Attempt
     ) async {
-        await startNetworkTransport(
+        _ = await startNetworkTransport(
             videoFile: videoFile,
             duration: nil,
             attempt: attempt
@@ -1132,12 +1183,12 @@ public final class DirectUpload {
         videoFile: URL,
         duration: CMTime?,
         attempt: DirectUploadPreparationLifecycle.Attempt
-    ) async {
+    ) async -> Bool {
         guard await preparationLifecycle.isActive(attempt), readyForTransport() else {
             SDKLogger.logger?.info("Tried to start network transport before being ready")
-            return
+            return false
         }
-        _ = await lifecycleCommands.commit(
+        return await lifecycleCommands.commit(
             videoFile: videoFile,
             duration: duration,
             attempt: attempt
@@ -1150,6 +1201,7 @@ public final class DirectUpload {
         attempt: DirectUploadPreparationLifecycle.Attempt
     ) async -> Bool {
         while await preparationLifecycle.waitUntilTransportAllowed(for: attempt) {
+            var transferredOwnership = false
             let result = await DirectUploadTransportCommitCoordinator.shared.coordinate {
                 if self.manageBySDK, attempt.allowsWorkerReuse,
                    let existingWorker = self.uploadManager.findChunkedFileUploader(
@@ -1193,6 +1245,8 @@ public final class DirectUpload {
                         InternalUploaderDelegate { [self] state in handleStateUpdate(state) }
                     )
                     self.fileWorker = fileWorker
+                    self.hasCommittedTransport = true
+                    transferredOwnership = true
                     self.usesBorrowedFileWorker = false
                     self.uploadManager.registerUpload(self)
                     let now = Date().timeIntervalSince1970
@@ -1219,7 +1273,7 @@ public final class DirectUpload {
             }
             switch result {
             case .committed:
-                return true
+                return transferredOwnership
             case .paused:
                 continue
             case .inactive:
@@ -1261,6 +1315,8 @@ public final class DirectUpload {
         notifyCaller: Bool,
         restarting: Bool = false
     ) async {
+        terminalVersion += 1
+        if !restarting && hasCommittedTransport { cancelledTransport = true }
         let cancellationHandler = notifyCaller && !isUploadComplete() && isUploadStarted()
             ? resultHandler
             : nil
@@ -1294,8 +1350,8 @@ public final class DirectUpload {
         fileWorker?.removeDelegate(withToken: id)
         if shouldCancelWorker {
             fileWorker?.cancel()
-            removeOwnedTemporaryFile(fileWorker?.inputFileURL)
         }
+        await uploadManager.waitForPersistence()
         input.processUploadCancellation()
 
         cancellationHandler?(.failure(cancellationError))
@@ -1324,61 +1380,37 @@ public final class DirectUpload {
     
     private func handleStateUpdate(_ state: ChunkedFileUploader.InternalUploadState) {
         switch state {
-        case .success(let result): do {
-            let completedFileURL = fileWorker?.inputFileURL
-            let transportStatus = TransportStatus(
-                progress: result.finalProgress,
-                updatedTime: result.finishTime,
-                startTime: result.startTime,
-                isPaused: false
-            )
-            let successDetails = DirectUpload.SuccessDetails(finalState: transportStatus)
-            input.processUploadSuccess(transportStatus: transportStatus)
-            resultHandler?(Result<SuccessDetails, DirectUploadError>.success(successDetails))
+        case .success(let result):
+            if let worker = fileWorker { uploadManager.recordTerminalState(worker, state: state) }
             fileWorker?.removeDelegate(withToken: id)
             fileWorker = nil
-            removeOwnedTemporaryFile(completedFileURL)
-        }
-        case .failure(let error): do {
-            let failedFileURL = fileWorker?.inputFileURL
-            let canResume = failedFileURL.map {
-                PersistenceEntry.fromUploadState(state, forUpload: input.uploadInfo, inputFileURL: $0) != nil
-            } ?? false
-            let parsedError = parseAsUploadError(
-                lastSeenUploadStatus: input.transportStatus ?? TransportStatus(
-                    progress: nil,
-                    updatedTime: Date().timeIntervalSince1970,
-                    startTime: 0,
-                    isPaused: false
-                ),
-                error: error
-            )
-            input.processUploadFailure(error: parsedError)
-            if case .cancelled = parsedError.kind {
-                // This differs from what DirectUpload does
-                // when cancelled with an external API call
-                SDKLogger.logger?.info("task canceled")
-                let canceledStatus = DirectUpload.TransportStatus(
-                    progress: input.transportStatus?.progress,
-                    updatedTime: input.transportStatus?.updatedTime ?? Date().timeIntervalSince1970,
-                    startTime: input.transportStatus?.startTime ?? Date().timeIntervalSince1970,
-                    isPaused: true
-                )
-                progressHandler?(canceledStatus)
-                resultHandler?(DirectUploadResult.failure(DirectUploadError(
-                    lastStatus: canceledStatus,
-                    kind: .cancelled,
-                    message: "user cancelled",
-                    reason: nil
-                )))
-            } else {
-                resultHandler?(Result.failure(parsedError))
+            terminalVersion += 1
+            let version = terminalVersion
+            Task { @MainActor [self] in
+                await uploadManager.waitForPersistence()
+                guard version == terminalVersion else { return }
+                let status = TransportStatus(progress: result.finalProgress, updatedTime: result.finishTime,
+                    startTime: result.startTime, isPaused: false)
+                input.processUploadSuccess(transportStatus: status)
+                resultHandler?(.success(SuccessDetails(finalState: status)))
+                uploadManager.notifyDelegates()
             }
+        case .failure(let error):
+            if let worker = fileWorker { uploadManager.recordTerminalState(worker, state: state) }
             fileWorker?.removeDelegate(withToken: id)
             fileWorker = nil
-            // Persistence keeps this checkpoint; it must keep these exact bytes too.
-            if !canResume { removeOwnedTemporaryFile(failedFileURL) }
-        }
+            terminalVersion += 1
+            let version = terminalVersion
+            let failure = parseAsUploadError(lastSeenUploadStatus: input.transportStatus ??
+                TransportStatus(progress: nil, updatedTime: Date().timeIntervalSince1970,
+                    startTime: nil, isPaused: false), error: error)
+            input.processUploadFailure(error: failure)
+            Task { @MainActor [self] in
+                await uploadManager.waitForPersistence()
+                guard version == terminalVersion else { return }
+                resultHandler?(.failure(failure))
+                uploadManager.notifyDelegates()
+            }
         case .uploading(let update): do {
             let status = TransportStatus(
                 progress: update.progress,
@@ -1386,17 +1418,8 @@ public final class DirectUpload {
                 startTime: update.startTime,
                 isPaused: false
             )
-            if update.progress.totalUnitCount == update.progress.completedUnitCount {
-                input.processUploadSuccess(
-                    transportStatus: status
-                )
-            } else {
-                input.status = .uploadInProgress(
-                    input.sourceAsset,
-                    input.uploadInfo,
-                    status
-                )
-            }
+            // Sending the last body byte is not a server-confirmed success.
+            input.status = .uploadInProgress(input.sourceAsset, input.uploadInfo, status)
             progressHandler?(status)
         }
         default: do {}
@@ -1444,73 +1467,29 @@ extension DirectUpload {
         lastSeenUploadStatus: DirectUpload.TransportStatus,
         error: Error
     ) -> DirectUploadError {
-        if (error.asCancellationError()) != nil {
-            return DirectUploadError(
-                lastStatus: lastSeenUploadStatus,
-                kind: .cancelled,
-                message: "Cancelled by user",
-                reason: error
-            )
-        } else if (error.asChunkWorkerError()) != nil {
-            if let realCause = error.asHttpError() {
-                return DirectUploadError(
-                    lastStatus: lastSeenUploadStatus,
-                    kind: .http,
-                    message: "Http Failed: \(realCause.statusCode): \(realCause.statusMsg)",
-                    reason: error
-                )
-            } else {
-                return DirectUploadError(
-                    lastStatus: lastSeenUploadStatus,
-                    kind: .connection,
-                    message: "Connection error",
-                    reason: error
-                )
-            }
-        } else if let realError = error.asInternalUploaderError() {
-            if realError.isMissingInputFile {
-                return DirectUploadError(
-                    lastStatus: lastSeenUploadStatus,
-                    kind: .file,
-                    message: "The saved upload file is missing. Start a new upload from the original file.",
-                    reason: realError
-                )
-            }
-            // All DirectUploadError does is wrap ChunkedFile
-            // and ChunkWorker errors
-            return DirectUploadError(
-                lastStatus: lastSeenUploadStatus,
-                kind: .unknown,
-                message: "Unknown Internal Error",
-                reason: realError
-            )
-        } else if let realError = error.asChunkedFileError() {
-            switch realError {
-            case .fileHandle(_): return DirectUploadError(
-                lastStatus: lastSeenUploadStatus,
-                kind: .file,
-                message: "Couldn't read file for upload",
-                reason: error
-            )
-            case .invalidState(let msg): return DirectUploadError(
-                lastStatus: lastSeenUploadStatus,
-                kind: .unknown,
-                message: "Internal error: \(msg)",
-                reason: nil
-            )
-            }
-        } else {
-            return DirectUploadError(
-                lastStatus: lastSeenUploadStatus
-            )
-        }
+        let cause = error.uploadCause
+        let kind: DirectUploadError.Kind
+        let message: String
+        if cause.isCancellation { kind = .cancelled; message = "Cancelled by user" }
+        else if error.uploadRequiresNewURL {
+            kind = cause is HttpError ? .http : .file
+            message = "Check this Direct Upload with your backend. If incomplete, create a new upload URL from the original file."
+        } else if let http = cause as? HttpError {
+            kind = .http; message = "Upload request failed: HTTP \(http.statusCode)"
+        } else if cause is URLError || error.asChunkWorkerError() != nil ||
+                    (error.asInternalUploaderError()?.reason is ChunkWorker.ChunkWorkerError) {
+            kind = .connection; message = "Connection error; retry this upload when connectivity returns."
+        } else if error.asChunkedFileError() != nil || cause is CocoaError {
+            kind = .file; message = "Could not read the upload file."
+        } else { kind = .unknown; message = cause.localizedDescription }
+        return DirectUploadError(lastStatus: lastSeenUploadStatus, kind: kind, message: message, reason: error)
     }
 }
 
-/// An unrecoverable error occurring while the upload was
-/// executing The last-known state of the upload is available,
+/// An error occurring while the upload was
+/// executing. The last-known state of the upload is available,
 /// as well as the Error that stopped the upload
-public struct DirectUploadError : Error {
+public struct DirectUploadError : Error, LocalizedError {
     /// Represents the possible error cases from a ``DirectUpload``
     public enum Kind : Int {
         /// The cause of the error is not known
@@ -1529,6 +1508,16 @@ public struct DirectUploadError : Error {
     public let kind: Kind
     public let message: String
     public let reason: Error?
+    public var errorDescription: String? { message }
+
+    /// HTTP response code, including when nested inside a transport error.
+    public var httpStatusCode: Int? { (reason?.uploadCause as? HttpError)?.statusCode }
+
+    /// This session cannot safely continue. Request a new upload URL from your
+    /// trusted backend if the previous Direct Upload did not complete. Check its
+    /// status first, since a lost response may hide remote completion. Do not
+    /// re-encode and reuse the previous URL.
+    public var requiresNewUpload: Bool { reason?.uploadRequiresNewURL ?? false }
 
     var localizedDescription: String {
         get {

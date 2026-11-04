@@ -17,6 +17,67 @@ final class UploadPersistenceTests: XCTestCase {
     // writesWhilePausedShouldSave
     // writesTerminatedShouldRemove
     
+    func testCleanupProtectsReferencedAndCurrentOutputsButReclaimsAbandonedOnes() throws {
+        let base = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let directory = base.appendingPathComponent(FileSystemTemporaryStoragePreflighter.directoryName, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: base) }
+        let storage = FileSystemTemporaryStoragePreflighter(baseDirectory: base)
+        let referenced = directory.appendingPathComponent("mux-upload-retained.mp4")
+        let orphan = directory.appendingPathComponent("mux-upload-abandoned.mp4")
+        let current = directory.appendingPathComponent("mux-upload-active.mp4")
+        let unrelated = directory.appendingPathComponent("caller-file.mp4")
+        for file in [referenced, orphan, current, unrelated] {
+            try Data([1]).write(to: file)
+            try FileManager.default.setAttributes([.modificationDate: Date(timeIntervalSinceNow: -86400)], ofItemAtPath: file.path)
+        }
+        try FileManager.default.setAttributes([.modificationDate: Date()], ofItemAtPath: current.path)
+        let info = renameDummyUploadInfo(basename: "retained")
+        let entry = PersistenceEntry(savedAt: Date().timeIntervalSince1970, stateCode: .wasPaused,
+            lastSuccessfulByte: 1, uploadInfo: info, inputFileURL: referenced)
+        let disk = makeSimulatedUploadsFile()
+        try disk.writeContents(of: UploadsFileContents(entries: [entry]))
+        let persistence = UploadPersistence(innerFile: disk, atURL: base, outputStorage: storage)
+        XCTAssertEqual(try persistence.readAll().count, 1)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: orphan.path))
+        for file in [referenced, current, unrelated] { XCTAssertTrue(FileManager.default.fileExists(atPath: file.path)) }
+        try persistence.remove(entryAtID: info.id)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: referenced.path))
+    }
+
+    func testNewRecordsRebaseBothSourceAndTransportPathsWithinTheCurrentContainer() throws {
+        let home = URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)
+        let source = home.appendingPathComponent("Documents/source.mp4")
+        let transport = home.appendingPathComponent("Library/Application Support/MuxUploadSDK/Standardized/mux-upload-output.mp4")
+        var info = renameDummyUploadInfo(basename: "relative-paths")
+        info.sourceFileURL = source
+        let entry = PersistenceEntry(savedAt: Date().timeIntervalSince1970, stateCode: .wasPaused,
+            lastSuccessfulByte: 123, uploadInfo: info, inputFileURL: transport, payloadDigest: "unchanged-bytes")
+        var json = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(entry)) as? [String: Any])
+        // Absolute spellings belong to a previous container; new records carry relative paths too.
+        json["inputFileURL"] = "file:///previous-container/transport.mp4"
+        var storedInfo = try XCTUnwrap(json["uploadInfo"] as? [String: Any])
+        storedInfo["sourceFileURL"] = "file:///previous-container/source.mp4"
+        json["uploadInfo"] = storedInfo
+        let restored = try JSONDecoder().decode(PersistenceEntry.self, from: JSONSerialization.data(withJSONObject: json))
+        XCTAssertEqual(restored.inputFileURL, transport)
+        XCTAssertEqual(restored.uploadInfo.sourceFileURL, source)
+        XCTAssertEqual(restored.lastSuccessfulByte, 123)
+        XCTAssertEqual(restored.payloadDigest, "unchanged-bytes")
+    }
+
+    func testWrappedMissingInputAndExpiredHTTPFailureAreNotPersisted() throws {
+        let info = renameDummyUploadInfo(basename: "terminal")
+        let file = makeDummyFileURL(basename: "terminal")
+        for reason: Error in [ChunkedFileError.fileHandle(NSError(domain: NSCocoaErrorDomain, code: NSFileReadNoSuchFileError)),
+                              NSError(domain: NSCocoaErrorDomain, code: NSFileNoSuchFileError),
+                              ChunkWorker.ChunkWorkerError(lastSeenProgress: .init(progress: Progress(), bytesSinceLastUpdate: 0,
+                                chunkStartTime: 0, eventTime: 0), reason: HttpError(statusCode: 403, statusMsg: "expired"))] {
+            XCTAssertNil(PersistenceEntry.fromUploadState(.failure(InternalUploaderError(reason: reason, lastByte: 123)),
+                forUpload: info, inputFileURL: file))
+        }
+    }
+
     func testWrite() throws {
         let e1 = PersistenceEntry(
             savedAt: Date().timeIntervalSince1970,
@@ -211,20 +272,12 @@ final class UploadPersistenceTests: XCTestCase {
     }
 
     func testDefaultPersistenceCreatesBackingFileOnFirstWrite() throws {
-        let applicationSupportDirectory = try XCTUnwrap(
-            FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-        )
-        let uploadCacheDirectory = applicationSupportDirectory.appendingPathComponent("mux", isDirectory: true)
-        let uploadCacheFile = uploadCacheDirectory.appendingPathComponent("uploads.json")
-        defer {
-            try? FileManager.default.removeItem(at: uploadCacheFile)
-        }
-
-        try? FileManager.default.removeItem(at: uploadCacheFile)
-
+        let uploadCacheDirectory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let uploadCacheFile = uploadCacheDirectory.appendingPathComponent("uploads-v2.json")
+        defer { try? FileManager.default.removeItem(at: uploadCacheDirectory) }
         let uploadInfo = renameDummyUploadInfo(basename: "default-persistence")
         let inputFileURL = makeDummyFileURL(basename: "default-persistence")
-        let persistence = try UploadPersistence()
+        let persistence = UploadPersistence(innerFile: try UploadsFileImpl(fromFile: uploadCacheFile), atURL: uploadCacheFile)
 
         XCTAssertNoThrow(
             persistence.update(
