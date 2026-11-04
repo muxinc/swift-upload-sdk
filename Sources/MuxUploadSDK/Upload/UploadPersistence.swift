@@ -17,6 +17,7 @@ class UploadPersistence {
     private let fileURL: URL
     private var cache: [String : PersistenceEntry]? // populated on first write for this object (see ensureCache())
     private let uploadsFile: UploadsFile
+    private let outputStorage: FileSystemTemporaryStoragePreflighter?
     
     func update(
         uploadState state: ChunkedFileUploader.InternalUploadState,
@@ -57,11 +58,10 @@ class UploadPersistence {
         try maybeOpenCache()
         if var cache = cache {
             let removed = cache.removeValue(forKey: id)
-            self.cache = cache
-            // write-through
             try uploadsFile.writeContents(of: UploadsFileContents(mapOf: cache))
+            self.cache = cache
             if let removed, !cache.values.contains(where: { $0.inputFileURL == removed.inputFileURL }),
-               FileSystemTemporaryStoragePreflighter().ownsTemporaryOutput(removed.inputFileURL) {
+               (outputStorage ?? FileSystemTemporaryStoragePreflighter()).ownsTemporaryOutput(removed.inputFileURL) {
                 try? FileManager.default.removeItem(at: removed.inputFileURL)
             }
         }
@@ -95,7 +95,7 @@ class UploadPersistence {
         if cache == nil {
             try self.uploadsFile.maybeOpenCache()
             let entries = try uploadsFile.readContents().entriesAbsFileUrlToUploadInfo
-            let storage = FileSystemTemporaryStoragePreflighter()
+            let storage = outputStorage ?? FileSystemTemporaryStoragePreflighter()
             let restored = entries.map { entry in
                 // A failed migration must not hide other uploads or prevent use of
                 // legacy bytes that are still readable at their existing path.
@@ -106,6 +106,7 @@ class UploadPersistence {
             if zip(entries, restored).contains(where: { $0.inputFileURL != $1.inputFileURL }) {
                 try uploadsFile.writeContents(of: UploadsFileContents(entries: restored))
             }
+            outputStorage?.removeAbandonedOutputs(referencedBy: restored)
             try cleanUpOldEntries() // Obligatory
         }
     }
@@ -127,6 +128,7 @@ class UploadPersistence {
     
     /// Configures and initlaizes an ``UploadPersistence`` for normal production use
     init() throws {
+        self.outputStorage = FileSystemTemporaryStoragePreflighter()
         let baseDirectory = FileManager.default.urls(
             for: .applicationSupportDirectory,
             in: .userDomainMask
@@ -137,7 +139,8 @@ class UploadPersistence {
     }
     
     /// Allows an UploasdFile to be injected at the given path
-    init(innerFile: UploadsFile, atURL url: URL) {
+    init(innerFile: UploadsFile, atURL url: URL, outputStorage: FileSystemTemporaryStoragePreflighter? = nil) {
+        self.outputStorage = outputStorage
         self.uploadsFile = innerFile
         self.fileURL = url
     }

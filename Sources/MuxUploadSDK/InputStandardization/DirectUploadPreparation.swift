@@ -3,6 +3,7 @@
 //
 
 import AVFoundation
+import Darwin
 import Foundation
 import VideoToolbox
 
@@ -126,11 +127,19 @@ struct FileSystemTemporaryStoragePreflighter: TemporaryStoragePreflighting {
     }
 
     private let baseDirectory: URL
+    private let processStart: Date?
 
     init(
         baseDirectory: URL = Self.durableBaseDirectory
     ) {
         self.baseDirectory = baseDirectory
+        var info = kinfo_proc()
+        var size = MemoryLayout<kinfo_proc>.size
+        var name = [CTL_KERN, KERN_PROC, KERN_PROC_PID, getpid()]
+        let result = sysctl(&name, u_int(name.count), &info, &size, nil, 0)
+        let start = info.kp_proc.p_starttime
+        self.processStart = result == 0 && start.tv_sec > 0
+            ? Date(timeIntervalSince1970: Double(start.tv_sec) + Double(start.tv_usec) / 1_000_000) : nil
     }
 
     func outputURL(
@@ -175,13 +184,29 @@ struct FileSystemTemporaryStoragePreflighter: TemporaryStoragePreflighting {
     }
 
     func ownsTemporaryOutput(_ url: URL) -> Bool {
-        let directory = baseDirectory.appendingPathComponent(Self.directoryName).standardizedFileURL
+        let directory = baseDirectory.appendingPathComponent(Self.directoryName, isDirectory: true).resolvingSymlinksInPath()
         let legacyDirectory = FileManager.default.temporaryDirectory
-            .appendingPathComponent(Self.directoryName).standardizedFileURL
+            .appendingPathComponent(Self.directoryName, isDirectory: true).resolvingSymlinksInPath()
         let candidate = url.standardizedFileURL
         return candidate.isFileURL && candidate.lastPathComponent.hasPrefix(Self.filePrefix)
-            && (candidate.deletingLastPathComponent() == directory
-                || candidate.deletingLastPathComponent() == legacyDirectory)
+            && (candidate.deletingLastPathComponent().resolvingSymlinksInPath().path == directory.path
+                || candidate.deletingLastPathComponent().resolvingSymlinksInPath().path == legacyDirectory.path)
+    }
+
+    /// Only reclaim files left by previous processes; UUID names also survive
+    /// container changes and the /var to /private/var symlink on iOS.
+    func removeAbandonedOutputs(referencedBy entries: [PersistenceEntry]) {
+        guard let processStart else { return }
+        let directory = baseDirectory.appendingPathComponent(Self.directoryName, isDirectory: true)
+        let names = Set(entries.map { $0.inputFileURL.lastPathComponent })
+        let keys: Set<URLResourceKey> = [.contentModificationDateKey, .isRegularFileKey]
+        for url in (try? FileManager.default.contentsOfDirectory(at: directory,
+            includingPropertiesForKeys: Array(keys))) ?? [] {
+            guard url.lastPathComponent.hasPrefix(Self.filePrefix), !names.contains(url.lastPathComponent),
+                  let values = try? url.resourceValues(forKeys: keys), values.isRegularFile == true,
+                  let modified = values.contentModificationDate, modified < processStart else { continue }
+            try? FileManager.default.removeItem(at: url)
+        }
     }
 
     /// Resolve SDK paths in the current container and move legacy tmp payloads

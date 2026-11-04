@@ -108,6 +108,8 @@ final class RestoredUploadTransportTests: XCTestCase {
             "bytes 1024-2047/4095", "bytes 2048-3071/4095", "bytes 3072-4094/4095"
         ])
         XCTAssertEqual(server.receivedBytes, bytes.subdata(in: 1024..<2048) + bytes.subdata(in: 1024..<4095))
+        // Completion notification precedes the manager's queued disk removal.
+        _ = await (usingBulkRestoration ? nextManager : manager).resumeDirectUpload(ofFile: sourceURL)
         XCTAssertFalse(FileManager.default.fileExists(atPath: fileURL.path))
         XCTAssertEqual(try Data(contentsOf: sourceURL), Data([9, 8, 7]))
     }
@@ -170,7 +172,7 @@ final class RestoredUploadTransportTests: XCTestCase {
         upload.resultHandler = { result in
             guard case .failure(let error) = result else { return XCTFail("Must report missing bytes") }
             XCTAssertEqual(error.kind, .file)
-            XCTAssertTrue(error.message.contains("Start a new upload"))
+            XCTAssertTrue(error.message.contains("new upload URL"))
             failure.fulfill()
         }
         upload.start()

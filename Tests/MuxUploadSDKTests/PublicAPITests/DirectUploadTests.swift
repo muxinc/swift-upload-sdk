@@ -972,6 +972,7 @@ class DirectUploadTests: XCTestCase {
         upload.start()
         await fulfillment(of: [failureExpectation], timeout: 1.0)
 
+        await upload.waitForPreparation()
         XCTAssertTrue(FileManager.default.fileExists(atPath: outputURL.path))
         await cancelAndWait(upload)
         for _ in 0..<100 where FileManager.default.fileExists(atPath: outputURL.path) {
