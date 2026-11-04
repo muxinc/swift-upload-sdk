@@ -431,6 +431,7 @@ public final class DirectUpload {
     private let standardizationDiagnosticLogger: StandardizationDiagnosticLogging
     private let fileWorkerFactory: FileWorkerFactory
     private var lifecycleCommands: DirectUploadLifecycleCommandQueue!
+    private var preparationTask: Task<Void, Never>?
 
     typealias FileWorkerFactory = (
         UploadInfo,
@@ -707,13 +708,15 @@ public final class DirectUpload {
         guard await preparationLifecycle.isActive(attempt) else { return }
         input.status = .started(input.sourceAsset, input.uploadInfo)
         let sourceAsset = input.sourceAsset
-        Task { [weak self] in
+        preparationTask = Task { [weak self] in
             await self?.startInspection(
                 sourceAsset: sourceAsset,
                 attempt: attempt
             )
         }
     }
+
+    internal func waitForPreparation() async { await preparationTask?.value }
 
     private func prepareExistingTransport(_ worker: ChunkedFileUploader) {
         uploadManager.markUploadStarted(worker)
@@ -1008,12 +1011,11 @@ public final class DirectUpload {
                     uploadInfo: input.uploadInfo
                 )
             }) else { return }
-            await startNetworkTransport(
+            transferredOutputOwnership = await startNetworkTransport(
                 videoFile: generatedAsset.url,
                 duration: duration,
                 attempt: attempt
             )
-            transferredOutputOwnership = fileWorker?.inputFileURL == generatedAsset.url
         } catch is CancellationError {
             return
         } catch {
@@ -1117,27 +1119,29 @@ public final class DirectUpload {
         }
     }
 
+    @discardableResult
     private func startNetworkTransport(
         videoFile: URL,
         attempt: DirectUploadPreparationLifecycle.Attempt
-    ) async {
-        await startNetworkTransport(
+    ) async -> Bool {
+        return await startNetworkTransport(
             videoFile: videoFile,
             duration: nil,
             attempt: attempt
         )
     }
 
+    @discardableResult
     private func startNetworkTransport(
         videoFile: URL,
         duration: CMTime?,
         attempt: DirectUploadPreparationLifecycle.Attempt
-    ) async {
+    ) async -> Bool {
         guard await preparationLifecycle.isActive(attempt), readyForTransport() else {
             SDKLogger.logger?.info("Tried to start network transport before being ready")
-            return
+            return false
         }
-        _ = await lifecycleCommands.commit(
+        return await lifecycleCommands.commit(
             videoFile: videoFile,
             duration: duration,
             attempt: attempt
@@ -1149,6 +1153,7 @@ public final class DirectUpload {
         duration: CMTime?,
         attempt: DirectUploadPreparationLifecycle.Attempt
     ) async -> Bool {
+        var transferredOutputOwnership = false
         while await preparationLifecycle.waitUntilTransportAllowed(for: attempt) {
             let result = await DirectUploadTransportCommitCoordinator.shared.coordinate {
                 if self.manageBySDK, attempt.allowsWorkerReuse,
@@ -1193,6 +1198,7 @@ public final class DirectUpload {
                         InternalUploaderDelegate { [self] state in handleStateUpdate(state) }
                     )
                     self.fileWorker = fileWorker
+                    transferredOutputOwnership = true
                     self.usesBorrowedFileWorker = false
                     self.uploadManager.registerUpload(self)
                     let now = Date().timeIntervalSince1970
@@ -1219,7 +1225,7 @@ public final class DirectUpload {
             }
             switch result {
             case .committed:
-                return true
+                return transferredOutputOwnership
             case .paused:
                 continue
             case .inactive:
@@ -1294,7 +1300,6 @@ public final class DirectUpload {
         fileWorker?.removeDelegate(withToken: id)
         if shouldCancelWorker {
             fileWorker?.cancel()
-            removeOwnedTemporaryFile(fileWorker?.inputFileURL)
         }
         input.processUploadCancellation()
 
@@ -1325,7 +1330,6 @@ public final class DirectUpload {
     private func handleStateUpdate(_ state: ChunkedFileUploader.InternalUploadState) {
         switch state {
         case .success(let result): do {
-            let completedFileURL = fileWorker?.inputFileURL
             let transportStatus = TransportStatus(
                 progress: result.finalProgress,
                 updatedTime: result.finishTime,
@@ -1337,10 +1341,8 @@ public final class DirectUpload {
             resultHandler?(Result<SuccessDetails, DirectUploadError>.success(successDetails))
             fileWorker?.removeDelegate(withToken: id)
             fileWorker = nil
-            removeOwnedTemporaryFile(completedFileURL)
         }
         case .failure(let error): do {
-            let failedFileURL = fileWorker?.inputFileURL
             let parsedError = parseAsUploadError(
                 lastSeenUploadStatus: input.transportStatus ?? TransportStatus(
                     progress: nil,
@@ -1373,7 +1375,6 @@ public final class DirectUpload {
             }
             fileWorker?.removeDelegate(withToken: id)
             fileWorker = nil
-            removeOwnedTemporaryFile(failedFileURL)
         }
         case .uploading(let update): do {
             let status = TransportStatus(
@@ -1464,6 +1465,14 @@ extension DirectUpload {
                 )
             }
         } else if let realError = error.asInternalUploaderError() {
+            if realError.isMissingInputFile {
+                return DirectUploadError(
+                    lastStatus: lastSeenUploadStatus,
+                    kind: .file,
+                    message: "The saved upload file is missing. If this Direct Upload did not complete, create a new direct upload (new upload URL) from the original file.",
+                    reason: realError
+                )
+            }
             // All DirectUploadError does is wrap ChunkedFile
             // and ChunkWorker errors
             return DirectUploadError(

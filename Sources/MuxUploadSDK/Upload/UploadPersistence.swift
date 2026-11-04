@@ -17,6 +17,7 @@ class UploadPersistence {
     private let fileURL: URL
     private var cache: [String : PersistenceEntry]? // populated on first write for this object (see ensureCache())
     private let uploadsFile: UploadsFile
+    private let outputStorage: FileSystemTemporaryStoragePreflighter?
     
     func update(
         uploadState state: ChunkedFileUploader.InternalUploadState,
@@ -48,19 +49,21 @@ class UploadPersistence {
     
     func clear() throws {
         try maybeOpenCache()
-        if var cache = cache {
-            cache.removeAll()
-            try uploadsFile.writeContents(of: UploadsFileContents(mapOf: cache))
+        for entry in try readAll() {
+            try remove(entryAtID: entry.uploadInfo.id)
         }
     }
     
     func remove(entryAtID id: String) throws {
         try maybeOpenCache()
         if var cache = cache {
-            cache.removeValue(forKey: id)
-            self.cache = cache
-            // write-through
+            let removed = cache.removeValue(forKey: id)
             try uploadsFile.writeContents(of: UploadsFileContents(mapOf: cache))
+            self.cache = cache
+            if let removed, !cache.values.contains(where: { $0.inputFileURL == removed.inputFileURL }),
+               (outputStorage ?? FileSystemTemporaryStoragePreflighter()).ownsTemporaryOutput(removed.inputFileURL) {
+                try? FileManager.default.removeItem(at: removed.inputFileURL)
+            }
         }
     }
     
@@ -91,7 +94,19 @@ class UploadPersistence {
     func maybeOpenCache() throws {
         if cache == nil {
             try self.uploadsFile.maybeOpenCache()
-            self.cache = try uploadsFile.readContents().asDictionary()
+            let entries = try uploadsFile.readContents().entriesAbsFileUrlToUploadInfo
+            let storage = outputStorage ?? FileSystemTemporaryStoragePreflighter()
+            let restored = entries.map { entry in
+                // A failed migration must not hide other uploads or prevent use of
+                // legacy bytes that are still readable at their existing path.
+                let url = (try? storage.restoredOutputURL(entry.inputFileURL)) ?? entry.inputFileURL
+                return entry.with(inputFileURL: url, uploadURL: entry.uploadInfo.uploadURL)
+            }
+            self.cache = UploadsFileContents(entries: restored).asDictionary()
+            if zip(entries, restored).contains(where: { $0.inputFileURL != $1.inputFileURL }) {
+                try uploadsFile.writeContents(of: UploadsFileContents(entries: restored))
+            }
+            outputStorage?.removeAbandonedOutputs(referencedBy: restored)
             try cleanUpOldEntries() // Obligatory
         }
     }
@@ -113,6 +128,7 @@ class UploadPersistence {
     
     /// Configures and initlaizes an ``UploadPersistence`` for normal production use
     init() throws {
+        self.outputStorage = FileSystemTemporaryStoragePreflighter()
         let baseDirectory = FileManager.default.urls(
             for: .applicationSupportDirectory,
             in: .userDomainMask
@@ -123,7 +139,8 @@ class UploadPersistence {
     }
     
     /// Allows an UploasdFile to be injected at the given path
-    init(innerFile: UploadsFile, atURL url: URL) {
+    init(innerFile: UploadsFile, atURL url: URL, outputStorage: FileSystemTemporaryStoragePreflighter? = nil) {
+        self.outputStorage = outputStorage
         self.uploadsFile = innerFile
         self.fileURL = url
     }
@@ -167,9 +184,8 @@ struct PersistenceEntry : Codable {
             // Cases that aren't stored also aren't parsed
         case .success(_), .canceled: return nil
         case .failure(let error):
-            guard let uploadError = error as? InternalUploaderError else {
-                return nil
-            }
+            guard let uploadError = error as? InternalUploaderError,
+                  !uploadError.isMissingInputFile else { return nil }
             return PersistenceEntry(
                 savedAt: Date().timeIntervalSince1970,
                 stateCode: .wasInProgress,
