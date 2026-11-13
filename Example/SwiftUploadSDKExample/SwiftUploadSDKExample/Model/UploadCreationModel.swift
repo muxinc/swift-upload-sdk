@@ -23,7 +23,7 @@ struct UploadInput: Transferable {
 }
 
 @MainActor
-final class UploadCreationModel: ObservableObject {
+final class UploadCreationModel: ObservableObject, DirectUploadManagerDelegate {
 
     /// Keep the SDK's on-device resolution tier aligned with the Direct Upload
     /// created by the trusted environment. This sample uses the 1080p tier so
@@ -80,6 +80,23 @@ final class UploadCreationModel: ObservableObject {
         let innerAuthStatus = PHPhotoLibrary.authorizationStatus(for: .readWrite)
         self.photosAuthStatus = innerAuthStatus.asAppAuthState()
         self.workflowState = .idle
+        DirectUploadManager.shared.addDelegate(self)
+        DirectUploadManager.shared.resumeAllDirectUploads()
+    }
+
+    nonisolated func didUpdate(managedDirectUploads uploads: [DirectUpload]) {
+        DirectUploadManager.shared.removeDelegate(self)
+        Task { @MainActor in
+            for upload in uploads where !upload.inProgress && !upload.complete {
+                guard let source = (upload.inputAsset as? AVURLAsset)?.url else { continue }
+                let prepared = PreparedUpload(thumbnail: nil, localVideoFile: source, remoteURL: upload.uploadURL)
+                self.attachHandlers(to: upload, preparedMedia: prepared)
+                if case .idle = self.workflowState {
+                    self.workflowState = .uploading(upload, progress: upload.uploadStatus, preparedMedia: prepared)
+                }
+                upload.start()
+            }
+        }
     }
 
     func resetSelection() {
@@ -192,9 +209,11 @@ final class UploadCreationModel: ObservableObject {
         cancelActiveUpload()
         workflowState = .preparing
 
-        let tempFile = FileManager.default.temporaryDirectory
-            .appending(component: "upload-\(Date().timeIntervalSince1970)")
-            .appendingPathExtension("mp4")
+        let directory = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("ExampleUploadInputs", isDirectory: true)
+        do { try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true) }
+        catch { workflowState = .preparationFailed(PickerError.assetExportSessionFailed); return }
+        let tempFile = directory.appendingPathComponent("upload-\(UUID().uuidString).mp4")
 
         guard photosAuthStatus.canFetchPhotoKitAssets else {
             prepareTransferredFileForUpload(from: pickerItem, outFile: tempFile)

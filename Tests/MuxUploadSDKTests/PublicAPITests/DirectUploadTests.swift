@@ -927,7 +927,7 @@ class DirectUploadTests: XCTestCase {
         await cancelAndWait(upload)
     }
 
-    func testTransportFailureDeletesOwnedStandardizedOutput() async throws {
+    func testRecoverableTransportFailureRetainsOwnedOutputUntilCancellation() async throws {
         let outputURL = temporaryOutputURL()
         FileManager.default.createFile(atPath: outputURL.path, contents: Data([0]))
         defer { try? FileManager.default.removeItem(at: outputURL) }
@@ -972,6 +972,9 @@ class DirectUploadTests: XCTestCase {
         upload.start()
         await fulfillment(of: [failureExpectation], timeout: 1.0)
 
+        await upload.waitForPreparation()
+        XCTAssertTrue(FileManager.default.fileExists(atPath: outputURL.path))
+        await cancelAndWait(upload)
         for _ in 0..<100 where FileManager.default.fileExists(atPath: outputURL.path) {
             try? await Task.sleep(nanoseconds: 1_000_000)
         }
@@ -1172,7 +1175,7 @@ class DirectUploadTests: XCTestCase {
     }
 
     private func temporaryOutputURL() -> URL {
-        let directory = FileManager.default.temporaryDirectory
+        let directory = FileSystemTemporaryStoragePreflighter.durableBaseDirectory
             .appendingPathComponent(FileSystemTemporaryStoragePreflighter.directoryName)
         try? FileManager.default.createDirectory(
             at: directory,
@@ -1210,7 +1213,7 @@ private final class FailingChunkedFileUploader: ChunkedFileUploader {
     private func fail() {
         let delegates = Array(delegates.values)
         for delegate in delegates {
-            delegate.chunkedFileUploader(self, stateUpdated: .failure(DummyError()))
+            delegate.chunkedFileUploader(self, stateUpdated: .failure(InternalUploaderError(reason: DummyError(), lastByte: 0)))
         }
     }
 }

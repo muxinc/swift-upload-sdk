@@ -443,7 +443,16 @@ protocol ChunkedFileUploaderDelegate {
 struct InternalUploaderError : Error {
     let reason: Error
     let lastByte: UInt64
-    
+
+    var isMissingInputFile: Bool {
+        let cause: Error
+        if case .fileHandle(let underlying) = reason as? ChunkedFileError { cause = underlying }
+        else { cause = reason }
+        let error = cause as NSError
+        return error.domain == NSCocoaErrorDomain
+            && [NSFileReadNoSuchFileError, NSFileNoSuchFileError].contains(error.code)
+    }
+
     var localizedDescription: String { "Failed to upload file because of:\n\t\(reason.localizedDescription)\n" }
 }
 
