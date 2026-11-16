@@ -22,13 +22,6 @@ class ChunkWorker {
     private var progressDelegate: ProgressHandler?
     
     private var uploadTask: Task<Success, Error>?
-    private lazy var urlSession: URLSession = {
-        URLSession(
-            configuration: .default,
-            delegate: makeProgressReportingTaskDelegate(),
-            delegateQueue: .main
-        )
-    }()
     
     func addDelegate(_ delegatePair: @escaping ProgressHandler) {
         self.progressDelegate = delegatePair
@@ -56,6 +49,15 @@ class ChunkWorker {
     func directUpload(
         chunk: FileChunk
     ) async throws -> Sendable {
+        let urlSession: URLSession =
+            URLSession(
+                configuration: .default,
+                delegate: makeProgressReportingTaskDelegate(),
+                delegateQueue: .main
+            )
+        
+        defer { urlSession.invalidateAndCancel() }
+        
         var retries = 0
         var requestError: Error?
         let repsonseValidator = ChunkResponseValidator()
@@ -121,7 +123,11 @@ class ChunkWorker {
     
     /// This delegate is expected to be called on the main dispatch queue
     private func makeProgressReportingTaskDelegate() -> ProgressReportingURLSessionTaskDelegate {
-        return ProgressReportingURLSessionTaskDelegate(forURL: uploadURL) { [self] bytesSent, uploadedBytes, totalBytes in
+        return ProgressReportingURLSessionTaskDelegate(forURL: uploadURL) { [weak self] bytesSent, uploadedBytes, totalBytes in
+            guard let self else {
+                return
+            }
+            
             let progress = chunkProgress
             progress.completedUnitCount = uploadedBytes
             progress.totalUnitCount = Int64(totalBytes)
