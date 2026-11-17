@@ -57,6 +57,7 @@ final class UploadCreationModel: ObservableObject, DirectUploadManagerDelegate {
 
     private var assetRequestId: PHImageRequestID? = nil
     private var prepareTask: Task<Void, Never>? = nil
+    private var preparingFile: URL?
     private var resumeTask: Task<Void, Never>? = nil
     private var thumbnailGenerator: AVAssetImageGenerator? = nil
 
@@ -102,9 +103,8 @@ final class UploadCreationModel: ObservableObject, DirectUploadManagerDelegate {
     }
 
     func resetSelection() {
-        prepareTask?.cancel()
+        cancelPreparation()
         resumeTask?.cancel()
-        cancelPhotoKitRequests()
         cancelActiveUpload()
         pickedItem = []
         workflowState = .idle
@@ -196,6 +196,12 @@ final class UploadCreationModel: ObservableObject, DirectUploadManagerDelegate {
         }
         upload.resultHandler = { [weak self, weak upload] result in
             Task { @MainActor in
+                switch result {
+                case .success: self?.removeCopiedInput(preparedMedia.localVideoFile)
+                case .failure(let error) where error.kind == .cancelled:
+                    self?.removeCopiedInput(preparedMedia.localVideoFile)
+                default: break // Failed uploads still need their original for retry.
+                }
                 guard let self, let upload, self.isCurrentUpload(upload) else {
                     return
                 }
@@ -207,17 +213,21 @@ final class UploadCreationModel: ObservableObject, DirectUploadManagerDelegate {
     /// Prepares the selected video as a local file before handing it to the upload SDK.
     func tryToPrepare(from pickerItem: PhotosPickerItem) {
         guard hasFinishedRestoringUploads else { return }
-        prepareTask?.cancel()
+        cancelPreparation()
         resumeTask?.cancel()
-        cancelPhotoKitRequests()
         cancelActiveUpload()
         workflowState = .preparing
 
-        let directory = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("ExampleUploadInputs", isDirectory: true)
-        do { try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true) }
+        var directory = inputDirectory
+        do {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            var values = URLResourceValues()
+            values.isExcludedFromBackup = true
+            try directory.setResourceValues(values)
+        }
         catch { workflowState = .preparationFailed(PickerError.assetExportSessionFailed); return }
         let tempFile = directory.appendingPathComponent("upload-\(UUID().uuidString).mp4")
+        preparingFile = tempFile
 
         guard photosAuthStatus.canFetchPhotoKitAssets else {
             prepareTransferredFileForUpload(from: pickerItem, outFile: tempFile)
@@ -251,6 +261,7 @@ final class UploadCreationModel: ObservableObject, DirectUploadManagerDelegate {
                     guard let self else {
                         return
                     }
+                    guard self.preparingFile == tempFile else { return }
                     guard let exportSession = exportSession else {
                         self.logger.error("!! No Export session")
                         self.workflowState = .preparationFailed(UploadCreationModel.PickerError.assetExportSessionFailed)
@@ -267,9 +278,13 @@ final class UploadCreationModel: ObservableObject, DirectUploadManagerDelegate {
             guard let self else {
                 return
             }
+            var handedToThumbnail = false
+            defer { if !handedToThumbnail { self.removeCopiedInput(outFile) } }
 
             do {
-                guard let uploadInput = try await pickerItem.loadTransferable(type: UploadInput.self) else {
+                let uploadInput = try await pickerItem.loadTransferable(type: UploadInput.self)
+                guard !Task.isCancelled, self.preparingFile == outFile else { return }
+                guard let uploadInput else {
                     self.workflowState = .preparationFailed(PickerError.assetExportSessionFailed)
                     return
                 }
@@ -284,17 +299,18 @@ final class UploadCreationModel: ObservableObject, DirectUploadManagerDelegate {
                 let putURL = try await self.fakeBackend.createDirectUpload(
                     maxResolutionTier: Self.uploadConfiguration.muxMaximumResolutionTier
                 )
-                if Task.isCancelled {
-                    return
-                }
+                guard !Task.isCancelled, self.preparingFile == outFile else { return }
 
                 extractThumbnailAsync(asset) { thumbnailImage in
+                    guard self.preparingFile == outFile else { self.removeCopiedInput(outFile); return }
                     self.logger.debug("Yay, Media ready for upload!")
                     self.workflowState = .ready(
                         PreparedUpload(thumbnail: thumbnailImage, localVideoFile: outFile, remoteURL: putURL)
                     )
                 }
+                handedToThumbnail = true
             } catch {
+                guard !Task.isCancelled, self.preparingFile == outFile else { return }
                 self.logger.error("Failed to prepare transferred video: \(error.localizedDescription)")
                 self.workflowState = .preparationFailed(PickerError.assetExportSessionFailed)
             }
@@ -308,9 +324,13 @@ final class UploadCreationModel: ObservableObject, DirectUploadManagerDelegate {
             guard let self else {
                 return
             }
+            var handedToThumbnail = false
+            defer { if !handedToThumbnail { self.removeCopiedInput(outFile) } }
 
             await session.export()
-            if Task.isCancelled {
+            guard !Task.isCancelled, self.preparingFile == outFile else { return }
+            guard session.status == .completed else {
+                self.workflowState = .preparationFailed(PickerError.assetExportSessionFailed)
                 return
             }
 
@@ -319,18 +339,19 @@ final class UploadCreationModel: ObservableObject, DirectUploadManagerDelegate {
                 let putURL = try await self.fakeBackend.createDirectUpload(
                     maxResolutionTier: Self.uploadConfiguration.muxMaximumResolutionTier
                 )
-                if Task.isCancelled {
-                    return
-                }
+                guard !Task.isCancelled, self.preparingFile == outFile else { return }
 
                 extractThumbnailAsync(session.asset) { thumbnailImage in
+                    guard self.preparingFile == outFile else { self.removeCopiedInput(outFile); return }
                     self.logger.debug("Yay, Media exported & ready for upload!")
                     self.assetRequestId = nil
                     self.workflowState = .ready(
                         PreparedUpload(thumbnail: thumbnailImage, localVideoFile: outFile, remoteURL: putURL)
                     )
                 }
+                handedToThumbnail = true
             } catch {
+                guard !Task.isCancelled, self.preparingFile == outFile else { return }
                 self.logger.error("Failed to create Upload: \(error.localizedDescription)")
                 self.workflowState = .preparationFailed(PickerError.createUploadFailed)
             }
@@ -354,15 +375,18 @@ final class UploadCreationModel: ObservableObject, DirectUploadManagerDelegate {
                 switch result {
                 case .cancelled: do {
                     self.logger.debug("Thumbnail request canceled")
+                    thenDo(nil)
                 }
                 case .failed: do {
                     self.logger.error("Failed to extract thumnail: \(error?.localizedDescription ?? "unknown")")
+                    thenDo(nil)
                 }
                 case .succeeded: do {
                     thenDo(image)
                 }
                 @unknown default:
                     self.logger.error("Unknown thumbnail generation result")
+                    thenDo(nil)
                 }
             }
         }
@@ -375,6 +399,27 @@ final class UploadCreationModel: ObservableObject, DirectUploadManagerDelegate {
         }
         assetRequestId = nil
         thumbnailGenerator?.cancelAllCGImageGeneration()
+    }
+
+    private var inputDirectory: URL {
+        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("ExampleUploadInputs", isDirectory: true)
+    }
+
+    private func removeCopiedInput(_ url: URL) {
+        guard url.isFileURL, url.lastPathComponent.hasPrefix("upload-"),
+              url.standardizedFileURL.deletingLastPathComponent().path
+                .hasSuffix("/Library/Application Support/ExampleUploadInputs") else { return }
+        // Resolve our copy in the current container, including after a reinstall.
+        try? FileManager.default.removeItem(at: inputDirectory.appendingPathComponent(url.lastPathComponent))
+    }
+
+    private func cancelPreparation() {
+        preparingFile = nil
+        prepareTask?.cancel()
+        cancelPhotoKitRequests()
+        if case .ready(let prepared) = workflowState { removeCopiedInput(prepared.localVideoFile) }
+        // An in-flight copy/export removes its own output after it stops writing.
     }
 
     private func cancelActiveUpload() {
