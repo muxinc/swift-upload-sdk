@@ -76,6 +76,36 @@ final class UploadCoordinator {
 }
 ```
 
+### Resuming uploads
+
+- Keep the original video unchanged in Application Support or Documents until the upload succeeds. The SDK uploads that file directly when no conversion is needed (including eligible HDR preservation) or conversion falls back; `tmp` can be purged.
+- Before starting, persist your own pending-upload record with the backend Direct Upload ID and a durable reference to the original file. SDK checkpoints begin only when sending begins, not during conversion.
+- At launch, register a `DirectUploadManagerDelegate`, then call `resumeAllDirectUploads()`. Wait for its delegate update before starting new uploads or doing other manager operations; attach handlers and `start()` restored uploads that are neither in progress nor complete. Checkpoints are saved during transport; do not rely on `applicationWillTerminate` being called.
+
+```swift
+import MuxUploadSDK
+
+final class UploadRestorer: DirectUploadManagerDelegate {
+    func restoreAtLaunch() {
+        DirectUploadManager.shared.addDelegate(self)
+        DirectUploadManager.shared.resumeAllDirectUploads()
+    }
+    func didUpdate(managedDirectUploads uploads: [DirectUpload]) {
+        DirectUploadManager.shared.removeDelegate(self)
+        for upload in uploads where !upload.inProgress && !upload.complete {
+            // Attach your progress/result handlers before starting.
+            upload.start()
+        }
+        // Now allow new uploads, including when the restored list is empty.
+    }
+}
+```
+
+- Use the restored handle; never create a new `DirectUpload` with a URL that may already have received bytes. Preparing a new payload for that URL can corrupt the upload or cause it to fail.
+- After a failure in the same session, `await DirectUploadManager.shared.resumeDirectUpload(ofFile: originalURL)`, attach handlers to the returned handle, and call `start()`. Calling `start()` on the failed handle does not retry it. File-based lookup prefers an active or newest session: keep one pending upload per original file when using this retry pattern.
+- Saved checkpoints expire after three days since their last update. If a pending upload is not restored, lookup returns `nil`, or the upload reports that its saved file is missing, check its status through your backend. If it has not completed, request a new Direct Upload URL and start a new upload from the original; do not reuse the old URL.
+- Set the backend Direct Upload [`timeout`](https://www.mux.com/docs/api-reference/video/direct-uploads/create-direct-upload) for the expected interruption window (default one hour; maximum seven days). Resume requires a still-valid upload in `waiting` status and an SDK checkpoint within its separate three-day retention window.
+
 ### Configure Input Standardization
 
 Input standardization is enabled by default and is best effort. The SDK uploads compliant H.264 and HEVC inputs without re-encoding them. When local inspection, conversion, or validation cannot complete, the SDK uploads the original input by default so that Mux can process it.

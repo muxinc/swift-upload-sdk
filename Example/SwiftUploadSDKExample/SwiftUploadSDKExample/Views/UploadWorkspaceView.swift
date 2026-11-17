@@ -246,6 +246,7 @@ struct UploadWorkspaceView: View {
         ) {
             label()
         }
+        .disabled(!uploadCreationModel.hasFinishedRestoringUploads)
     }
 
     private static let shortNumberFormatter: NumberFormatter = {

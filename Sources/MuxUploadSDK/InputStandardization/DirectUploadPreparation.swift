@@ -3,6 +3,7 @@
 //
 
 import AVFoundation
+import Darwin
 import Foundation
 import VideoToolbox
 
@@ -121,12 +122,24 @@ struct FileSystemTemporaryStoragePreflighter: TemporaryStoragePreflighting {
     static let filePrefix = "mux-upload-"
     static let reserveBytes: Int64 = 64 * 1_024 * 1_024
 
+    static var durableBaseDirectory: URL {
+        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+    }
+
     private let baseDirectory: URL
+    private let processStart: Date?
 
     init(
-        baseDirectory: URL = FileManager.default.temporaryDirectory
+        baseDirectory: URL = Self.durableBaseDirectory
     ) {
         self.baseDirectory = baseDirectory
+        var info = kinfo_proc()
+        var size = MemoryLayout<kinfo_proc>.size
+        var name = [CTL_KERN, KERN_PROC, KERN_PROC_PID, getpid()]
+        let result = sysctl(&name, u_int(name.count), &info, &size, nil, 0)
+        let start = info.kp_proc.p_starttime
+        self.processStart = result == 0 && start.tv_sec > 0
+            ? Date(timeIntervalSince1970: Double(start.tv_sec) + Double(start.tv_usec) / 1_000_000) : nil
     }
 
     func outputURL(
@@ -134,18 +147,7 @@ struct FileSystemTemporaryStoragePreflighter: TemporaryStoragePreflighting {
         duration: CMTime,
         conversion: StandardInputConversion
     ) throws -> URL {
-        let directory = baseDirectory.appendingPathComponent(
-            Self.directoryName,
-            isDirectory: true
-        )
-        do {
-            try FileManager.default.createDirectory(
-                at: directory,
-                withIntermediateDirectories: true
-            )
-        } catch {
-            throw TemporaryStoragePreflightError(reason: .cannotCreateDirectory)
-        }
+        let directory = try makeOutputDirectory()
 
         let available = try availableCapacity(at: directory)
         let required = requiredCapacity(
@@ -164,14 +166,73 @@ struct FileSystemTemporaryStoragePreflighter: TemporaryStoragePreflighting {
         )
     }
 
+    private func makeOutputDirectory() throws -> URL {
+        var directory = baseDirectory.appendingPathComponent(Self.directoryName, isDirectory: true)
+        do {
+            try FileManager.default.createDirectory(
+                at: directory,
+                withIntermediateDirectories: true
+            )
+        } catch {
+            throw TemporaryStoragePreflightError(reason: .cannotCreateDirectory)
+        }
+
+        var values = URLResourceValues()
+        values.isExcludedFromBackup = true
+        try directory.setResourceValues(values)
+        return directory
+    }
+
     func ownsTemporaryOutput(_ url: URL) -> Bool {
-        let directory = baseDirectory.appendingPathComponent(
-            Self.directoryName,
-            isDirectory: true
-        ).standardizedFileURL
+        let directory = baseDirectory.appendingPathComponent(Self.directoryName, isDirectory: true).resolvingSymlinksInPath()
+        let legacyDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(Self.directoryName, isDirectory: true).resolvingSymlinksInPath()
         let candidate = url.standardizedFileURL
-        return candidate.deletingLastPathComponent() == directory
-            && candidate.lastPathComponent.hasPrefix(Self.filePrefix)
+        return candidate.isFileURL && candidate.lastPathComponent.hasPrefix(Self.filePrefix)
+            && (candidate.deletingLastPathComponent().resolvingSymlinksInPath().path == directory.path
+                || candidate.deletingLastPathComponent().resolvingSymlinksInPath().path == legacyDirectory.path)
+    }
+
+    /// Only reclaim files left by previous processes; UUID names also survive
+    /// container changes and the /var to /private/var symlink on iOS.
+    func removeAbandonedOutputs(referencedBy entries: [PersistenceEntry]) {
+        guard let processStart else { return }
+        let directory = baseDirectory.appendingPathComponent(Self.directoryName, isDirectory: true)
+        let names = Set(entries.map { $0.inputFileURL.lastPathComponent })
+        let keys: Set<URLResourceKey> = [.contentModificationDateKey, .isRegularFileKey]
+        for url in (try? FileManager.default.contentsOfDirectory(at: directory,
+            includingPropertiesForKeys: Array(keys))) ?? [] {
+            guard url.lastPathComponent.hasPrefix(Self.filePrefix), !names.contains(url.lastPathComponent),
+                  let values = try? url.resourceValues(forKeys: keys), values.isRegularFile == true,
+                  let modified = values.contentModificationDate, modified < processStart else { continue }
+            try? FileManager.default.removeItem(at: url)
+        }
+    }
+
+    /// Resolve SDK paths in the current container and move legacy tmp payloads
+    /// without regenerating bytes or changing the saved checkpoint.
+    func restoredOutputURL(_ url: URL) throws -> URL {
+        let candidate = url.standardizedFileURL
+        let parent = candidate.deletingLastPathComponent().path
+        let durableSuffix = "/Library/Application Support/" + Self.directoryName
+        let legacySuffix = "/tmp/" + Self.directoryName
+        guard candidate.isFileURL, candidate.lastPathComponent.hasPrefix(Self.filePrefix),
+              ownsTemporaryOutput(candidate) || parent.hasSuffix(durableSuffix)
+                || parent.hasSuffix(legacySuffix) else { return url }
+
+        let destination = baseDirectory.appendingPathComponent(Self.directoryName)
+            .appendingPathComponent(candidate.lastPathComponent)
+        guard candidate != destination else { return destination }
+        // Also recovers a move completed before the updated uploads.json was written.
+        if FileManager.default.fileExists(atPath: destination.path) { return destination }
+        let legacy = FileManager.default.temporaryDirectory.appendingPathComponent(Self.directoryName)
+            .appendingPathComponent(candidate.lastPathComponent)
+        let source = FileManager.default.fileExists(atPath: candidate.path) ? candidate : legacy
+        if FileManager.default.fileExists(atPath: source.path) {
+            _ = try makeOutputDirectory()
+            try FileManager.default.moveItem(at: source, to: destination)
+        }
+        return destination
     }
 
     private func availableCapacity(at directory: URL) throws -> Int64 {

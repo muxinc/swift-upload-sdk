@@ -17,6 +17,85 @@ final class UploadPersistenceTests: XCTestCase {
     // writesWhilePausedShouldSave
     // writesTerminatedShouldRemove
     
+    func testSweepKeepsReferencedAndCurrentFilesAndDeletesOldOrphans() throws {
+        let base = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let directory = base.appendingPathComponent(FileSystemTemporaryStoragePreflighter.directoryName)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: base) }
+        let referenced = directory.appendingPathComponent("mux-upload-referenced.mp4")
+        let orphan = directory.appendingPathComponent("mux-upload-orphan.mp4")
+        let current = directory.appendingPathComponent("mux-upload-current.mp4")
+        let unrelated = directory.appendingPathComponent("caller.mp4")
+        for file in [referenced, orphan, current, unrelated] { try Data([1]).write(to: file) }
+        for file in [referenced, orphan, unrelated] {
+            try FileManager.default.setAttributes([.modificationDate: Date(timeIntervalSince1970: 1)], ofItemAtPath: file.path)
+        }
+        // Construct the preflighter AFTER the current file, guarding against a lazy Date() boundary.
+        let storage = FileSystemTemporaryStoragePreflighter(baseDirectory: base)
+        let entry = PersistenceEntry(savedAt: Date().timeIntervalSince1970, stateCode: .wasPaused,
+            lastSuccessfulByte: 1, uploadInfo: renameDummyUploadInfo(basename: "referenced"), inputFileURL: referenced)
+        let disk = makeSimulatedUploadsFile()
+        try disk.writeContents(of: UploadsFileContents(entries: [entry]))
+        let persistence = UploadPersistence(innerFile: disk, atURL: base, outputStorage: storage)
+        XCTAssertEqual(try persistence.readAll().count, 1)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: orphan.path))
+        for file in [referenced, current, unrelated] { XCTAssertTrue(FileManager.default.fileExists(atPath: file.path)) }
+    }
+
+    func testOwnershipAndSweepHandleSymlinkedDirectories() throws {
+        let base = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let real = base.appendingPathComponent("real")
+        let alias = base.appendingPathComponent("alias")
+        let directory = real.appendingPathComponent(FileSystemTemporaryStoragePreflighter.directoryName)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try FileManager.default.createSymbolicLink(at: alias, withDestinationURL: real)
+        defer { try? FileManager.default.removeItem(at: base) }
+        let retained = directory.appendingPathComponent("mux-upload-retained.mp4")
+        let orphan = directory.appendingPathComponent("mux-upload-orphan.mp4")
+        for file in [retained, orphan] {
+            try Data([1]).write(to: file)
+            try FileManager.default.setAttributes([.modificationDate: Date(timeIntervalSince1970: 1)], ofItemAtPath: file.path)
+        }
+        let storage = FileSystemTemporaryStoragePreflighter(baseDirectory: alias)
+        XCTAssertTrue(storage.ownsTemporaryOutput(retained))
+        XCTAssertTrue(storage.ownsTemporaryOutput(alias.appendingPathComponent(FileSystemTemporaryStoragePreflighter.directoryName).appendingPathComponent(retained.lastPathComponent)))
+        let entry = PersistenceEntry(savedAt: Date().timeIntervalSince1970, stateCode: .wasPaused,
+            lastSuccessfulByte: 1, uploadInfo: renameDummyUploadInfo(basename: "retained"), inputFileURL: retained)
+        storage.removeAbandonedOutputs(referencedBy: [entry])
+        XCTAssertTrue(FileManager.default.fileExists(atPath: retained.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: orphan.path))
+    }
+
+    func testSweepErrorsDoNotPreventCacheOpenOrExpiry() throws {
+        let base = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let directory = base.appendingPathComponent(FileSystemTemporaryStoragePreflighter.directoryName)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer {
+            try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: directory.path)
+            try? FileManager.default.removeItem(at: base)
+        }
+        try FileManager.default.setAttributes([.posixPermissions: 0], ofItemAtPath: directory.path)
+        XCTAssertThrowsError(try FileManager.default.contentsOfDirectory(atPath: directory.path))
+        let disk = makeSimulatedUploadsFile()
+        try disk.writeContents(of: UploadsFileContents(entries: [PersistenceEntry(basename: "expired", savedAt: 1)]))
+        let persistence = UploadPersistence(innerFile: disk, atURL: base,
+            outputStorage: FileSystemTemporaryStoragePreflighter(baseDirectory: base))
+        XCTAssertTrue(try persistence.readAll().isEmpty)
+        XCTAssertTrue(try disk.readContents().entriesAbsFileUrlToUploadInfo.isEmpty)
+    }
+
+    func testWrappedMissingFileErrorsDiscardTheCheckpoint() {
+        for code in [NSFileReadNoSuchFileError, NSFileNoSuchFileError] {
+            let cause = NSError(domain: NSCocoaErrorDomain, code: code)
+            for reason: Error in [cause, ChunkedFileError.fileHandle(cause)] {
+                let error = InternalUploaderError(reason: reason, lastByte: 1)
+                XCTAssertTrue(error.isMissingInputFile)
+                XCTAssertNil(PersistenceEntry.fromUploadState(.failure(error),
+                    forUpload: renameDummyUploadInfo(basename: "missing"), inputFileURL: makeDummyFileURL(basename: "missing")))
+            }
+        }
+    }
+
     func testWrite() throws {
         let e1 = PersistenceEntry(
             savedAt: Date().timeIntervalSince1970,

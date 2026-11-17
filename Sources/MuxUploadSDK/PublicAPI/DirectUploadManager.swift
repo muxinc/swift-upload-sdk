@@ -15,9 +15,9 @@ import Foundation
 /// ``startedDirectUpload(ofFile:)`` or ``allManagedDirectUploads()``.
 ///
 /// ## Handling failure, backgrounding, and process death
-/// Managed uploads can be resumed where they left off after process death, and can be accessed anywhere in your
-/// app without needing to manually track the tasks or their state. Managed uploads only survive process death if they
-/// were paused, in progress, or failed. Success must be handled by you, even if it occurs, for example, during a `BGTask`.
+/// Restoration requires sending to have begun, the upload file to remain available, a checkpoint no more than three days old,
+/// and a server upload that has not expired; see [Resuming uploads](https://github.com/muxinc/swift-upload-sdk#resuming-uploads)
+/// for startup ordering, retry, and recovery requirements.
 ///
 /// ```swift
 /// // Register a DirectUploadManagerDelegate during app init.
@@ -253,6 +253,7 @@ public final class DirectUploadManager {
     /// Attempts to resume an upload that was previously paused, failed, or interrupted by process death.
     /// Retains a live managed handle when available, preferring active transfers. Otherwise restores the newest saved session.
     /// Returns nil if there is no matching live handle or persisted upload.
+    /// To retry a failed upload, obtain this handle, attach handlers, then call `start()`; do not restart the failed handle.
     public func resumeDirectUpload(ofFile url: URL) async -> DirectUpload? {
         await storage.pendingPersistenceTask()?.value
         if let existing = storage.upload(ofFile: url) {
@@ -267,6 +268,7 @@ public final class DirectUploadManager {
     
     /// Attempts to resume an upload that was previously paused, failed, or interrupted by process death.
     /// Calls completion on the main thread when a matching managed or persisted upload is found.
+    /// To retry a failed upload, attach handlers and call `start()` on the returned handle.
     public func resumeDirectUpload(ofFile url: URL, completion: @escaping (DirectUpload) -> Void) {
         Task.detached {
             let upload = await self.resumeDirectUpload(ofFile: url)
