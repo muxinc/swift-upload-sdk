@@ -241,8 +241,7 @@ struct UploadWorkspaceView: View {
             maxSelectionCount: 1,
             selectionBehavior: .default,
             matching: .videos,
-            preferredItemEncoding: .current,
-            photoLibrary: .shared()
+            preferredItemEncoding: .current
         ) {
             label()
         }

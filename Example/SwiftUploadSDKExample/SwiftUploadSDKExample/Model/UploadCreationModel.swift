@@ -13,11 +13,20 @@ import SwiftUI
 struct UploadInput: Transferable {
     let file: URL
     static var transferRepresentation: some TransferRepresentation {
-        // PhotosPicker can provide a readable temporary file without requiring full PhotoKit access.
+        // PhotosPicker hands over a copy of the selected video without requiring
+        // any photo library permission.
         FileRepresentation(
             importedContentType: .movie
         ) { receivedTransferedFile in
-            UploadInput(file: receivedTransferedFile.file)
+            // The received file is owned by the system and is only guaranteed to
+            // exist until this closure returns, so copy it somewhere we own now.
+            let sourceFile = receivedTransferedFile.file
+            let fileExtension = sourceFile.pathExtension.isEmpty ? "mov" : sourceFile.pathExtension
+            let destinationFile = FileManager.default.temporaryDirectory
+                .appending(component: "upload-\(UUID().uuidString)")
+                .appendingPathExtension(fileExtension)
+            try FileManager.default.copyItem(at: sourceFile, to: destinationFile)
+            return UploadInput(file: destinationFile)
         }
     }
 }
@@ -40,10 +49,6 @@ final class UploadCreationModel: ObservableObject, DirectUploadManagerDelegate {
 
     struct PickerError: Error, Equatable {
 
-        static var missingAssetIdentifier: PickerError {
-            PickerError(localizedDescription: "Missing asset identifier")
-        }
-
         static var createUploadFailed: PickerError {
             PickerError(localizedDescription: "Upload could not be created")
         }
@@ -55,9 +60,8 @@ final class UploadCreationModel: ObservableObject, DirectUploadManagerDelegate {
         var localizedDescription: String
     }
 
-    private var assetRequestId: PHImageRequestID? = nil
     private var prepareTask: Task<Void, Never>? = nil
-    private var preparingFile: URL?
+    private var preparationID: UUID?
     private var resumeTask: Task<Void, Never>? = nil
     private var thumbnailGenerator: AVAssetImageGenerator? = nil
 
@@ -66,7 +70,6 @@ final class UploadCreationModel: ObservableObject, DirectUploadManagerDelegate {
         urlSession: URLSession(configuration: URLSessionConfiguration.default)
     )
 
-    @Published var photosAuthStatus: PhotosAuthState
     @Published private(set) var hasFinishedRestoringUploads = false
     @Published var workflowState: WorkflowState = .idle
     @Published var pickedItem: [PhotosPickerItem] = [] {
@@ -79,9 +82,6 @@ final class UploadCreationModel: ObservableObject, DirectUploadManagerDelegate {
     }
 
     init() {
-        let innerAuthStatus = PHPhotoLibrary.authorizationStatus(for: .readWrite)
-        self.photosAuthStatus = innerAuthStatus.asAppAuthState()
-        self.workflowState = .idle
         DirectUploadManager.shared.addDelegate(self)
         DirectUploadManager.shared.resumeAllDirectUploads()
     }
@@ -226,110 +226,47 @@ final class UploadCreationModel: ObservableObject, DirectUploadManagerDelegate {
             try directory.setResourceValues(values)
         }
         catch { workflowState = .preparationFailed(PickerError.assetExportSessionFailed); return }
-        let tempFile = directory.appendingPathComponent("upload-\(UUID().uuidString).mp4")
-        preparingFile = tempFile
+        let preparationID = UUID()
+        self.preparationID = preparationID
 
-        guard photosAuthStatus.canFetchPhotoKitAssets else {
-            prepareTransferredFileForUpload(from: pickerItem, outFile: tempFile)
-            return
-        }
-
-        guard let itemIdentifier = pickerItem.itemIdentifier else {
-            self.logger.error("No item identifier for chosen video")
-            self.workflowState = .preparationFailed(PickerError.assetExportSessionFailed)
-            return
-        }
-
-        let options = PHFetchOptions()
-        options.includeAssetSourceTypes = [.typeUserLibrary, .typeCloudShared]
-        let fetchAssetResult = PHAsset.fetchAssets(withLocalIdentifiers: [itemIdentifier], options: options)
-        guard let fetchedAsset = fetchAssetResult.firstObject else {
-            self.logger.error("No Asset fetched")
-            self.workflowState = .preparationFailed(PickerError.missingAssetIdentifier)
-            return
-        }
-
-        let exportOptions = PHVideoRequestOptions()
-        exportOptions.isNetworkAccessAllowed = true
-        exportOptions.deliveryMode = .highQualityFormat
-        self.assetRequestId = PHImageManager.default().requestExportSession(
-            forVideo: fetchedAsset,
-            options: exportOptions,
-            exportPreset: AVAssetExportPresetPassthrough,
-            resultHandler: {(exportSession, info) -> Void in
-                Task { @MainActor [weak self] in
-                    guard let self else {
-                        return
-                    }
-                    guard self.preparingFile == tempFile else { return }
-                    guard let exportSession = exportSession else {
-                        self.logger.error("!! No Export session")
-                        self.workflowState = .preparationFailed(UploadCreationModel.PickerError.assetExportSessionFailed)
-                        return
-                    }
-                    self.exportToOutFile(session: exportSession, outFile: tempFile)
-                }
-            }
-        )
-    }
-
-    private func prepareTransferredFileForUpload(from pickerItem: PhotosPickerItem, outFile: URL) {
         prepareTask = Task { [weak self] in
             guard let self else {
                 return
             }
+            var copiedFile: URL?
             var handedToThumbnail = false
-            defer { if !handedToThumbnail { self.removeCopiedInput(outFile) } }
+            defer { if !handedToThumbnail, let copiedFile { self.removeCopiedInput(copiedFile) } }
 
+            // PhotosPicker gives us a copy of the selected video without any photo library permission.
+            let localVideoFile: URL
             do {
                 let uploadInput = try await pickerItem.loadTransferable(type: UploadInput.self)
-                guard !Task.isCancelled, self.preparingFile == outFile else { return }
+                guard !Task.isCancelled, self.preparationID == preparationID else {
+                    if let uploadInput { try? FileManager.default.removeItem(at: uploadInput.file) }
+                    return
+                }
                 guard let uploadInput else {
                     self.workflowState = .preparationFailed(PickerError.assetExportSessionFailed)
                     return
                 }
 
-                if FileManager.default.fileExists(atPath: outFile.path) {
-                    try FileManager.default.removeItem(at: outFile)
+                // Move the picker's temporary copy somewhere that survives relaunch,
+                // so an interrupted upload can be resumed from the same file.
+                // Keep the source's extension so the container type isn't misrepresented.
+                localVideoFile = directory
+                    .appendingPathComponent("upload-\(preparationID.uuidString)")
+                    .appendingPathExtension(uploadInput.file.pathExtension)
+                copiedFile = localVideoFile
+                do {
+                    try FileManager.default.moveItem(at: uploadInput.file, to: localVideoFile)
+                } catch {
+                    try? FileManager.default.removeItem(at: uploadInput.file)
+                    throw error
                 }
-                try FileManager.default.copyItem(at: uploadInput.file, to: outFile)
-
-                let asset = AVAsset(url: outFile)
-                // The SDK uploads to a Direct Upload URL created in a trusted environment.
-                let putURL = try await self.fakeBackend.createDirectUpload(
-                    maxResolutionTier: Self.uploadConfiguration.muxMaximumResolutionTier
-                )
-                guard !Task.isCancelled, self.preparingFile == outFile else { return }
-
-                extractThumbnailAsync(asset) { thumbnailImage in
-                    guard self.preparingFile == outFile else { self.removeCopiedInput(outFile); return }
-                    self.logger.debug("Yay, Media ready for upload!")
-                    self.workflowState = .ready(
-                        PreparedUpload(thumbnail: thumbnailImage, localVideoFile: outFile, remoteURL: putURL)
-                    )
-                }
-                handedToThumbnail = true
+                self.logger.debug("tryToPrepare: transferable loaded. File: \(localVideoFile.absoluteString)")
             } catch {
-                guard !Task.isCancelled, self.preparingFile == outFile else { return }
-                self.logger.error("Failed to prepare transferred video: \(error.localizedDescription)")
-                self.workflowState = .preparationFailed(PickerError.assetExportSessionFailed)
-            }
-        }
-    }
-
-    private func exportToOutFile(session: AVAssetExportSession, outFile: URL) {
-        session.outputURL = outFile
-        session.outputFileType = AVFileType.mp4
-        prepareTask = Task { [weak self] in
-            guard let self else {
-                return
-            }
-            var handedToThumbnail = false
-            defer { if !handedToThumbnail { self.removeCopiedInput(outFile) } }
-
-            await session.export()
-            guard !Task.isCancelled, self.preparingFile == outFile else { return }
-            guard session.status == .completed else {
+                guard !Task.isCancelled, self.preparationID == preparationID else { return }
+                self.logger.error("Failed to load selected video: \(error.localizedDescription)")
                 self.workflowState = .preparationFailed(PickerError.assetExportSessionFailed)
                 return
             }
@@ -339,19 +276,19 @@ final class UploadCreationModel: ObservableObject, DirectUploadManagerDelegate {
                 let putURL = try await self.fakeBackend.createDirectUpload(
                     maxResolutionTier: Self.uploadConfiguration.muxMaximumResolutionTier
                 )
-                guard !Task.isCancelled, self.preparingFile == outFile else { return }
+                guard !Task.isCancelled, self.preparationID == preparationID else { return }
 
-                extractThumbnailAsync(session.asset) { thumbnailImage in
-                    guard self.preparingFile == outFile else { self.removeCopiedInput(outFile); return }
-                    self.logger.debug("Yay, Media exported & ready for upload!")
-                    self.assetRequestId = nil
+                self.logger.debug("extracting thumbnail")
+                extractThumbnailAsync(AVAsset(url: localVideoFile)) { thumbnailImage in
+                    guard self.preparationID == preparationID else { self.removeCopiedInput(localVideoFile); return }
+                    self.logger.debug("Yay, Media ready for upload!")
                     self.workflowState = .ready(
-                        PreparedUpload(thumbnail: thumbnailImage, localVideoFile: outFile, remoteURL: putURL)
+                        PreparedUpload(thumbnail: thumbnailImage, localVideoFile: localVideoFile, remoteURL: putURL)
                     )
                 }
                 handedToThumbnail = true
             } catch {
-                guard !Task.isCancelled, self.preparingFile == outFile else { return }
+                guard !Task.isCancelled, self.preparationID == preparationID else { return }
                 self.logger.error("Failed to create Upload: \(error.localizedDescription)")
                 self.workflowState = .preparationFailed(PickerError.createUploadFailed)
             }
@@ -393,11 +330,7 @@ final class UploadCreationModel: ObservableObject, DirectUploadManagerDelegate {
 
     }
 
-    private func cancelPhotoKitRequests() {
-        if let assetRequestId {
-            PHImageManager.default().cancelImageRequest(assetRequestId)
-        }
-        assetRequestId = nil
+    private func cancelThumbnailGeneration() {
         thumbnailGenerator?.cancelAllCGImageGeneration()
     }
 
@@ -415,9 +348,9 @@ final class UploadCreationModel: ObservableObject, DirectUploadManagerDelegate {
     }
 
     private func cancelPreparation() {
-        preparingFile = nil
+        preparationID = nil
         prepareTask?.cancel()
-        cancelPhotoKitRequests()
+        cancelThumbnailGeneration()
         switch workflowState {
         case .ready(let prepared), .completed(.failure(_), let prepared), .restoreFailed(_, let prepared):
             // Picking another video abandons this session, including its saved checkpoint.
@@ -467,35 +400,4 @@ enum WorkflowState {
     case restoring(PreparedUpload)
     case restoreFailed(String, preparedMedia: PreparedUpload)
     case completed(DirectUploadResult, preparedMedia: PreparedUpload)
-}
-
-enum PhotosAuthState {
-    case notDetermined
-    case cantAuth(PHAuthorizationStatus)
-    case canAuth(PHAuthorizationStatus)
-    case authorized(PHAuthorizationStatus)
-}
-
-extension PhotosAuthState {
-    var canFetchPhotoKitAssets: Bool {
-        switch self {
-        case .authorized:
-            return true
-        case .notDetermined, .canAuth, .cantAuth:
-            return false
-        }
-    }
-}
-
-extension PHAuthorizationStatus {
-    func asAppAuthState() -> PhotosAuthState {
-        switch self {
-        case .authorized: return PhotosAuthState.authorized(self)
-        case .limited: return PhotosAuthState.canAuth(self)
-        case .notDetermined: return PhotosAuthState.notDetermined
-        case .restricted: return PhotosAuthState.cantAuth(self)
-        case .denied: return PhotosAuthState.cantAuth(self)
-        @unknown default: return PhotosAuthState.canAuth(self) // It's for future compat, why not be optimistic?
-        }
-    }
 }
