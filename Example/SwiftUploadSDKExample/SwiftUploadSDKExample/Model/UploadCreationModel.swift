@@ -418,7 +418,16 @@ final class UploadCreationModel: ObservableObject, DirectUploadManagerDelegate {
         preparingFile = nil
         prepareTask?.cancel()
         cancelPhotoKitRequests()
-        if case .ready(let prepared) = workflowState { removeCopiedInput(prepared.localVideoFile) }
+        switch workflowState {
+        case .ready(let prepared), .completed(.failure(_), let prepared), .restoreFailed(_, let prepared):
+            // Picking another video abandons this session, including its saved checkpoint.
+            for upload in DirectUploadManager.shared.allManagedDirectUploads()
+                where upload.uploadURL == prepared.remoteURL {
+                upload.cancel()
+            }
+            removeCopiedInput(prepared.localVideoFile)
+        default: break
+        }
         // An in-flight copy/export removes its own output after it stops writing.
     }
 
