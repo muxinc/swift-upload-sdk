@@ -66,6 +66,7 @@ final class UploadCreationModel: ObservableObject, DirectUploadManagerDelegate {
     )
 
     @Published var photosAuthStatus: PhotosAuthState
+    @Published private(set) var hasFinishedRestoringUploads = false
     @Published var workflowState: WorkflowState = .idle
     @Published var pickedItem: [PhotosPickerItem] = [] {
         didSet {
@@ -87,6 +88,7 @@ final class UploadCreationModel: ObservableObject, DirectUploadManagerDelegate {
     nonisolated func didUpdate(managedDirectUploads uploads: [DirectUpload]) {
         DirectUploadManager.shared.removeDelegate(self)
         Task { @MainActor in
+            defer { self.hasFinishedRestoringUploads = true }
             for upload in uploads where !upload.inProgress && !upload.complete {
                 guard let source = (upload.inputAsset as? AVURLAsset)?.url else { continue }
                 let prepared = PreparedUpload(thumbnail: nil, localVideoFile: source, remoteURL: upload.uploadURL)
@@ -109,6 +111,7 @@ final class UploadCreationModel: ObservableObject, DirectUploadManagerDelegate {
     }
 
     func startPreparedUpload() {
+        guard hasFinishedRestoringUploads else { return }
         guard case .ready(let preparedMedia) = workflowState else {
             assertionFailure("startPreparedUpload called without prepared media")
             return
@@ -203,6 +206,7 @@ final class UploadCreationModel: ObservableObject, DirectUploadManagerDelegate {
 
     /// Prepares the selected video as a local file before handing it to the upload SDK.
     func tryToPrepare(from pickerItem: PhotosPickerItem) {
+        guard hasFinishedRestoringUploads else { return }
         prepareTask?.cancel()
         resumeTask?.cancel()
         cancelPhotoKitRequests()

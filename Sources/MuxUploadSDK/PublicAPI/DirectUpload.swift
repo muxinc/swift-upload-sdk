@@ -277,9 +277,9 @@ public typealias DirectUploadResult = Result<DirectUpload.SuccessDetails, Direct
 /// ```
 ///
 /// Retain the returned upload while your application needs to control it.
-/// Uploads created by this SDK are globally managed by default,
-/// and can be resumed after failures or after an application
-/// restart or termination. For more information, see ``DirectUploadManager``.
+/// Uploads are globally managed by default; restoration after failure or termination requires sending to have begun,
+/// the upload file to remain available, a checkpoint no more than three days old, and a server upload that has not expired.
+/// See [Resuming uploads](https://github.com/muxinc/swift-upload-sdk#resuming-uploads) for the integration requirements.
 public final class DirectUpload {
 
     var input: UploadInput {
